@@ -1,7 +1,10 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 
 import '../engine/engine.dart';
 import 'theme.dart';
+import 'widgets.dart';
 
 class SettingsPage extends StatelessWidget {
   const SettingsPage({super.key, required this.engine});
@@ -12,90 +15,107 @@ class SettingsPage extends StatelessWidget {
     final plugins = engine.plugins;
     final hid = plugins.where((p) => p.error == null && p.isHid).length;
     final failed = plugins.where((p) => p.error != null).toList();
-    Widget row(String k, String v) => Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(
-            width: 200,
-            child: Text(k, style: const TextStyle(color: OcColors.textMuted)),
-          ),
-          Expanded(child: SelectableText(v)),
-        ],
+
+    Widget folder(String title, String path) => OcRow(
+      title: title,
+      description: path,
+      trailing: OcIconButton(
+        icon: Icons.open_in_new_rounded,
+        tooltip: 'Abrir pasta',
+        onPressed: Directory(path).existsSync()
+            ? () => Process.run('explorer', [path])
+            : null,
       ),
     );
+    Widget stat(String title, String value) => OcRow(
+      title: title,
+      trailing: Text(value, style: OcText.mono.copyWith(color: Oc.text)),
+    );
+
     return ListView(
-      padding: const EdgeInsets.all(28),
       children: [
-        const Text(
-          'Configurações',
-          style: TextStyle(fontSize: 22, fontWeight: FontWeight.w600),
+        const PageHeader(
+          title: 'Configurações',
+          subtitle: 'Brilho, fontes de conteúdo e compatibilidade.',
         ),
-        const SizedBox(height: 20),
-        Card(
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Fontes',
-                  style: TextStyle(fontWeight: FontWeight.w600),
-                ),
-                const SizedBox(height: 8),
-                row(
-                  'Instalação do SignalRGB',
-                  engine.paths.installDir ?? 'não encontrada',
-                ),
-                row('Pasta do usuário', engine.paths.userDir),
-                row('Cache de efeitos', engine.paths.effectCacheDir),
-                row('Dados do OpenChroma', engine.dataDir),
-              ],
-            ),
-          ),
-        ),
-        const SizedBox(height: 16),
-        Card(
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Compatibilidade',
-                  style: TextStyle(fontWeight: FontWeight.w600),
-                ),
-                const SizedBox(height: 8),
-                row('Plugins carregados', '${plugins.length}'),
-                row('Plugins HID suportados', '$hid'),
-                row('Efeitos', '${engine.effects.length}'),
-                row(
-                  'Placa-mãe',
-                  engine.systemInfo['motherboard']?['model'] ?? '',
-                ),
-                if (failed.isNotEmpty)
-                  row(
-                    'Plugins com erro',
-                    failed.map((p) => '${p.name}: ${p.error}').join('\n'),
+        Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 760),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(32, 0, 32, 40),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  const SectionLabel('Geral'),
+                  OcPanel(
+                    children: [
+                      OcRow(
+                        title: 'Brilho global',
+                        description: 'Aplicado a todos os dispositivos.',
+                        stacked: true,
+                        trailing: OcSlider(
+                          value: engine.brightness.toDouble(),
+                          min: 0,
+                          max: 100,
+                          suffix: '%',
+                          onChanged: (v) => engine.setBrightness(v.round()),
+                        ),
+                      ),
+                      OcRow(
+                        title: 'Procurar dispositivos',
+                        description:
+                            'A busca também roda sozinha a cada 5 segundos.',
+                        trailing: OcButton(
+                          label: 'Procurar agora',
+                          icon: Icons.refresh_rounded,
+                          onPressed: engine.refreshDevices,
+                        ),
+                      ),
+                    ],
                   ),
-                const SizedBox(height: 8),
-                const Text(
-                  'Esta versão controla dispositivos USB HID. SMBus (RAM/GPU), controle de fans, '
-                  'telas LCD e captura de tela/áudio ainda não estão implementados.',
-                  style: TextStyle(color: OcColors.textMuted, fontSize: 12.5),
-                ),
-              ],
+                  const SizedBox(height: 28),
+                  const SectionLabel('Fontes'),
+                  OcPanel(
+                    children: [
+                      for (final root in engine.paths.pluginRoots)
+                        folder('Plugins', root),
+                      for (final root in engine.paths.effectRoots)
+                        folder('Efeitos', root),
+                      folder('Dados do aplicativo', engine.dataDir),
+                    ],
+                  ),
+                  const SizedBox(height: 28),
+                  const SectionLabel('Compatibilidade'),
+                  OcPanel(
+                    children: [
+                      stat('Plugins carregados', '${plugins.length}'),
+                      stat('Plugins USB HID', '$hid'),
+                      stat('Efeitos', '${engine.effects.length}'),
+                      stat(
+                        'Placa-mãe',
+                        engine.systemInfo['motherboard']?['model'] ?? '—',
+                      ),
+                      if (failed.isNotEmpty)
+                        OcRow(
+                          title: 'Plugins com erro',
+                          description: failed
+                              .map((p) => '${p.name}: ${p.error}')
+                              .join('\n'),
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  const Padding(
+                    padding: EdgeInsets.only(left: 2),
+                    child: Text(
+                      'Esta versão controla dispositivos USB HID. Memórias e placas de vídeo (SMBus), '
+                      'ventoinhas, telas LCD e efeitos de tela ou áudio ainda não são suportados.',
+                      style: OcText.caption,
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ),
-        ),
-        const SizedBox(height: 16),
-        Align(
-          alignment: Alignment.centerLeft,
-          child: FilledButton.icon(
-            icon: const Icon(Icons.refresh, size: 18),
-            label: const Text('Procurar dispositivos agora'),
-            onPressed: engine.refreshDevices,
           ),
         ),
       ],

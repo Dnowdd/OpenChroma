@@ -7,6 +7,7 @@ import 'effects_page.dart';
 import 'layout_page.dart';
 import 'settings_page.dart';
 import 'theme.dart';
+import 'widgets.dart';
 
 class Shell extends StatefulWidget {
   const Shell({super.key, required this.engine});
@@ -17,68 +18,146 @@ class Shell extends StatefulWidget {
 }
 
 class _ShellState extends State<Shell> {
-  int _page = 0;
+  // OC_PAGE opens a given page on launch (handy for screenshots).
+  int _page = const int.fromEnvironment('OC_PAGE');
 
   static const _nav = [
-    (Icons.auto_awesome_outlined, Icons.auto_awesome, 'Efeitos'),
-    (Icons.devices_other_outlined, Icons.devices_other, 'Dispositivos'),
-    (Icons.dashboard_customize_outlined, Icons.dashboard_customize, 'Layout'),
-    (Icons.settings_outlined, Icons.settings, 'Configurações'),
+    (Icons.grid_view_rounded, 'Efeitos'),
+    (Icons.devices_other_outlined, 'Dispositivos'),
+    (Icons.space_dashboard_outlined, 'Layout'),
+    (Icons.tune_rounded, 'Configurações'),
   ];
 
   @override
   Widget build(BuildContext context) {
     final engine = widget.engine;
     return Scaffold(
-      body: Row(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
+      body: Column(
         children: [
-          Container(
-            width: 248,
-            color: OcColors.sidebar,
-            child: Column(
+          Expanded(
+            child: Row(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                const _Logo(),
-                const SizedBox(height: 8),
-                for (var i = 0; i < _nav.length; i++)
-                  _NavItem(
-                    icon: _page == i ? _nav[i].$2 : _nav[i].$1,
-                    label: _nav[i].$3,
-                    selected: _page == i,
-                    badge: i == 1
-                        ? engine.devices.values
-                              .where((d) => d.status == 'running')
-                              .length
-                        : null,
-                    onTap: () => setState(() => _page = i),
+                ListenableBuilder(
+                  listenable: engine,
+                  builder: (context, _) => _Sidebar(
+                    engine: engine,
+                    index: _page,
+                    items: _nav,
+                    onSelect: (i) => setState(() => _page = i),
                   ),
-                const Spacer(),
-                _NowPlaying(engine: engine),
-              ],
-            ),
-          ),
-          Expanded(
-            child: ListenableBuilder(
-              listenable: engine,
-              builder: (context, _) => Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  if (engine.conflicts.isNotEmpty)
-                    _ConflictBanner(names: engine.conflicts),
-                  Expanded(
-                    child: IndexedStack(
-                      index: _page,
+                ),
+                const VerticalDivider(width: 1),
+                Expanded(
+                  child: ListenableBuilder(
+                    listenable: engine,
+                    builder: (context, _) => Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        EffectsPage(engine: engine),
-                        DevicesPage(engine: engine),
-                        LayoutPage(engine: engine),
-                        SettingsPage(engine: engine),
+                        if (engine.conflicts.isNotEmpty)
+                          _ConflictBanner(names: engine.conflicts),
+                        Expanded(
+                          child: IndexedStack(
+                            index: _page,
+                            children: [
+                              EffectsPage(engine: engine),
+                              DevicesPage(engine: engine),
+                              LayoutPage(engine: engine),
+                              SettingsPage(engine: engine),
+                            ],
+                          ),
+                        ),
                       ],
                     ),
                   ),
-                ],
-              ),
+                ),
+              ],
+            ),
+          ),
+          NowPlayingBar(
+            engine: engine,
+            onOpenEffects: () => setState(() => _page = 0),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _Sidebar extends StatelessWidget {
+  const _Sidebar({
+    required this.engine,
+    required this.index,
+    required this.items,
+    required this.onSelect,
+  });
+  final Engine engine;
+  final int index;
+  final List<(IconData, String)> items;
+  final ValueChanged<int> onSelect;
+
+  @override
+  Widget build(BuildContext context) {
+    final active = engine.devices.values
+        .where((d) => d.status == 'running')
+        .length;
+    return Container(
+      width: 220,
+      color: Oc.bg,
+      padding: const EdgeInsets.fromLTRB(12, 20, 12, 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const Padding(
+            padding: EdgeInsets.only(left: 8, bottom: 24),
+            child: Row(
+              children: [
+                _LogoMark(),
+                SizedBox(width: 10),
+                Text(
+                  'OpenChroma',
+                  style: TextStyle(
+                    fontFamily: Oc.fontDisplay,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
+                    letterSpacing: -0.2,
+                    color: Oc.text,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          for (var i = 0; i < items.length; i++)
+            _NavItem(
+              icon: items[i].$1,
+              label: items[i].$2,
+              selected: index == i,
+              trailing: i == 1 && active > 0 ? '$active' : null,
+              onTap: () => onSelect(i),
+            ),
+          const Spacer(),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8),
+            child: Row(
+              children: [
+                OcStatusDot(
+                  color: engine.scanning
+                      ? Oc.warning
+                      : (active > 0 ? Oc.success : Oc.textTertiary),
+                  size: 6,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    engine.scanning
+                        ? 'Carregando plugins…'
+                        : active == 1
+                        ? '1 dispositivo conectado'
+                        : '$active dispositivos conectados',
+                    style: OcText.caption,
+                  ),
+                ),
+              ],
             ),
           ),
         ],
@@ -87,56 +166,49 @@ class _ShellState extends State<Shell> {
   }
 }
 
-class _ConflictBanner extends StatelessWidget {
-  const _ConflictBanner({required this.names});
-  final List<String> names;
+/// A minimal mark: a ring with a lit segment.
+class _LogoMark extends StatelessWidget {
+  const _LogoMark();
 
   @override
-  Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-    color: OcColors.warn.withValues(alpha: .14),
-    child: Row(
-      children: [
-        const Icon(Icons.warning_amber_rounded, color: OcColors.warn, size: 20),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Text(
-            '${names.join(', ')} está aberto e também controla os LEDs; '
-            'os dois programas vão disputar as cores e elas vão piscar. '
-            'Feche-o (inclusive na bandeja do sistema) para usar o OpenChroma.',
-            style: const TextStyle(color: OcColors.warn, fontSize: 13),
-          ),
-        ),
-      ],
-    ),
+  Widget build(BuildContext context) => const SizedBox(
+    width: 20,
+    height: 20,
+    child: CustomPaint(painter: _LogoPainter()),
   );
 }
 
-class _Logo extends StatelessWidget {
-  const _Logo();
+class _LogoPainter extends CustomPainter {
+  const _LogoPainter();
 
   @override
-  Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.fromLTRB(20, 22, 20, 14),
-    child: Row(
-      children: [
-        Container(
-          width: 30,
-          height: 30,
-          decoration: BoxDecoration(
-            gradient: OcColors.accentGradient,
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: const Icon(Icons.blur_on, size: 20, color: Colors.white),
-        ),
-        const SizedBox(width: 10),
-        const Text(
-          'OpenChroma',
-          style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
-        ),
-      ],
-    ),
-  );
+  void paint(Canvas canvas, Size size) {
+    final c = size.center(Offset.zero);
+    final r = size.width / 2 - 2;
+    canvas.drawCircle(
+      c,
+      r,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2.4
+        ..color = Oc.lineStrong,
+    );
+    canvas.drawArc(
+      Rect.fromCircle(center: c, radius: r),
+      -1.9,
+      2.6,
+      false,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2.4
+        ..strokeCap = StrokeCap.round
+        ..color = Oc.text,
+    );
+    canvas.drawCircle(c, 2.2, Paint()..color = Oc.text);
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
 class _NavItem extends StatelessWidget {
@@ -145,134 +217,266 @@ class _NavItem extends StatelessWidget {
     required this.label,
     required this.selected,
     required this.onTap,
-    this.badge,
+    this.trailing,
   });
   final IconData icon;
   final String label;
   final bool selected;
   final VoidCallback onTap;
-  final int? badge;
+  final String? trailing;
 
   @override
   Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
-    child: Material(
-      color: selected ? OcColors.surfaceHigh : Colors.transparent,
-      borderRadius: BorderRadius.circular(10),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(10),
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
-          child: Row(
-            children: [
-              Icon(
-                icon,
-                size: 20,
-                color: selected ? OcColors.accent : OcColors.textMuted,
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  label,
-                  style: TextStyle(
-                    color: selected ? OcColors.text : OcColors.textMuted,
-                    fontWeight: selected ? FontWeight.w600 : FontWeight.normal,
-                  ),
+    padding: const EdgeInsets.only(bottom: 2),
+    child: Hover(
+      onTap: onTap,
+      builder: (context, h) => AnimatedContainer(
+        duration: Oc.fast,
+        height: 34,
+        padding: const EdgeInsets.symmetric(horizontal: 10),
+        decoration: BoxDecoration(
+          color: selected ? Oc.raised : (h ? Oc.panel : Colors.transparent),
+          borderRadius: Oc.r6,
+          border: Border.all(color: selected ? Oc.line : Colors.transparent),
+        ),
+        child: Row(
+          children: [
+            Icon(
+              icon,
+              size: 17,
+              color: selected || h ? Oc.text : Oc.textSecondary,
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                label,
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: selected ? FontWeight.w500 : FontWeight.w400,
+                  color: selected || h ? Oc.text : Oc.textSecondary,
                 ),
               ),
-              if (badge != null && badge! > 0)
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 7,
-                    vertical: 1,
-                  ),
-                  decoration: BoxDecoration(
-                    color: OcColors.accent.withValues(alpha: .18),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Text(
-                    '$badge',
-                    style: const TextStyle(
-                      fontSize: 11,
-                      color: OcColors.accent,
-                    ),
-                  ),
-                ),
-            ],
-          ),
+            ),
+            if (trailing != null) Text(trailing!, style: OcText.caption),
+          ],
         ),
       ),
     ),
   );
 }
 
-/// Sidebar card with the running effect. It hosts the WebView2 that renders
-/// the effect, so it must stay mounted and visible.
-class _NowPlaying extends StatelessWidget {
-  const _NowPlaying({required this.engine});
-  final Engine engine;
+class _ConflictBanner extends StatelessWidget {
+  const _ConflictBanner({required this.names});
+  final List<String> names;
 
   @override
   Widget build(BuildContext context) => Container(
-    margin: const EdgeInsets.all(12),
-    padding: const EdgeInsets.all(12),
+    padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 10),
     decoration: BoxDecoration(
-      color: OcColors.surface,
-      borderRadius: BorderRadius.circular(12),
-      border: Border.all(color: OcColors.border),
+      color: Oc.warning.withValues(alpha: .07),
+      border: Border(
+        bottom: BorderSide(color: Oc.warning.withValues(alpha: .2)),
+      ),
     ),
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
+    child: Row(
       children: [
-        ClipRRect(
-          borderRadius: BorderRadius.circular(8),
-          child: EffectPreview(engine: engine),
+        const Icon(Icons.error_outline_rounded, size: 16, color: Oc.warning),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Text.rich(
+            TextSpan(
+              children: [
+                TextSpan(
+                  text: '${names.join(', ')} está em execução. ',
+                  style: const TextStyle(fontWeight: FontWeight.w600),
+                ),
+                const TextSpan(
+                  text:
+                      'Dois programas controlando os mesmos LEDs fazem as cores piscarem. '
+                      'Feche-o, inclusive na bandeja do sistema.',
+                ),
+              ],
+            ),
+            style: const TextStyle(fontSize: 12.5, color: Oc.warning),
+          ),
         ),
-        const SizedBox(height: 10),
-        ListenableBuilder(
-          listenable: engine,
-          builder: (context, _) => Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
+      ],
+    ),
+  );
+}
+
+/// Persistent bottom bar with the running effect. It hosts the WebView that
+/// renders the effect, so it is always mounted and on screen.
+class NowPlayingBar extends StatelessWidget {
+  const NowPlayingBar({
+    super.key,
+    required this.engine,
+    required this.onOpenEffects,
+  });
+  final Engine engine;
+  final VoidCallback onOpenEffects;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    height: 76,
+    decoration: const BoxDecoration(
+      color: Oc.bg,
+      border: Border(top: BorderSide(color: Oc.line)),
+    ),
+    child: Stack(
+      children: [
+        Positioned(
+          left: 0,
+          right: 0,
+          top: -1,
+          child: LightStrip(engine: engine),
+        ),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: Row(
             children: [
-              Text(
-                engine.currentEffect?.title ?? 'Nenhum efeito',
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(fontWeight: FontWeight.w600),
+              ClipRRect(
+                borderRadius: Oc.r6,
+                child: Container(
+                  width: 80,
+                  height: 50,
+                  foregroundDecoration: BoxDecoration(
+                    borderRadius: Oc.r6,
+                    border: Border.all(
+                      color: Colors.white.withValues(alpha: .08),
+                    ),
+                  ),
+                  child: EffectPreview(engine: engine),
+                ),
               ),
-              const SizedBox(height: 6),
-              Row(
-                children: [
-                  const Icon(
-                    Icons.brightness_6,
-                    size: 16,
-                    color: OcColors.textMuted,
-                  ),
-                  Expanded(
-                    child: Slider(
-                      value: engine.brightness.toDouble(),
-                      min: 0,
-                      max: 100,
-                      onChanged: (v) => engine.setBrightness(v.round()),
-                    ),
-                  ),
-                  SizedBox(
-                    width: 34,
-                    child: Text(
-                      '${engine.brightness}%',
-                      style: const TextStyle(
-                        fontSize: 11,
-                        color: OcColors.textMuted,
+              const SizedBox(width: 14),
+              Expanded(
+                child: ListenableBuilder(
+                  listenable: engine,
+                  builder: (context, _) => Row(
+                    children: [
+                      Flexible(
+                        child: Hover(
+                          onTap: onOpenEffects,
+                          builder: (context, h) => Column(
+                            mainAxisSize: MainAxisSize.min,
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                engine.currentEffect?.title ?? 'Nenhum efeito',
+                                overflow: TextOverflow.ellipsis,
+                                style: OcText.label.copyWith(
+                                  decoration: h
+                                      ? TextDecoration.underline
+                                      : null,
+                                  decorationColor: Oc.textSecondary,
+                                ),
+                              ),
+                              const SizedBox(height: 3),
+                              Row(
+                                children: [
+                                  const OcStatusDot(color: Oc.success, size: 5),
+                                  const SizedBox(width: 6),
+                                  Text(
+                                    'Ao vivo em ${_devicesLabel(engine)}',
+                                    style: OcText.caption,
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
                       ),
-                    ),
+                      const Spacer(),
+                      const Icon(
+                        Icons.wb_sunny_outlined,
+                        size: 16,
+                        color: Oc.textSecondary,
+                      ),
+                      const SizedBox(width: 4),
+                      SizedBox(
+                        width: 200,
+                        child: OcSlider(
+                          value: engine.brightness.toDouble(),
+                          min: 0,
+                          max: 100,
+                          suffix: '%',
+                          onChanged: (v) => engine.setBrightness(v.round()),
+                        ),
+                      ),
+                    ],
                   ),
-                ],
+                ),
               ),
             ],
           ),
         ),
       ],
     ),
+  );
+
+  static String _devicesLabel(Engine e) {
+    final n = e.devices.values.where((d) => d.status == 'running').length;
+    return n == 1 ? '1 dispositivo' : '$n dispositivos';
+  }
+}
+
+/// A hairline that shows the middle row of the effect canvas, with a soft
+/// glow, so the chrome always carries the current light.
+class LightStrip extends StatelessWidget {
+  const LightStrip({super.key, required this.engine});
+  final Engine engine;
+
+  @override
+  Widget build(BuildContext context) => ValueListenableBuilder<CanvasFrame?>(
+    valueListenable: engine.frameNotifier,
+    builder: (context, f, _) {
+      if (f == null) return const SizedBox(height: 1);
+      const samples = 48;
+      final y = f.height ~/ 2;
+      final colors = <Color>[
+        for (var i = 0; i < samples; i++)
+          () {
+            final x = (i * (f.width - 1) / (samples - 1)).round();
+            final p = (y * f.width + x) * 3;
+            return Color.fromARGB(255, f.rgb[p], f.rgb[p + 1], f.rgb[p + 2]);
+          }(),
+      ];
+      final gradient = LinearGradient(colors: colors);
+      return SizedBox(
+        height: 14,
+        child: Stack(
+          children: [
+            Positioned(
+              left: 0,
+              right: 0,
+              top: 0,
+              height: 1,
+              child: DecoratedBox(
+                decoration: BoxDecoration(gradient: gradient),
+              ),
+            ),
+            Positioned.fill(
+              top: 1,
+              child: Opacity(
+                opacity: .12,
+                child: DecoratedBox(
+                  decoration: BoxDecoration(gradient: gradient),
+                  child: const DecoratedBox(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [Colors.transparent, Oc.bg],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    },
   );
 }

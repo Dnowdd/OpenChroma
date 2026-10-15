@@ -187,12 +187,24 @@ class _EffectPreviewState extends State<EffectPreview> {
 
   @override
   Widget build(BuildContext context) {
-    if (_error != null) {
-      return Center(
-        child: Text(_error!, style: const TextStyle(color: Colors.redAccent)),
+    if (_error != null || !_ready) {
+      return AspectRatio(
+        aspectRatio: canvasWidth / canvasHeight,
+        child: Tooltip(
+          message: _error ?? '',
+          child: ColoredBox(
+            color: Colors.black,
+            child: _error == null
+                ? null
+                : const Icon(
+                    Icons.videocam_off_outlined,
+                    size: 16,
+                    color: Colors.white38,
+                  ),
+          ),
+        ),
       );
     }
-    if (!_ready) return const Center(child: CircularProgressIndicator());
     // Lay the page out at its native 320x200 and scale the texture to fit.
     return AspectRatio(
       aspectRatio: canvasWidth / canvasHeight,

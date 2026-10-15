@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:isolate';
+import 'dart:ui' as ui;
 
 import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as p;
@@ -242,6 +243,7 @@ class Engine extends ChangeNotifier {
   // ---------------------------------------------------------------- effects
   void selectEffect(EffectInfo e) {
     currentEffect = e;
+    _effectSince = DateTime.now();
     _settings['effect'] = e.path;
     _save();
     notifyListeners();
@@ -267,6 +269,73 @@ class Engine extends ChangeNotifier {
   void onFrame(CanvasFrame f) {
     frame = f;
     frameNotifier.value = f;
+    _maybeCaptureThumbnail(f);
+  }
+
+  // ------------------------------------------------------------ thumbnails
+  // Effects without a preview image get one captured from their own canvas
+  // after they have been running for a moment.
+  late final String _thumbDir = p.join(dataDir, 'thumbs');
+  late final Set<String> _capturedThumbs = {
+    if (Directory(_thumbDir).existsSync())
+      for (final f in Directory(_thumbDir).listSync().whereType<File>()) f.path,
+  };
+  DateTime _effectSince = DateTime.now();
+  bool _capturing = false;
+
+  String _thumbPath(EffectInfo e) {
+    var h = 0x811c9dc5; // FNV-1a, stable across runs
+    for (final c in e.path.toLowerCase().codeUnits) {
+      h = ((h ^ c) * 0x01000193) & 0xffffffff;
+    }
+    return p.join(_thumbDir, '${h.toRadixString(16)}.png');
+  }
+
+  /// The effect's own preview image, or one captured from it, if any.
+  String? thumbnailFor(EffectInfo e) {
+    if (e.thumbnail != null) return e.thumbnail;
+    final t = _thumbPath(e);
+    return _capturedThumbs.contains(t) ? t : null;
+  }
+
+  void _maybeCaptureThumbnail(CanvasFrame f) {
+    final e = currentEffect;
+    if (e == null || _capturing || thumbnailFor(e) != null) return;
+    if (DateTime.now().difference(_effectSince) < const Duration(seconds: 3)) {
+      return;
+    }
+    // Skip near-black frames (e.g. audio effects with no sound playing).
+    var sum = 0;
+    for (var i = 0; i < f.rgb.length; i += 9) {
+      sum += f.rgb[i];
+    }
+    if (sum / (f.rgb.length / 9) < 6) return;
+    _capturing = true;
+    final rgba = Uint8List(f.width * f.height * 4);
+    for (var i = 0, j = 0; i < f.rgb.length; i += 3, j += 4) {
+      rgba[j] = f.rgb[i];
+      rgba[j + 1] = f.rgb[i + 1];
+      rgba[j + 2] = f.rgb[i + 2];
+      rgba[j + 3] = 255;
+    }
+    ui.decodeImageFromPixels(rgba, f.width, f.height, ui.PixelFormat.rgba8888, (
+      img,
+    ) async {
+      try {
+        final png = await img.toByteData(format: ui.ImageByteFormat.png);
+        if (png != null) {
+          final path = _thumbPath(e);
+          Directory(_thumbDir).createSync(recursive: true);
+          File(path).writeAsBytesSync(png.buffer.asUint8List());
+          _capturedThumbs.add(path);
+          notifyListeners();
+        }
+      } catch (_) {
+      } finally {
+        img.dispose();
+        _capturing = false;
+      }
+    });
   }
 
   // ---------------------------------------------------------------- devices
