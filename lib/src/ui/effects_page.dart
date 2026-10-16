@@ -33,6 +33,7 @@ class _EffectsPageState extends State<EffectsPage> {
             return switch (_filter) {
               'favorites' => engine.isFavorite(e),
               'imported' => e.imported,
+              'audio' => e.usesAudio,
               _ => true,
             };
           }).toList()
@@ -69,6 +70,7 @@ class _EffectsPageState extends State<EffectsPage> {
                       options: const [
                         ('all', 'Todos'),
                         ('favorites', 'Favoritos'),
+                        ('audio', 'Com som'),
                         ('imported', 'Importados'),
                       ],
                       onChanged: (v) => setState(() => _filter = v),
@@ -87,24 +89,41 @@ class _EffectsPageState extends State<EffectsPage> {
               Expanded(
                 child: list.isEmpty
                     ? _empty(context)
-                    : GridView.builder(
-                        padding: const EdgeInsets.fromLTRB(32, 0, 32, 32),
-                        gridDelegate:
-                            const SliverGridDelegateWithMaxCrossAxisExtent(
-                              maxCrossAxisExtent: 260,
-                              mainAxisSpacing: 24,
-                              crossAxisSpacing: 20,
-                              childAspectRatio: 1.22,
+                    : LayoutBuilder(
+                        builder: (context, box) {
+                          // Size cells so the cover is exactly 16:10 (the
+                          // effect canvas ratio) with the title below it.
+                          const gap = 20.0, pad = 32.0, minWidth = 220.0;
+                          final inner = box.maxWidth - pad * 2;
+                          final cols = ((inner + gap) / (minWidth + gap))
+                              .floor()
+                              .clamp(1, 8);
+                          final cell = (inner - gap * (cols - 1)) / cols;
+                          return GridView.builder(
+                            padding: const EdgeInsets.fromLTRB(
+                              pad,
+                              0,
+                              pad,
+                              pad,
                             ),
-                        itemCount: list.length,
-                        itemBuilder: (_, i) => _EffectCard(
-                          effect: list[i],
-                          thumbnail: engine.thumbnailFor(list[i]),
-                          selected: current?.path == list[i].path,
-                          favorite: engine.isFavorite(list[i]),
-                          onTap: () => engine.selectEffect(list[i]),
-                          onFavorite: () => engine.toggleFavorite(list[i]),
-                        ),
+                            gridDelegate:
+                                SliverGridDelegateWithFixedCrossAxisCount(
+                                  crossAxisCount: cols,
+                                  mainAxisSpacing: 22,
+                                  crossAxisSpacing: gap,
+                                  mainAxisExtent: cell / 1.6 + 32,
+                                ),
+                            itemCount: list.length,
+                            itemBuilder: (_, i) => _EffectCard(
+                              effect: list[i],
+                              thumbnail: engine.thumbnailFor(list[i]),
+                              selected: current?.path == list[i].path,
+                              favorite: engine.isFavorite(list[i]),
+                              onTap: () => engine.selectEffect(list[i]),
+                              onFavorite: () => engine.toggleFavorite(list[i]),
+                            ),
+                          );
+                        },
                       ),
               ),
             ],
@@ -164,70 +183,84 @@ class _EffectCard extends StatelessWidget {
     builder: (context, h) => Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Expanded(
-          child: AnimatedContainer(
-            duration: Oc.fast,
-            padding: const EdgeInsets.all(3),
-            decoration: BoxDecoration(
-              borderRadius: Oc.r12,
-              border: Border.all(
-                color: selected
-                    ? Oc.text
-                    : (h ? Oc.lineStrong : Colors.transparent),
-                width: 1.5,
-              ),
-            ),
-            child: ClipRRect(
-              borderRadius: Oc.r8,
-              child: Stack(
-                fit: StackFit.expand,
-                children: [
-                  AnimatedScale(
-                    duration: const Duration(milliseconds: 220),
-                    curve: Curves.easeOut,
-                    scale: h ? 1.03 : 1,
-                    child: AnimatedSwitcher(
-                      duration: const Duration(milliseconds: 300),
-                      child: thumbnail != null
-                          ? Image.file(
-                              File(thumbnail!),
-                              key: ValueKey(thumbnail),
-                              fit: BoxFit.cover,
-                              cacheWidth: 640,
-                              filterQuality: FilterQuality.medium,
-                              errorBuilder: (_, _, _) =>
-                                  EffectArtwork(seed: effect.title),
-                            )
-                          : EffectArtwork(
-                              key: const ValueKey('art'),
-                              seed: effect.title,
-                            ),
+        AspectRatio(
+          aspectRatio: 1.6,
+          child: ClipRRect(
+            borderRadius: Oc.r10,
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                AnimatedScale(
+                  duration: const Duration(milliseconds: 220),
+                  curve: Curves.easeOut,
+                  scale: h ? 1.04 : 1,
+                  child: AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 300),
+                    child: thumbnail != null
+                        ? Image.file(
+                            File(thumbnail!),
+                            key: ValueKey(thumbnail),
+                            fit: BoxFit.cover,
+                            cacheWidth: 640,
+                            filterQuality: FilterQuality.medium,
+                            errorBuilder: (_, _, _) =>
+                                EffectArtwork(seed: effect.title),
+                          )
+                        : EffectArtwork(
+                            key: const ValueKey('art'),
+                            seed: effect.title,
+                          ),
+                  ),
+                ),
+                // Selection and hover ring drawn over the cover, so the cover
+                // always fills the card edge to edge.
+                AnimatedContainer(
+                  duration: Oc.fast,
+                  decoration: BoxDecoration(
+                    borderRadius: Oc.r10,
+                    border: Border.all(
+                      color: selected
+                          ? Colors.white
+                          : Colors.white.withValues(alpha: h ? .28 : .06),
+                      width: selected ? 2 : 1,
                     ),
                   ),
-                  if (selected)
-                    const Positioned(top: 8, left: 8, child: _LiveChip()),
-                  if (h || favorite)
-                    Positioned(
-                      top: 6,
-                      right: 6,
-                      child: _FavoriteButton(
-                        active: favorite,
-                        onTap: onFavorite,
-                      ),
-                    ),
-                ],
-              ),
+                ),
+                if (selected)
+                  const Positioned(top: 8, left: 8, child: _LiveChip()),
+                if (h || favorite)
+                  Positioned(
+                    top: 6,
+                    right: 6,
+                    child: _FavoriteButton(active: favorite, onTap: onFavorite),
+                  ),
+              ],
             ),
           ),
         ),
         const SizedBox(height: 10),
         Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 4),
-          child: Text(
-            effect.title,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: OcText.label,
+          padding: const EdgeInsets.symmetric(horizontal: 2),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  effect.title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: OcText.label,
+                ),
+              ),
+              if (effect.usesAudio)
+                const Tooltip(
+                  message: 'Reage ao som',
+                  child: Icon(
+                    Icons.graphic_eq_rounded,
+                    size: 15,
+                    color: Oc.textTertiary,
+                  ),
+                ),
+            ],
           ),
         ),
       ],
@@ -529,12 +562,12 @@ const ocfxTemplate = r'''{
   "author": "Seu nome",
   "background": "#05060A",
   "params": {
-    "velocidade": { "label": "Velocidade", "type": "number", "min": 0, "max": 100, "default": 40 },
-    "cor": { "label": "Cor", "type": "color", "default": "#4C8DFF" }
+    "speed": { "label": "Velocidade", "type": "number", "min": 0, "max": 100, "default": 40 },
+    "color": { "label": "Cor", "type": "color", "default": "#4C8DFF" }
   },
   "layers": [
-    { "type": "gradient", "colors": ["#0B1E3D", "#24124D", "#0B1E3D"], "angle": 20, "speed": "$velocidade" },
-    { "type": "wave", "color": "$cor", "amplitude": 0.2, "frequency": 1.5, "thickness": 0.25, "speed": "$velocidade", "blend": "screen" }
+    { "type": "gradient", "colors": ["#0B1E3D", "#24124D", "#0B1E3D"], "angle": 20, "speed": "$speed" },
+    { "type": "wave", "color": "$color", "amplitude": 0.2, "frequency": 1.5, "thickness": 0.25, "speed": "$speed", "blend": "screen" }
   ]
 }
 ''';
@@ -614,7 +647,7 @@ class _ImportDialogState extends State<_ImportDialog> {
                   icon: Icons.tune_rounded,
                   title: 'Parâmetros',
                   text:
-                      r'Declare em "params" e use como "$nome" em qualquer camada. '
+                      r'Declare em "params" e use como "$name" em qualquer camada. '
                       'Eles viram controles no app.',
                 ),
               ],
