@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../i18n/pt_br.dart';
 import 'theme.dart';
 import 'widgets.dart';
 
@@ -49,8 +50,8 @@ class PropertyControl extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final description = tooltip.isEmpty ? null : displayText(tooltip);
-    final label = displayText(this.label);
+    final description = tooltip.isEmpty ? null : displayText(tr(tooltip));
+    final label = displayText(tr(this.label));
     switch (type) {
       case 'boolean':
         return OcRow(
@@ -68,6 +69,7 @@ class PropertyControl extends StatelessWidget {
           trailing: OcSelect(
             value: current,
             options: values,
+            labelOf: tr,
             onChanged: onChanged,
             width: 168,
           ),

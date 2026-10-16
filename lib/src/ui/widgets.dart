@@ -304,11 +304,17 @@ class OcSelect extends StatelessWidget {
     required this.options,
     required this.onChanged,
     this.width = 200,
+    this.labelOf,
   });
   final String? value;
   final List<String> options;
   final ValueChanged<String> onChanged;
   final double width;
+
+  /// Display text for an option; the option itself is what [onChanged] gets.
+  final String Function(String option)? labelOf;
+
+  String _label(String o) => labelOf?.call(o) ?? o;
 
   @override
   Widget build(BuildContext context) => PopupMenuButton<String>(
@@ -323,7 +329,7 @@ class OcSelect extends StatelessWidget {
           height: 34,
           child: Row(
             children: [
-              Expanded(child: Text(o, overflow: TextOverflow.ellipsis)),
+              Expanded(child: Text(_label(o), overflow: TextOverflow.ellipsis)),
               if (o == value) const Icon(Icons.check, size: 15, color: Oc.text),
             ],
           ),
@@ -344,7 +350,7 @@ class OcSelect extends StatelessWidget {
           children: [
             Expanded(
               child: Text(
-                value ?? '',
+                value == null ? '' : _label(value!),
                 overflow: TextOverflow.ellipsis,
                 style: const TextStyle(fontSize: 12.5, color: Oc.text),
               ),
