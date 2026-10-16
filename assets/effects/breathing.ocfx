@@ -5,11 +5,33 @@
   "author": "OpenChroma",
   "background": "#000000",
   "params": {
-    "cor": { "label": "Cor", "type": "color", "default": "#4C8DFF" },
-    "velocidade": { "label": "Ritmo", "type": "number", "min": 1, "max": 100, "default": 25 },
-    "minimo": { "label": "Brilho mínimo", "type": "number", "min": 0, "max": 100, "default": 5 }
+    "color": {
+      "label": "Cor",
+      "type": "color",
+      "default": "#4C8DFF"
+    },
+    "speed": {
+      "label": "Ritmo",
+      "type": "number",
+      "min": 1,
+      "max": 100,
+      "default": 25
+    },
+    "minimum": {
+      "label": "Brilho mínimo",
+      "type": "number",
+      "min": 0,
+      "max": 100,
+      "default": 5
+    }
   },
   "layers": [
-    { "type": "pulse", "color": "$cor", "speed": "$velocidade", "min": "$minimo", "max": 1 }
+    {
+      "type": "pulse",
+      "color": "$color",
+      "speed": "$speed",
+      "min": "$minimum",
+      "max": 1
+    }
   ]
 }

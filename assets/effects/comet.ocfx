@@ -5,13 +5,45 @@
   "author": "OpenChroma",
   "background": "#02030A",
   "params": {
-    "cor": { "label": "Cor do cometa", "type": "color", "default": "#FFFFFF" },
-    "fundo": { "label": "Cor do rastro", "type": "color", "default": "#4C8DFF" },
-    "velocidade": { "label": "Velocidade", "type": "number", "min": 0, "max": 100, "default": 45 },
-    "vaivem": { "label": "Ida e volta", "type": "boolean", "default": false }
+    "color": {
+      "label": "Cor do cometa",
+      "type": "color",
+      "default": "#FFFFFF"
+    },
+    "trailColor": {
+      "label": "Cor do rastro",
+      "type": "color",
+      "default": "#4C8DFF"
+    },
+    "speed": {
+      "label": "Velocidade",
+      "type": "number",
+      "min": 0,
+      "max": 100,
+      "default": 45
+    },
+    "bounce": {
+      "label": "Ida e volta",
+      "type": "boolean",
+      "default": false
+    }
   },
   "layers": [
-    { "type": "sweep", "color": "$fundo", "width": 0.6, "speed": "$velocidade", "bounce": "$vaivem", "opacity": 0.35 },
-    { "type": "sweep", "color": "$cor", "width": 0.12, "speed": "$velocidade", "bounce": "$vaivem", "blend": "add" }
+    {
+      "type": "sweep",
+      "color": "$trailColor",
+      "width": 0.6,
+      "speed": "$speed",
+      "bounce": "$bounce",
+      "opacity": 0.35
+    },
+    {
+      "type": "sweep",
+      "color": "$color",
+      "width": 0.12,
+      "speed": "$speed",
+      "bounce": "$bounce",
+      "blend": "add"
+    }
   ]
 }

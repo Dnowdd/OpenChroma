@@ -5,11 +5,41 @@
   "author": "OpenChroma",
   "background": "#120200",
   "params": {
-    "velocidade": { "label": "Velocidade", "type": "number", "min": 0, "max": 100, "default": 30 },
-    "fagulhas": { "label": "Fagulhas", "type": "number", "min": 0, "max": 120, "default": 45 }
+    "speed": {
+      "label": "Velocidade",
+      "type": "number",
+      "min": 0,
+      "max": 100,
+      "default": 30
+    },
+    "sparks": {
+      "label": "Fagulhas",
+      "type": "number",
+      "min": 0,
+      "max": 120,
+      "default": 45
+    }
   },
   "layers": [
-    { "type": "gradient", "colors": ["#7A0A00", "#E8400C", "#FF8A00", "#B31B00"], "angle": 90, "scale": 1.3, "speed": "$velocidade" },
-    { "type": "sparkle", "color": "#FFD27A", "density": "$fagulhas", "size": 7, "speed": 60, "blend": "add" }
+    {
+      "type": "gradient",
+      "colors": [
+        "#7A0A00",
+        "#E8400C",
+        "#FF8A00",
+        "#B31B00"
+      ],
+      "angle": 90,
+      "scale": 1.3,
+      "speed": "$speed"
+    },
+    {
+      "type": "sparkle",
+      "color": "#FFD27A",
+      "density": "$sparks",
+      "size": 7,
+      "speed": 60,
+      "blend": "add"
+    }
   ]
 }

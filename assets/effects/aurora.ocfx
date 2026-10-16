@@ -5,12 +5,52 @@
   "author": "OpenChroma",
   "background": "#030612",
   "params": {
-    "velocidade": { "label": "Velocidade", "type": "number", "min": 0, "max": 100, "default": 30 },
-    "cor": { "label": "Cor da onda", "type": "color", "default": "#3CFFB4" }
+    "speed": {
+      "label": "Velocidade",
+      "type": "number",
+      "min": 0,
+      "max": 100,
+      "default": 30
+    },
+    "color": {
+      "label": "Cor da onda",
+      "type": "color",
+      "default": "#3CFFB4"
+    }
   },
   "layers": [
-    { "type": "gradient", "colors": ["#0B3D2E", "#2A0B4D", "#05324D"], "angle": 15, "scale": 1.6, "speed": "$velocidade" },
-    { "type": "wave", "color": "$cor", "amplitude": 0.22, "frequency": 1.2, "thickness": 0.28, "position": 0.45, "speed": "$velocidade", "blend": "screen", "opacity": 0.85 },
-    { "type": "wave", "color": "#8B5CF6", "amplitude": 0.18, "frequency": 0.8, "thickness": 0.22, "position": 0.6, "speed": 20, "blend": "screen", "opacity": 0.6 }
+    {
+      "type": "gradient",
+      "colors": [
+        "#0B3D2E",
+        "#2A0B4D",
+        "#05324D"
+      ],
+      "angle": 15,
+      "scale": 1.6,
+      "speed": "$speed"
+    },
+    {
+      "type": "wave",
+      "color": "$color",
+      "amplitude": 0.22,
+      "frequency": 1.2,
+      "thickness": 0.28,
+      "position": 0.45,
+      "speed": "$speed",
+      "blend": "screen",
+      "opacity": 0.85
+    },
+    {
+      "type": "wave",
+      "color": "#8B5CF6",
+      "amplitude": 0.18,
+      "frequency": 0.8,
+      "thickness": 0.22,
+      "position": 0.6,
+      "speed": 20,
+      "blend": "screen",
+      "opacity": 0.6
+    }
   ]
 }

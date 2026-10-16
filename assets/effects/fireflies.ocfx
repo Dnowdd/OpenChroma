@@ -5,12 +5,44 @@
   "author": "OpenChroma",
   "background": "#03100A",
   "params": {
-    "cor": { "label": "Cor dos pontos", "type": "color", "default": "#C8FF5A" },
-    "quantidade": { "label": "Quantidade", "type": "number", "min": 5, "max": 150, "default": 60 },
-    "velocidade": { "label": "Velocidade", "type": "number", "min": 0, "max": 100, "default": 30 }
+    "color": {
+      "label": "Cor dos pontos",
+      "type": "color",
+      "default": "#C8FF5A"
+    },
+    "amount": {
+      "label": "Quantidade",
+      "type": "number",
+      "min": 5,
+      "max": 150,
+      "default": 60
+    },
+    "speed": {
+      "label": "Velocidade",
+      "type": "number",
+      "min": 0,
+      "max": 100,
+      "default": 30
+    }
   },
   "layers": [
-    { "type": "gradient", "colors": ["#04140C", "#0A2416", "#04140C"], "angle": 30, "speed": 10 },
-    { "type": "sparkle", "color": "$cor", "density": "$quantidade", "size": 9, "speed": "$velocidade", "blend": "add" }
+    {
+      "type": "gradient",
+      "colors": [
+        "#04140C",
+        "#0A2416",
+        "#04140C"
+      ],
+      "angle": 30,
+      "speed": 10
+    },
+    {
+      "type": "sparkle",
+      "color": "$color",
+      "density": "$amount",
+      "size": 9,
+      "speed": "$speed",
+      "blend": "add"
+    }
   ]
 }

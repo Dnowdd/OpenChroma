@@ -5,11 +5,48 @@
   "author": "OpenChroma",
   "background": "#001226",
   "params": {
-    "velocidade": { "label": "Velocidade", "type": "number", "min": 0, "max": 100, "default": 35 }
+    "speed": {
+      "label": "Velocidade",
+      "type": "number",
+      "min": 0,
+      "max": 100,
+      "default": 35
+    }
   },
   "layers": [
-    { "type": "gradient", "colors": ["#003B73", "#0074B7", "#00A6A6", "#003B73"], "angle": 0, "scale": 1.2, "speed": "$velocidade" },
-    { "type": "wave", "color": "#7FFFE4", "amplitude": 0.15, "frequency": 2, "thickness": 0.12, "position": 0.35, "speed": "$velocidade", "blend": "screen", "opacity": 0.5 },
-    { "type": "wave", "color": "#5AB4FF", "amplitude": 0.2, "frequency": 1.4, "thickness": 0.16, "position": 0.7, "speed": 25, "blend": "screen", "opacity": 0.45 }
+    {
+      "type": "gradient",
+      "colors": [
+        "#003B73",
+        "#0074B7",
+        "#00A6A6",
+        "#003B73"
+      ],
+      "angle": 0,
+      "scale": 1.2,
+      "speed": "$speed"
+    },
+    {
+      "type": "wave",
+      "color": "#7FFFE4",
+      "amplitude": 0.15,
+      "frequency": 2,
+      "thickness": 0.12,
+      "position": 0.35,
+      "speed": "$speed",
+      "blend": "screen",
+      "opacity": 0.5
+    },
+    {
+      "type": "wave",
+      "color": "#5AB4FF",
+      "amplitude": 0.2,
+      "frequency": 1.4,
+      "thickness": 0.16,
+      "position": 0.7,
+      "speed": 25,
+      "blend": "screen",
+      "opacity": 0.45
+    }
   ]
 }
