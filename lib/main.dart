@@ -62,6 +62,11 @@ class _OpenChromaAppState extends State<OpenChromaApp> {
     title: 'OpenChroma',
     debugShowCheckedModeBanner: false,
     theme: buildTheme(),
+    // The Windows embedder's accessibility bridge crashes (null dereference
+    // in accessibility_bridge.cc) after it fails to apply semantics updates
+    // that move nodes between parents, which this UI does on filtering and
+    // resizing. Publishing no semantics tree avoids that code path.
+    builder: (context, child) => ExcludeSemantics(child: child!),
     home: Shell(engine: widget.engine),
   );
 }
