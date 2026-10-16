@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 
 import '../engine/engine.dart';
+import 'effects_page.dart';
 import 'theme.dart';
 import 'widgets.dart';
 
@@ -12,46 +13,24 @@ class SettingsPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final plugins = engine.plugins;
-    final hid = plugins.where((p) => p.error == null && p.isHid).length;
-    final failed = plugins.where((p) => p.error != null).toList();
-
-    Widget folder(String title, String path) => OcRow(
-      title: title,
-      description: path,
-      trailing: OcIconButton(
-        icon: Icons.open_in_new_rounded,
-        tooltip: 'Abrir pasta',
-        onPressed: Directory(path).existsSync()
-            ? () => Process.run('explorer', [path])
-            : null,
-      ),
-    );
-    Widget stat(String title, String value) => OcRow(
-      title: title,
-      trailing: Text(value, style: OcText.mono.copyWith(color: Oc.text)),
-    );
-
+    final supported = engine.plugins
+        .where((p) => p.error == null && p.isHid)
+        .length;
     return ListView(
       children: [
-        const PageHeader(
-          title: 'Configurações',
-          subtitle: 'Brilho, fontes de conteúdo e compatibilidade.',
-        ),
+        const PageHeader(title: 'Configurações'),
         Center(
           child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 760),
+            constraints: const BoxConstraints(maxWidth: 680),
             child: Padding(
               padding: const EdgeInsets.fromLTRB(32, 0, 32, 40),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  const SectionLabel('Geral'),
                   OcPanel(
                     children: [
                       OcRow(
-                        title: 'Brilho global',
-                        description: 'Aplicado a todos os dispositivos.',
+                        title: 'Brilho',
                         stacked: true,
                         trailing: OcSlider(
                           value: engine.brightness.toDouble(),
@@ -62,56 +41,39 @@ class SettingsPage extends StatelessWidget {
                         ),
                       ),
                       OcRow(
-                        title: 'Procurar dispositivos',
-                        description:
-                            'A busca também roda sozinha a cada 5 segundos.',
+                        title: 'Dispositivos',
+                        description: 'Novos dispositivos aparecem sozinhos.',
                         trailing: OcButton(
                           label: 'Procurar agora',
-                          icon: Icons.refresh_rounded,
                           onPressed: engine.refreshDevices,
                         ),
                       ),
-                    ],
-                  ),
-                  const SizedBox(height: 28),
-                  const SectionLabel('Fontes'),
-                  OcPanel(
-                    children: [
-                      for (final root in engine.paths.pluginRoots)
-                        folder('Plugins', root),
-                      for (final root in engine.paths.effectRoots)
-                        folder('Efeitos', root),
-                      folder('Dados do aplicativo', engine.dataDir),
-                    ],
-                  ),
-                  const SizedBox(height: 28),
-                  const SectionLabel('Compatibilidade'),
-                  OcPanel(
-                    children: [
-                      stat('Plugins carregados', '${plugins.length}'),
-                      stat('Plugins USB HID', '$hid'),
-                      stat('Efeitos', '${engine.effects.length}'),
-                      stat(
-                        'Placa-mãe',
-                        engine.systemInfo['motherboard']?['model'] ?? '—',
-                      ),
-                      if (failed.isNotEmpty)
-                        OcRow(
-                          title: 'Plugins com erro',
-                          description: failed
-                              .map((p) => '${p.name}: ${p.error}')
-                              .join('\n'),
+                      OcRow(
+                        title: 'Efeitos',
+                        description:
+                            'Adicione efeitos .ocfx ou .html à biblioteca.',
+                        trailing: OcButton(
+                          label: 'Importar',
+                          onPressed: () => showImportDialog(context, engine),
                         ),
+                      ),
                     ],
                   ),
-                  const SizedBox(height: 12),
-                  const Padding(
-                    padding: EdgeInsets.only(left: 2),
-                    child: Text(
-                      'Esta versão controla dispositivos USB HID. Memórias e placas de vídeo (SMBus), '
-                      'ventoinhas, telas LCD e efeitos de tela ou áudio ainda não são suportados.',
-                      style: OcText.caption,
-                    ),
+                  const SizedBox(height: 32),
+                  Row(
+                    children: [
+                      Text(
+                        'OpenChroma 0.1 · $supported dispositivos compatíveis',
+                        style: OcText.caption,
+                      ),
+                      const Spacer(),
+                      OcButton(
+                        label: 'Abrir pasta de dados',
+                        variant: OcButtonVariant.ghost,
+                        onPressed: () =>
+                            Process.run('explorer', [engine.dataDir]),
+                      ),
+                    ],
                   ),
                 ],
               ),
