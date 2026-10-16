@@ -8,20 +8,24 @@ import 'package:webview_windows/webview_windows.dart';
 import '../engine/engine.dart';
 import 'effect_library.dart';
 
-const _host = 'effect.openchroma';
-
 /// Size of the frame sent back from the page (a quarter of 320x200 pixels).
 const frameWidth = 160;
 const frameHeight = 100;
 
-/// Injected before the effect's own scripts: declares the effect properties
-/// as globals (that is how SignalRGB exposes them), stubs the `engine` object,
-/// and streams the effect canvas back to Dart.
-String _bootstrap(Map<String, Object> props) =>
+/// Injected before the effect's own scripts: declares the effect parameters
+/// as globals (how HTML effects read them), passes the `.ocfx` definition,
+/// stubs the `engine` object and, when [stream] is set, streams the canvas
+/// back to Dart.
+String _bootstrap(
+  Map<String, Object> props, {
+  required bool stream,
+  Map<String, dynamic>? definition,
+}) =>
     '''
 (function () {
   var P = ${jsonEncode(props)};
   for (var k in P) window[k] = P[k];
+  ${definition == null ? '' : 'window.__OCFX = ${jsonEncode(definition)};'}
   var zeros = function (n) { var a = []; for (var i = 0; i < n; i++) a.push(0); return a; };
   window.engine = window.engine || {
     audio: { level: -100, density: 0, width: 0, freq: zeros(200) },
@@ -30,6 +34,19 @@ String _bootstrap(Map<String, Object> props) =>
     vision: {}, getSensorValue: function () { return { value: 0 }; },
     keypressed: false
   };
+  ${stream ? _streamScript : ''}
+  // Run change handlers once so effects that derive state from them initialize.
+  window.addEventListener('load', function () {
+    for (var k in P) {
+      var fn = window['on' + k + 'Changed'];
+      if (typeof fn === 'function') { try { fn(); } catch (e) { console.error(e); } }
+    }
+  });
+})();
+''';
+
+const _streamScript =
+    '''
   var off = document.createElement('canvas');
   off.width = $frameWidth; off.height = $frameHeight;
   var octx = null;
@@ -46,19 +63,56 @@ String _bootstrap(Map<String, Object> props) =>
     window.chrome.webview.postMessage({ f: btoa(bin) });
   }
   setInterval(grab, 33);
-  // Run change handlers once so effects that derive state from them initialize.
-  window.addEventListener('load', function () {
-    for (var k in P) {
-      var fn = window['on' + k + 'Changed'];
-      if (typeof fn === 'function') { try { fn(); } catch (e) { console.error(e); } }
-    }
-  });
-})();
 ''';
 
-/// Runs the current SignalRGB HTML effect in WebView2 and feeds its canvas to
-/// the [Engine]. The preview must stay on screen: WebView2 throttles
-/// animation frames of hidden views.
+/// Loads effects into one WebView: maps the effect's folder to a virtual
+/// HTTPS host and installs the bootstrap script for each load.
+class _EffectLoader {
+  _EffectLoader(this.controller, this.engine, this.host);
+  final WebviewController controller;
+  final Engine engine;
+  final String host;
+  ScriptID? _scriptId;
+  bool _mapped = false;
+
+  Future<void> load(
+    EffectInfo e,
+    Map<String, Object> props, {
+    required bool stream,
+  }) async {
+    if (_scriptId != null) {
+      await controller.removeScriptToExecuteOnDocumentCreated(_scriptId!);
+    }
+    final ocfx = e.kind == EffectKind.ocfx;
+    _scriptId = await controller.addScriptToExecuteOnDocumentCreated(
+      _bootstrap(props, stream: stream, definition: ocfx ? e.definition : null),
+    );
+    if (_mapped) {
+      try {
+        await controller.removeVirtualHostNameMapping(host);
+      } catch (_) {}
+    }
+    _mapped = true;
+    await controller.addVirtualHostNameMapping(
+      host,
+      ocfx ? engine.runtimeDir : p.dirname(e.path),
+      WebviewHostResourceAccessKind.allow,
+    );
+    final page = ocfx ? 'ocfx.html' : p.basename(e.path);
+    await controller.loadUrl('https://$host/${Uri.encodeComponent(page)}');
+  }
+}
+
+Map<String, Object> effectPropValues(Engine engine, EffectInfo e) {
+  final saved = engine.effectSettings(e);
+  return {
+    for (final prop in e.properties) prop.name: prop.coerce(saved[prop.name]),
+  };
+}
+
+/// Runs the current effect in WebView2 and feeds its canvas to the [Engine].
+/// The preview must stay on screen: WebView2 throttles animation frames of
+/// hidden views.
 class EffectPreview extends StatefulWidget {
   const EffectPreview({super.key, required this.engine});
   final Engine engine;
@@ -69,13 +123,16 @@ class EffectPreview extends StatefulWidget {
 
 class _EffectPreviewState extends State<EffectPreview> {
   final _controller = WebviewController();
+  late final _loader = _EffectLoader(
+    _controller,
+    widget.engine,
+    'effect.openchroma',
+  );
   StreamSubscription<dynamic>? _messages;
   bool _ready = false;
   String? _error;
-  String? _loadedPath;
+  String? _loadedKey;
   Map<String, dynamic> _sentProps = {};
-  ScriptID? _scriptId;
-  bool _mapped = false;
 
   @override
   void initState() {
@@ -106,13 +163,6 @@ class _EffectPreviewState extends State<EffectPreview> {
     }
   }
 
-  Map<String, Object> _propValues(EffectInfo e) {
-    final saved = widget.engine.effectSettings(e);
-    return {
-      for (final prop in e.properties) prop.name: prop.coerce(saved[prop.name]),
-    };
-  }
-
   Future<void>? _syncing;
   bool _resync = false;
 
@@ -139,30 +189,12 @@ class _EffectPreviewState extends State<EffectPreview> {
     if (!_ready) return;
     final e = widget.engine.currentEffect;
     if (e == null) return;
-    final values = _propValues(e);
-    if (e.path != _loadedPath) {
-      _loadedPath = e.path;
+    final values = effectPropValues(widget.engine, e);
+    final key = '${e.path}|${e.title}';
+    if (key != _loadedKey) {
+      _loadedKey = key;
       _sentProps = Map.of(values);
-      if (_scriptId != null) {
-        await _controller.removeScriptToExecuteOnDocumentCreated(_scriptId!);
-      }
-      _scriptId = await _controller.addScriptToExecuteOnDocumentCreated(
-        _bootstrap(values),
-      );
-      if (_mapped) {
-        try {
-          await _controller.removeVirtualHostNameMapping(_host);
-        } catch (_) {}
-      }
-      _mapped = true;
-      await _controller.addVirtualHostNameMapping(
-        _host,
-        p.dirname(e.path),
-        WebviewHostResourceAccessKind.allow,
-      );
-      await _controller.loadUrl(
-        'https://$_host/${Uri.encodeComponent(p.basename(e.path))}',
-      );
+      await _loader.load(e, values, stream: true);
       return;
     }
     // Live property edits: set the global and fire on<name>Changed().
@@ -217,4 +249,120 @@ class _EffectPreviewState extends State<EffectPreview> {
       ),
     );
   }
+}
+
+/// Renders covers for effects that have none: each effect runs for a few
+/// seconds in a second, never-streaming WebView and its canvas is saved at
+/// full resolution. Devices are not affected.
+///
+/// Must be in the widget tree (it may be covered by other widgets).
+class CoverBaker extends StatefulWidget {
+  const CoverBaker({super.key, required this.engine});
+  final Engine engine;
+
+  @override
+  State<CoverBaker> createState() => _CoverBakerState();
+}
+
+class _CoverBakerState extends State<CoverBaker> {
+  final _controller = WebviewController();
+  late final _loader = _EffectLoader(
+    _controller,
+    widget.engine,
+    'cover.openchroma',
+  );
+  bool _ready = false;
+  bool _running = false;
+  final _failed = <String>{};
+
+  // Returns a PNG data URL of the effect canvas, or null while it is still
+  // (almost) black.
+  static const _snapshot = '''
+(function () {
+  var c = document.getElementById('exCanvas') || document.querySelector('canvas');
+  if (!c) return null;
+  var s = document.createElement('canvas'); s.width = 32; s.height = 20;
+  var x = s.getContext('2d'); x.drawImage(c, 0, 0, 32, 20);
+  var d = x.getImageData(0, 0, 32, 20).data, sum = 0;
+  for (var i = 0; i < d.length; i += 4) sum += d[i] + d[i + 1] + d[i + 2];
+  if (sum / (d.length / 4) < 18) return null;
+  return c.toDataURL('image/png');
+})()''';
+
+  @override
+  void initState() {
+    super.initState();
+    _init();
+    widget.engine.addListener(_kick);
+  }
+
+  Future<void> _init() async {
+    try {
+      await _controller.initialize();
+      await _controller.setBackgroundColor(Colors.black);
+      await _controller.setPopupWindowPolicy(WebviewPopupWindowPolicy.deny);
+      if (!mounted) return;
+      setState(() => _ready = true);
+      _kick();
+    } catch (_) {
+      // Without a second WebView, effects keep their generated artwork.
+    }
+  }
+
+  void _kick() {
+    if (_ready && !_running) _bake();
+  }
+
+  Future<void> _bake() async {
+    _running = true;
+    try {
+      while (mounted) {
+        final pending = widget.engine.effectsWithoutCover
+            .where((e) => !_failed.contains(e.id))
+            .toList();
+        if (pending.isEmpty) break;
+        final e = pending.first;
+        await _loader.load(
+          e,
+          effectPropValues(widget.engine, e),
+          stream: false,
+        );
+        String? url;
+        for (var attempt = 0; attempt < 4 && url == null; attempt++) {
+          await Future<void>.delayed(
+            Duration(milliseconds: attempt == 0 ? 2500 : 1500),
+          );
+          final r = await _controller.executeScript(_snapshot);
+          if (r is String && r.startsWith('data:image/png;base64,')) url = r;
+        }
+        if (url == null) {
+          _failed.add(e.id);
+          continue;
+        }
+        widget.engine.saveCover(
+          e,
+          base64Decode(url.substring(url.indexOf(',') + 1)),
+        );
+      }
+      await _controller.loadUrl('about:blank');
+    } catch (e) {
+      debugPrint('cover baker stopped: $e');
+    } finally {
+      _running = false;
+    }
+  }
+
+  @override
+  void dispose() {
+    widget.engine.removeListener(_kick);
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => SizedBox(
+    width: canvasWidth,
+    height: canvasHeight,
+    child: _ready ? Webview(_controller, scaleFactor: 1.0) : null,
+  );
 }

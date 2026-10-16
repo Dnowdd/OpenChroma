@@ -1,0 +1,14 @@
+{
+  "openchroma": 1,
+  "name": "Neon",
+  "description": "Anéis rosa e ciano se expandindo a partir do centro.",
+  "author": "OpenChroma",
+  "background": "#07020F",
+  "params": {
+    "velocidade": { "label": "Velocidade", "type": "number", "min": 0, "max": 100, "default": 35 },
+    "espaco": { "label": "Espaçamento", "type": "number", "min": 16, "max": 120, "default": 48 }
+  },
+  "layers": [
+    { "type": "rings", "colors": ["#FF2EC4", "#2EE6FF", "#7B2CFF"], "spacing": "$espaco", "thickness": 0.55, "speed": "$velocidade" }
+  ]
+}

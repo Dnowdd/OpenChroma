@@ -2,12 +2,13 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:isolate';
-import 'dart:ui' as ui;
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:path/path.dart' as p;
 
 import '../effects/effect_library.dart';
+import '../effects/ocfx_runtime.dart';
 import '../hid/hid_ffi.dart';
 import '../paths.dart';
 import '../plugins/plugin_scanner.dart';
@@ -176,11 +177,12 @@ class Engine extends ChangeNotifier {
   Future<void> start() async {
     _loadSettings();
     brightness = (_settings['brightness'] as int?) ?? 100;
-    effects = scanEffects(paths.effectRoots);
+    await _installBundledContent();
+    _scanEffects();
     final saved = _settings['effect'] as String?;
     currentEffect =
         effects.where((e) => e.path == saved).firstOrNull ??
-        effects.where((e) => e.title == 'Rainbow').firstOrNull ??
+        effects.where((e) => e.title == 'Aurora').firstOrNull ??
         effects.firstOrNull;
     notifyListeners();
 
@@ -241,9 +243,39 @@ class Engine extends ChangeNotifier {
   }
 
   // ---------------------------------------------------------------- effects
+  late final String bundledEffectsDir = p.join(dataDir, 'effects', 'bundled');
+  late final String importedEffectsDir = p.join(dataDir, 'effects', 'imported');
+  late final String runtimeDir = p.join(dataDir, 'runtime');
+
+  /// Writes the `.ocfx` renderer page and the effects shipped as assets to
+  /// disk, where the WebView can load them.
+  Future<void> _installBundledContent() async {
+    Directory(runtimeDir).createSync(recursive: true);
+    File(p.join(runtimeDir, 'ocfx.html')).writeAsStringSync(ocfxRuntimeHtml);
+    final dir = Directory(bundledEffectsDir);
+    if (dir.existsSync()) dir.deleteSync(recursive: true);
+    dir.createSync(recursive: true);
+    Directory(importedEffectsDir).createSync(recursive: true);
+    final manifest = await AssetManifest.loadFromAssetBundle(rootBundle);
+    for (final asset in manifest.listAssets()) {
+      if (!asset.startsWith('assets/effects/')) continue;
+      final data = await rootBundle.load(asset);
+      File(p.join(bundledEffectsDir, p.basename(asset))).writeAsBytesSync(
+        data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes),
+      );
+    }
+  }
+
+  void _scanEffects() {
+    effects = scanEffects(
+      htmlRoots: paths.effectRoots,
+      bundledDir: bundledEffectsDir,
+      importedDir: importedEffectsDir,
+    );
+  }
+
   void selectEffect(EffectInfo e) {
     currentEffect = e;
-    _effectSince = DateTime.now();
     _settings['effect'] = e.path;
     _save();
     notifyListeners();
@@ -262,6 +294,71 @@ class Engine extends ChangeNotifier {
     notifyListeners();
   }
 
+  // Favorites are stored by effect title, which survives reinstalls and
+  // version-numbered install folders.
+  Set<String> get _favorites =>
+      ((_settings['favorites'] ??= <dynamic>[]) as List).cast<String>().toSet();
+
+  bool isFavorite(EffectInfo e) => _favorites.contains(e.title);
+
+  void toggleFavorite(EffectInfo e) {
+    final favs = _favorites;
+    if (!favs.remove(e.title)) favs.add(e.title);
+    _settings['favorites'] = favs.toList()..sort();
+    _save();
+    notifyListeners();
+  }
+
+  /// Copies an `.ocfx`/`.json` or `.html` effect into the library and
+  /// selects it. Throws [FormatException] with a user-facing message.
+  EffectInfo importEffect(String sourcePath) {
+    final ext = p.extension(sourcePath).toLowerCase();
+    if (!{'.ocfx', '.json', '.html'}.contains(ext)) {
+      throw const FormatException('Use um arquivo .ocfx, .json ou .html.');
+    }
+    // Validate before copying so a bad file never enters the library.
+    final probe = ext == '.html'
+        ? parseHtmlEffect(sourcePath, imported: true, force: true)
+        : parseOcfx(sourcePath, imported: true);
+    if (probe == null) {
+      throw const FormatException('Não foi possível ler esse arquivo.');
+    }
+    Directory(importedEffectsDir).createSync(recursive: true);
+    final base = probe.title
+        .toLowerCase()
+        .replaceAll(RegExp(r'[^a-z0-9]+'), '-')
+        .replaceAll(RegExp(r'^-|-$'), '');
+    final target = p.join(
+      importedEffectsDir,
+      '${base.isEmpty ? 'efeito' : base}${ext == '.json' ? '.ocfx' : ext}',
+    );
+    File(sourcePath).copySync(target);
+    _scanEffects();
+    final added = effects.firstWhere(
+      (e) => p.equals(e.path, target),
+      orElse: () => effects.firstWhere((e) => e.title == probe.title),
+    );
+    selectEffect(added);
+    return added;
+  }
+
+  void removeEffect(EffectInfo e) {
+    if (!e.imported) return;
+    try {
+      File(e.path).deleteSync();
+    } catch (_) {}
+    final cover = coverPath(e);
+    if (File(cover).existsSync()) File(cover).deleteSync();
+    _covers.remove(cover);
+    _scanEffects();
+    if (currentEffect?.path == e.path) {
+      currentEffect = effects.firstOrNull;
+      _settings['effect'] = currentEffect?.path;
+    }
+    _save();
+    notifyListeners();
+  }
+
   /// Fires on every effect frame (about 30 Hz) without rebuilding listeners
   /// of the engine itself.
   final frameNotifier = ValueNotifier<CanvasFrame?>(null);
@@ -269,73 +366,41 @@ class Engine extends ChangeNotifier {
   void onFrame(CanvasFrame f) {
     frame = f;
     frameNotifier.value = f;
-    _maybeCaptureThumbnail(f);
   }
 
-  // ------------------------------------------------------------ thumbnails
-  // Effects without a preview image get one captured from their own canvas
-  // after they have been running for a moment.
-  late final String _thumbDir = p.join(dataDir, 'thumbs');
-  late final Set<String> _capturedThumbs = {
-    if (Directory(_thumbDir).existsSync())
-      for (final f in Directory(_thumbDir).listSync().whereType<File>()) f.path,
+  // ------------------------------------------------------------ covers
+  // Effects without a preview image get a cover rendered from the effect
+  // itself (see CoverBaker).
+  late final String _coverDir = p.join(dataDir, 'covers');
+  late final Set<String> _covers = {
+    if (Directory(_coverDir).existsSync())
+      for (final f in Directory(_coverDir).listSync().whereType<File>()) f.path,
   };
-  DateTime _effectSince = DateTime.now();
-  bool _capturing = false;
 
-  String _thumbPath(EffectInfo e) {
+  String coverPath(EffectInfo e) {
     var h = 0x811c9dc5; // FNV-1a, stable across runs
-    for (final c in e.path.toLowerCase().codeUnits) {
+    for (final c in '${e.path.toLowerCase()}|${e.title}'.codeUnits) {
       h = ((h ^ c) * 0x01000193) & 0xffffffff;
     }
-    return p.join(_thumbDir, '${h.toRadixString(16)}.png');
+    return p.join(_coverDir, '${h.toRadixString(16)}.png');
   }
 
-  /// The effect's own preview image, or one captured from it, if any.
+  /// The effect's own preview image, or the rendered cover, if any.
   String? thumbnailFor(EffectInfo e) {
     if (e.thumbnail != null) return e.thumbnail;
-    final t = _thumbPath(e);
-    return _capturedThumbs.contains(t) ? t : null;
+    final c = coverPath(e);
+    return _covers.contains(c) ? c : null;
   }
 
-  void _maybeCaptureThumbnail(CanvasFrame f) {
-    final e = currentEffect;
-    if (e == null || _capturing || thumbnailFor(e) != null) return;
-    if (DateTime.now().difference(_effectSince) < const Duration(seconds: 3)) {
-      return;
-    }
-    // Skip near-black frames (e.g. audio effects with no sound playing).
-    var sum = 0;
-    for (var i = 0; i < f.rgb.length; i += 9) {
-      sum += f.rgb[i];
-    }
-    if (sum / (f.rgb.length / 9) < 6) return;
-    _capturing = true;
-    final rgba = Uint8List(f.width * f.height * 4);
-    for (var i = 0, j = 0; i < f.rgb.length; i += 3, j += 4) {
-      rgba[j] = f.rgb[i];
-      rgba[j + 1] = f.rgb[i + 1];
-      rgba[j + 2] = f.rgb[i + 2];
-      rgba[j + 3] = 255;
-    }
-    ui.decodeImageFromPixels(rgba, f.width, f.height, ui.PixelFormat.rgba8888, (
-      img,
-    ) async {
-      try {
-        final png = await img.toByteData(format: ui.ImageByteFormat.png);
-        if (png != null) {
-          final path = _thumbPath(e);
-          Directory(_thumbDir).createSync(recursive: true);
-          File(path).writeAsBytesSync(png.buffer.asUint8List());
-          _capturedThumbs.add(path);
-          notifyListeners();
-        }
-      } catch (_) {
-      } finally {
-        img.dispose();
-        _capturing = false;
-      }
-    });
+  List<EffectInfo> get effectsWithoutCover =>
+      effects.where((e) => thumbnailFor(e) == null).toList();
+
+  void saveCover(EffectInfo e, Uint8List png) {
+    final path = coverPath(e);
+    Directory(_coverDir).createSync(recursive: true);
+    File(path).writeAsBytesSync(png);
+    _covers.add(path);
+    notifyListeners();
   }
 
   // ---------------------------------------------------------------- devices

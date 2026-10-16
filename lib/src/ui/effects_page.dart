@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 
 import '../effects/effect_library.dart';
@@ -7,12 +8,6 @@ import '../engine/engine.dart';
 import 'property_controls.dart';
 import 'theme.dart';
 import 'widgets.dart';
-
-String effectCategory(EffectInfo e) => switch (e.source) {
-  'Built-in' => 'Integrado',
-  'Marketplace cache' => 'Baixado',
-  _ => 'Meus efeitos',
-};
 
 class EffectsPage extends StatefulWidget {
   const EffectsPage({super.key, required this.engine});
@@ -29,13 +24,23 @@ class _EffectsPageState extends State<EffectsPage> {
   @override
   Widget build(BuildContext context) {
     final engine = widget.engine;
-    final list = engine.effects.where((e) {
-      if (_query.isNotEmpty &&
-          !e.title.toLowerCase().contains(_query.toLowerCase())) {
-        return false;
-      }
-      return _filter == 'all' || effectCategory(e) == _filter;
-    }).toList();
+    final list =
+        engine.effects.where((e) {
+            if (_query.isNotEmpty &&
+                !e.title.toLowerCase().contains(_query.toLowerCase())) {
+              return false;
+            }
+            return switch (_filter) {
+              'favorites' => engine.isFavorite(e),
+              'imported' => e.imported,
+              _ => true,
+            };
+          }).toList()
+          // Favorites first, then alphabetical (the library is already sorted).
+          ..sort(
+            (a, b) =>
+                (engine.isFavorite(b) ? 1 : 0) - (engine.isFavorite(a) ? 1 : 0),
+          );
     final current = engine.currentEffect;
     return Row(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -46,8 +51,14 @@ class _EffectsPageState extends State<EffectsPage> {
             children: [
               PageHeader(
                 title: 'Efeitos',
-                subtitle:
-                    '${engine.effects.length} efeitos disponíveis. O escolhido é aplicado em todos os dispositivos.',
+                subtitle: 'Escolha um efeito para todos os dispositivos.',
+                actions: [
+                  OcButton(
+                    label: 'Importar',
+                    icon: Icons.add_rounded,
+                    onPressed: () => showImportDialog(context, engine),
+                  ),
+                ],
               ),
               Padding(
                 padding: const EdgeInsets.fromLTRB(32, 0, 32, 20),
@@ -57,9 +68,8 @@ class _EffectsPageState extends State<EffectsPage> {
                       value: _filter,
                       options: const [
                         ('all', 'Todos'),
-                        ('Integrado', 'Integrados'),
-                        ('Baixado', 'Baixados'),
-                        ('Meus efeitos', 'Meus'),
+                        ('favorites', 'Favoritos'),
+                        ('imported', 'Importados'),
                       ],
                       onChanged: (v) => setState(() => _filter = v),
                     ),
@@ -76,11 +86,7 @@ class _EffectsPageState extends State<EffectsPage> {
               ),
               Expanded(
                 child: list.isEmpty
-                    ? const EmptyState(
-                        icon: Icons.search_off_rounded,
-                        title: 'Nenhum efeito encontrado',
-                        message: 'Tente outro termo ou mude o filtro.',
-                      )
+                    ? _empty(context)
                     : GridView.builder(
                         padding: const EdgeInsets.fromLTRB(32, 0, 32, 32),
                         gridDelegate:
@@ -95,7 +101,9 @@ class _EffectsPageState extends State<EffectsPage> {
                           effect: list[i],
                           thumbnail: engine.thumbnailFor(list[i]),
                           selected: current?.path == list[i].path,
+                          favorite: engine.isFavorite(list[i]),
                           onTap: () => engine.selectEffect(list[i]),
+                          onFavorite: () => engine.toggleFavorite(list[i]),
                         ),
                       ),
               ),
@@ -109,6 +117,29 @@ class _EffectsPageState extends State<EffectsPage> {
       ],
     );
   }
+
+  Widget _empty(BuildContext context) => switch (_filter) {
+    'favorites' when _query.isEmpty => const EmptyState(
+      icon: Icons.star_outline_rounded,
+      title: 'Nenhum favorito ainda',
+      message: 'Passe o mouse sobre um efeito e clique na estrela para guardá-lo aqui.',
+    ),
+    'imported' when _query.isEmpty => EmptyState(
+      icon: Icons.file_upload_outlined,
+      title: 'Nenhum efeito importado',
+      message: 'Crie um efeito em .ocfx ou traga um arquivo .html.',
+      action: OcButton(
+        label: 'Importar efeito',
+        icon: Icons.add_rounded,
+        onPressed: () => showImportDialog(context, widget.engine),
+      ),
+    ),
+    _ => const EmptyState(
+      icon: Icons.search_off_rounded,
+      title: 'Nada encontrado',
+      message: 'Tente outro termo de busca.',
+    ),
+  };
 }
 
 class _EffectCard extends StatelessWidget {
@@ -116,12 +147,16 @@ class _EffectCard extends StatelessWidget {
     required this.effect,
     required this.thumbnail,
     required this.selected,
+    required this.favorite,
     required this.onTap,
+    required this.onFavorite,
   });
   final EffectInfo effect;
   final String? thumbnail;
   final bool selected;
+  final bool favorite;
   final VoidCallback onTap;
+  final VoidCallback onFavorite;
 
   @override
   Widget build(BuildContext context) => Hover(
@@ -151,19 +186,35 @@ class _EffectCard extends StatelessWidget {
                     duration: const Duration(milliseconds: 220),
                     curve: Curves.easeOut,
                     scale: h ? 1.03 : 1,
-                    child: thumbnail != null
-                        ? Image.file(
-                            File(thumbnail!),
-                            fit: BoxFit.cover,
-                            cacheWidth: 520,
-                            filterQuality: FilterQuality.medium,
-                            errorBuilder: (_, _, _) =>
-                                EffectArtwork(seed: effect.title),
-                          )
-                        : EffectArtwork(seed: effect.title),
+                    child: AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 300),
+                      child: thumbnail != null
+                          ? Image.file(
+                              File(thumbnail!),
+                              key: ValueKey(thumbnail),
+                              fit: BoxFit.cover,
+                              cacheWidth: 640,
+                              filterQuality: FilterQuality.medium,
+                              errorBuilder: (_, _, _) =>
+                                  EffectArtwork(seed: effect.title),
+                            )
+                          : EffectArtwork(
+                              key: const ValueKey('art'),
+                              seed: effect.title,
+                            ),
+                    ),
                   ),
                   if (selected)
                     const Positioned(top: 8, left: 8, child: _LiveChip()),
+                  if (h || favorite)
+                    Positioned(
+                      top: 6,
+                      right: 6,
+                      child: _FavoriteButton(
+                        active: favorite,
+                        onTap: onFavorite,
+                      ),
+                    ),
                 ],
               ),
             ),
@@ -172,21 +223,43 @@ class _EffectCard extends StatelessWidget {
         const SizedBox(height: 10),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 4),
-          child: Row(
-            children: [
-              Expanded(
-                child: Text(
-                  effect.title,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: OcText.label,
-                ),
-              ),
-              Text(effectCategory(effect), style: OcText.caption),
-            ],
+          child: Text(
+            effect.title,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: OcText.label,
           ),
         ),
       ],
+    ),
+  );
+}
+
+class _FavoriteButton extends StatelessWidget {
+  const _FavoriteButton({required this.active, required this.onTap});
+  final bool active;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => Tooltip(
+    message: active ? 'Remover dos favoritos' : 'Favoritar',
+    child: Hover(
+      onTap: onTap,
+      builder: (context, h) => AnimatedContainer(
+        duration: Oc.fast,
+        width: 28,
+        height: 28,
+        decoration: BoxDecoration(
+          color: Colors.black.withValues(alpha: h ? .75 : .55),
+          borderRadius: Oc.r6,
+          border: Border.all(color: Colors.white.withValues(alpha: .1)),
+        ),
+        child: Icon(
+          active ? Icons.star_rounded : Icons.star_outline_rounded,
+          size: 17,
+          color: active ? const Color(0xFFFFD25A) : Colors.white,
+        ),
+      ),
     ),
   );
 }
@@ -221,8 +294,8 @@ class _LiveChip extends StatelessWidget {
   );
 }
 
-/// Artwork for effects that have no preview yet: a soft light field whose
-/// palette is inferred from the effect name.
+/// Shown until an effect's real cover is rendered: a bright light field
+/// whose palette is inferred from the effect name.
 class EffectArtwork extends StatelessWidget {
   const EffectArtwork({super.key, required this.seed});
   final String seed;
@@ -230,40 +303,35 @@ class EffectArtwork extends StatelessWidget {
   static const _palettes = <String, List<Color>>{
     'arctic|ice|frost|snow|indigo|sky': [
       Color(0xFF7DD3FC),
-      Color(0xFF6366F1),
-      Color(0xFF0EA5E9),
+      Color(0xFF818CF8),
+      Color(0xFF38BDF8),
     ],
-    'water|ocean|calm|wave|aqua': [
+    'water|ocean|oceano|calm|wave|aqua': [
       Color(0xFF2DD4BF),
-      Color(0xFF0EA5E9),
-      Color(0xFF1E3A8A),
+      Color(0xFF38BDF8),
+      Color(0xFF2563EB),
     ],
     'neon|storm|electric': [
       Color(0xFFF0ABFC),
       Color(0xFF22D3EE),
-      Color(0xFF7C3AED),
-    ],
-    'sunset|fire|lava|heat': [
-      Color(0xFFFB923C),
-      Color(0xFFF43F5E),
-      Color(0xFF7C2D12),
-    ],
-    'space|dark|matter|galaxy|star': [
       Color(0xFF8B5CF6),
-      Color(0xFF1E1B4B),
+    ],
+    'sunset|fire|brasa|lava|heat': [
+      Color(0xFFFDBA74),
+      Color(0xFFF43F5E),
+      Color(0xFFF97316),
+    ],
+    'space|dark|matter|galaxy|star|cometa': [
+      Color(0xFFA78BFA),
+      Color(0xFF6366F1),
       Color(0xFF3B82F6),
     ],
-    'bio|hazard|toxic|matrix': [
-      Color(0xFFA3E635),
-      Color(0xFF16A34A),
-      Color(0xFF052E16),
+    'aurora|vaga|firefl': [
+      Color(0xFF6EE7B7),
+      Color(0xFFA78BFA),
+      Color(0xFF22D3EE),
     ],
-    'audio|spectrum|visual|scope|log|bar': [
-      Color(0xFF34D399),
-      Color(0xFFFBBF24),
-      Color(0xFFF43F5E),
-    ],
-    'rainbow|gradient|tunnel|rgb': [
+    'rainbow|gradient|tunnel|rgb|spectrum': [
       Color(0xFFF43F5E),
       Color(0xFF22C55E),
       Color(0xFF3B82F6),
@@ -281,9 +349,9 @@ class EffectArtwork extends StatelessWidget {
     );
     final hue = (hash % 360).toDouble();
     return [
-      HSVColor.fromAHSV(1, hue, .6, .95).toColor(),
-      HSVColor.fromAHSV(1, (hue + 50) % 360, .7, .8).toColor(),
-      HSVColor.fromAHSV(1, (hue + 200) % 360, .6, .5).toColor(),
+      HSVColor.fromAHSV(1, hue, .55, 1).toColor(),
+      HSVColor.fromAHSV(1, (hue + 50) % 360, .6, .95).toColor(),
+      HSVColor.fromAHSV(1, (hue + 200) % 360, .55, .85).toColor(),
     ];
   }
 
@@ -301,7 +369,7 @@ class EffectArtwork extends StatelessWidget {
           gradient: RadialGradient(
             center: a,
             radius: r,
-            colors: [color.withValues(alpha: .85), color.withValues(alpha: 0)],
+            colors: [color, color.withValues(alpha: 0)],
           ),
         ),
       ),
@@ -309,30 +377,13 @@ class EffectArtwork extends StatelessWidget {
     return Stack(
       fit: StackFit.expand,
       children: [
-        const ColoredBox(color: Color(0xFF07070A)),
-        blob(c[2], at(1), 1.3),
-        blob(c[0], at(4), .9),
-        blob(c[1], at(7), .8),
-        // A faint scanline texture keeps the gradient from looking flat.
-        const Positioned.fill(child: CustomPaint(painter: _LinesPainter())),
+        ColoredBox(color: Color.lerp(c[2], Colors.black, .55)!),
+        blob(c[2], at(1), 1.4),
+        blob(c[0], at(4), 1.0),
+        blob(c[1], at(7), .9),
       ],
     );
   }
-}
-
-class _LinesPainter extends CustomPainter {
-  const _LinesPainter();
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final p = Paint()..color = Colors.black.withValues(alpha: .18);
-    for (var y = 0.0; y < size.height; y += 3) {
-      canvas.drawRect(Rect.fromLTWH(0, y, size.width, 1), p);
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
 class _Inspector extends StatelessWidget {
@@ -343,6 +394,10 @@ class _Inspector extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final saved = engine.effectSettings(effect);
+    final favorite = engine.isFavorite(effect);
+    // Only show authors of our own and user-made effects.
+    final showAuthor =
+        effect.kind == EffectKind.ocfx && effect.author.isNotEmpty;
     return SizedBox(
       width: 340,
       child: ListView(
@@ -350,55 +405,54 @@ class _Inspector extends StatelessWidget {
         children: [
           Row(
             children: [
-              const Expanded(
-                child: Text('EM EXECUÇÃO', style: OcText.overline),
+              Expanded(child: Text(effect.title, style: OcText.title)),
+              OcIconButton(
+                icon: favorite
+                    ? Icons.star_rounded
+                    : Icons.star_outline_rounded,
+                tooltip: favorite ? 'Remover dos favoritos' : 'Favoritar',
+                onPressed: () => engine.toggleFavorite(effect),
               ),
-              OcBadge(effectCategory(effect)),
+              if (effect.imported)
+                OcIconButton(
+                  icon: Icons.delete_outline_rounded,
+                  tooltip: 'Remover efeito importado',
+                  onPressed: () => _confirmRemove(context),
+                ),
             ],
           ),
-          const SizedBox(height: 10),
-          Text(effect.title, style: OcText.title),
+          if (showAuthor) ...[
+            const SizedBox(height: 2),
+            Text('por ${effect.author}', style: OcText.caption),
+          ],
           if (effect.description.isNotEmpty) ...[
-            const SizedBox(height: 8),
+            const SizedBox(height: 10),
             Text(displayText(effect.description), style: OcText.secondary),
           ],
-          const SizedBox(height: 24),
-          SectionLabel(
-            'Ajustes',
-            trailing: effect.properties.isEmpty
-                ? null
-                : OcButton(
-                    label: 'Restaurar',
-                    icon: Icons.restart_alt_rounded,
-                    variant: OcButtonVariant.ghost,
-                    onPressed: () {
-                      for (final prop in effect.properties) {
-                        engine.setEffectProperty(
-                          effect,
-                          prop.name,
-                          prop.coerce(null),
-                        );
-                      }
-                    },
-                  ),
-          ),
-          if (effect.properties.isEmpty)
-            const OcPanel(
-              children: [
-                OcRow(
-                  title: 'Sem ajustes',
-                  description: 'Este efeito não tem opções configuráveis.',
-                ),
-              ],
-            )
-          else
+          const SizedBox(height: 28),
+          if (effect.properties.isNotEmpty) ...[
+            SectionLabel(
+              'Ajustes',
+              trailing: OcButton(
+                label: 'Restaurar',
+                variant: OcButtonVariant.ghost,
+                onPressed: () {
+                  for (final prop in effect.properties) {
+                    engine.setEffectProperty(
+                      effect,
+                      prop.name,
+                      prop.coerce(null),
+                    );
+                  }
+                },
+              ),
+            ),
             OcPanel(
               children: [
                 for (final prop in effect.properties)
                   PropertyControl(
                     label: prop.label,
                     type: prop.type,
-                    tooltip: prop.tooltip,
                     min: prop.min,
                     max: prop.max,
                     values: prop.values,
@@ -408,8 +462,226 @@ class _Inspector extends StatelessWidget {
                   ),
               ],
             ),
+          ] else
+            const Text('Este efeito não tem ajustes.', style: OcText.caption),
         ],
       ),
     );
   }
+
+  Future<void> _confirmRemove(BuildContext context) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      barrierColor: Colors.black54,
+      builder: (context) => Dialog(
+        child: SizedBox(
+          width: 360,
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Remover "${effect.title}"?', style: OcText.label),
+                const SizedBox(height: 8),
+                const Text(
+                  'O efeito sai da biblioteca. O arquivo original que você importou não é apagado.',
+                  style: OcText.secondary,
+                ),
+                const SizedBox(height: 20),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    OcButton(
+                      label: 'Cancelar',
+                      variant: OcButtonVariant.ghost,
+                      onPressed: () => Navigator.pop(context, false),
+                    ),
+                    const SizedBox(width: 8),
+                    OcButton(
+                      label: 'Remover',
+                      variant: OcButtonVariant.danger,
+                      onPressed: () => Navigator.pop(context, true),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+    if (ok == true) engine.removeEffect(effect);
+  }
+}
+
+// -------------------------------------------------------------------- import
+
+const _effectTypes = XTypeGroup(
+  label: 'Efeitos',
+  extensions: ['ocfx', 'json', 'html'],
+);
+
+const ocfxTemplate = r'''{
+  "openchroma": 1,
+  "name": "Meu efeito",
+  "description": "Uma frase curta sobre o efeito.",
+  "author": "Seu nome",
+  "background": "#05060A",
+  "params": {
+    "velocidade": { "label": "Velocidade", "type": "number", "min": 0, "max": 100, "default": 40 },
+    "cor": { "label": "Cor", "type": "color", "default": "#4C8DFF" }
+  },
+  "layers": [
+    { "type": "gradient", "colors": ["#0B1E3D", "#24124D", "#0B1E3D"], "angle": 20, "speed": "$velocidade" },
+    { "type": "wave", "color": "$cor", "amplitude": 0.2, "frequency": 1.5, "thickness": 0.25, "speed": "$velocidade", "blend": "screen" }
+  ]
+}
+''';
+
+Future<void> showImportDialog(BuildContext context, Engine engine) =>
+    showDialog<void>(
+      context: context,
+      barrierColor: Colors.black54,
+      builder: (_) => _ImportDialog(engine: engine),
+    );
+
+class _ImportDialog extends StatefulWidget {
+  const _ImportDialog({required this.engine});
+  final Engine engine;
+
+  @override
+  State<_ImportDialog> createState() => _ImportDialogState();
+}
+
+class _ImportDialogState extends State<_ImportDialog> {
+  String? _error;
+  String? _saved;
+
+  Future<void> _pick() async {
+    final file = await openFile(acceptedTypeGroups: [_effectTypes]);
+    if (file == null) return;
+    try {
+      widget.engine.importEffect(file.path);
+      if (mounted) Navigator.pop(context);
+    } on FormatException catch (e) {
+      setState(() => _error = e.message);
+    } catch (e) {
+      setState(() => _error = 'Não foi possível importar: $e');
+    }
+  }
+
+  Future<void> _saveTemplate() async {
+    final loc = await getSaveLocation(
+      suggestedName: 'meu-efeito.ocfx',
+      acceptedTypeGroups: [
+        const XTypeGroup(label: 'Efeito OpenChroma', extensions: ['ocfx']),
+      ],
+    );
+    if (loc == null) return;
+    File(loc.path).writeAsStringSync(ocfxTemplate);
+    setState(() => _saved = loc.path);
+  }
+
+  @override
+  Widget build(BuildContext context) => Dialog(
+    child: SizedBox(
+      width: 460,
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const Text('Importar efeito', style: OcText.title),
+            const SizedBox(height: 8),
+            const Text(
+              'Traga um efeito .ocfx, o formato do OpenChroma, ou uma página .html que '
+              'desenhe num canvas de 320×200.',
+              style: OcText.secondary,
+            ),
+            const SizedBox(height: 20),
+            const OcPanel(
+              children: [
+                _FormatRow(
+                  icon: Icons.layers_outlined,
+                  title: 'Camadas',
+                  text:
+                      'gradient, spectrum, wave, pulse, sweep, rings, sparkle e solid, '
+                      'empilhadas com blend normal, screen, add, multiply ou overlay.',
+                ),
+                _FormatRow(
+                  icon: Icons.tune_rounded,
+                  title: 'Parâmetros',
+                  text:
+                      r'Declare em "params" e use como "$nome" em qualquer camada. '
+                      'Eles viram controles no app.',
+                ),
+              ],
+            ),
+            if (_saved != null) ...[
+              const SizedBox(height: 12),
+              Text('Modelo salvo em $_saved', style: OcText.caption),
+            ],
+            if (_error != null) ...[
+              const SizedBox(height: 14),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Oc.danger.withValues(alpha: .06),
+                  borderRadius: Oc.r8,
+                  border: Border.all(color: Oc.danger.withValues(alpha: .25)),
+                ),
+                child: Text(
+                  _error!,
+                  style: const TextStyle(fontSize: 12.5, color: Oc.danger),
+                ),
+              ),
+            ],
+            const SizedBox(height: 24),
+            Row(
+              children: [
+                OcButton(
+                  label: 'Salvar modelo',
+                  icon: Icons.download_rounded,
+                  variant: OcButtonVariant.ghost,
+                  onPressed: _saveTemplate,
+                ),
+                const Spacer(),
+                OcButton(
+                  label: 'Cancelar',
+                  variant: OcButtonVariant.ghost,
+                  onPressed: () => Navigator.pop(context),
+                ),
+                const SizedBox(width: 8),
+                OcButton(
+                  label: 'Escolher arquivo',
+                  variant: OcButtonVariant.primary,
+                  onPressed: _pick,
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
+}
+
+class _FormatRow extends StatelessWidget {
+  const _FormatRow({
+    required this.icon,
+    required this.title,
+    required this.text,
+  });
+  final IconData icon;
+  final String title;
+  final String text;
+
+  @override
+  Widget build(BuildContext context) => OcRow(
+    leading: Icon(icon, size: 18, color: Oc.textSecondary),
+    title: title,
+    description: text,
+  );
 }

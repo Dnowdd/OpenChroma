@@ -1,8 +1,10 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:path/path.dart' as p;
 
-/// One `<meta property=...>` control declared by a SignalRGB effect.
+/// One adjustable effect parameter (an HTML effect `<meta property=...>` or
+/// an `.ocfx` `params` entry).
 class EffectProperty {
   EffectProperty(this.attrs);
   final Map<String, String> attrs;
@@ -33,30 +35,68 @@ class EffectProperty {
   }
 }
 
+enum EffectKind { html, ocfx }
+
 class EffectInfo {
   EffectInfo({
     required this.path,
     required this.title,
     required this.description,
-    required this.publisher,
+    required this.author,
     required this.properties,
     required this.thumbnail,
-    required this.source,
+    required this.kind,
+    required this.imported,
+    this.definition,
   });
 
   final String path;
   final String title;
   final String description;
-  final String publisher;
+  final String author;
   final List<EffectProperty> properties;
-  final String? thumbnail;
 
-  /// 'Built-in', 'User' or 'Marketplace cache'.
-  final String source;
+  /// A preview image shipped next to the effect, if any.
+  final String? thumbnail;
+  final EffectKind kind;
+
+  /// Added by the user through "Importar" (can be removed).
+  final bool imported;
+
+  /// Parsed `.ocfx` document, for [EffectKind.ocfx].
+  final Map<String, dynamic>? definition;
 
   String get id => p.normalize(path).toLowerCase();
 }
 
+// ------------------------------------------------------------------ curation
+/// Effects that need inputs this app does not capture (system audio, screen)
+/// would just sit black, so they are left out of the library.
+final _unsupportedInputs = RegExp(r'engine\.(audio|zone|vision)');
+
+/// Effects that technically run but read poorly on LEDs (e.g. thousands of
+/// random dots, which turn into flicker).
+const _hidden = {'biohazard'};
+
+/// Short descriptions, in the app's language, for known effects.
+const _descriptions = {
+  'rainbow': 'O espectro completo de cores correndo pelo setup, sem parar.',
+  'neon shift': 'Transição suave entre tons neon, em ciclo contínuo.',
+  'side to side': 'Faixas de cor que varrem o setup de um lado ao outro.',
+  'solid color': 'Uma única cor, fixa, em todos os dispositivos.',
+  'space': 'Estrelas passando devagar por um céu escuro.',
+  'gradient': 'Degradê de até quatro cores, do jeito que você montar.',
+  'neon storm': 'Tempestade neon com chuva, nuvens e relâmpagos.',
+  'neon sunset': 'Pôr do sol em tons de rosa, roxo e laranja.',
+  'dark matter': 'Formas escuras e raios em rosa e azul num fundo profundo.',
+  'arctic': 'Gotas de luz gelada caindo em tons de azul e branco.',
+  'electric space': 'Espaço escuro com estrelas e faíscas elétricas.',
+  'rainbow tunnel': 'Um túnel de luz colorida correndo pela tela.',
+  'calm water': 'Água azul, calma, se mexendo devagar.',
+  'indigo sky': 'Um céu índigo ondulando sobre o teclado.',
+};
+
+// --------------------------------------------------------------------- HTML
 final _metaTag = RegExp(
   r'<meta\b([^>]*?)/?>',
   caseSensitive: false,
@@ -70,18 +110,25 @@ Map<String, String> _parseAttrs(String s) => {
     m.group(1)!.toLowerCase(): m.group(3) ?? m.group(4) ?? '',
 };
 
-EffectInfo? parseEffect(String path, String source) {
+/// Parses an HTML effect. Returns null when it cannot be read or needs
+/// unsupported inputs (unless [force]).
+EffectInfo? parseHtmlEffect(
+  String path, {
+  bool imported = false,
+  bool force = false,
+}) {
   String html;
   try {
     html = File(path).readAsStringSync();
   } catch (_) {
     return null;
   }
+  if (!force && _unsupportedInputs.hasMatch(html)) return null;
   // Only the <head> carries metadata; ignore commented-out metas.
   final headEnd = html.toLowerCase().indexOf('</head>');
   var head = headEnd > 0 ? html.substring(0, headEnd) : html;
   head = head.replaceAll(RegExp(r'<!--.*?-->', dotAll: true), '');
-  var description = '', publisher = '';
+  var description = '', author = '';
   final props = <EffectProperty>[];
   for (final m in _metaTag.allMatches(head)) {
     final a = _parseAttrs(m.group(1)!);
@@ -90,7 +137,7 @@ EffectInfo? parseEffect(String path, String source) {
     } else if (a.containsKey('description')) {
       description = a['description']!;
     } else if (a.containsKey('publisher')) {
-      publisher = a['publisher']!;
+      author = a['publisher']!;
     }
   }
   final dir = p.dirname(path);
@@ -99,39 +146,162 @@ EffectInfo? parseEffect(String path, String source) {
   try {
     for (final f in Directory(dir).listSync().whereType<File>()) {
       final n = p.basename(f.path).toLowerCase();
-      if (n == '$base.png' || n == '$base.jpg' || n == '$base.gif') {
-        thumb = f.path;
-      }
+      if (n == '$base.png' || n == '$base.jpg') thumb = f.path;
     }
   } catch (_) {}
-  final title = _title.firstMatch(head)?.group(1)?.trim();
+  final rawTitle = _title.firstMatch(head)?.group(1)?.trim();
+  final title = (rawTitle == null || rawTitle.isEmpty)
+      ? p.basenameWithoutExtension(path)
+      : rawTitle;
   return EffectInfo(
     path: path,
-    title: (title == null || title.isEmpty)
-        ? p.basenameWithoutExtension(path)
-        : title,
-    description: description,
-    publisher: publisher,
+    title: title,
+    description:
+        _descriptions[title.toLowerCase()] ?? _firstSentence(description),
+    author: author,
     properties: props,
     thumbnail: thumb,
-    source: source,
+    kind: EffectKind.html,
+    imported: imported,
   );
 }
 
-List<EffectInfo> scanEffects(List<String> roots) {
+String _firstSentence(String s) {
+  final i = s.indexOf(RegExp(r'[.!?](\s|$)'));
+  return (i > 0 ? s.substring(0, i + 1) : s).trim();
+}
+
+// --------------------------------------------------------------------- OCFX
+const ocfxLayerTypes = {
+  'solid',
+  'gradient',
+  'spectrum',
+  'pulse',
+  'wave',
+  'sweep',
+  'rings',
+  'sparkle',
+};
+const _paramTypes = {'number', 'color', 'boolean', 'combobox', 'hue'};
+
+/// Parses and validates an `.ocfx` effect. Throws [FormatException] with a
+/// user-facing message when the document is invalid.
+EffectInfo parseOcfx(String path, {bool imported = false}) {
+  Object? doc;
+  try {
+    doc = jsonDecode(File(path).readAsStringSync());
+  } on FormatException catch (e) {
+    throw FormatException('O arquivo não é um JSON válido (${e.message}).');
+  }
+  if (doc is! Map<String, dynamic>) {
+    throw const FormatException('O arquivo precisa ser um objeto JSON.');
+  }
+  if (doc['openchroma'] != 1) {
+    throw const FormatException('Falta o campo "openchroma": 1.');
+  }
+  final name = doc['name'];
+  if (name is! String || name.trim().isEmpty) {
+    throw const FormatException('Falta o campo "name".');
+  }
+  final layers = doc['layers'];
+  if (layers is! List || layers.isEmpty) {
+    throw const FormatException(
+      'O efeito precisa de pelo menos uma camada em "layers".',
+    );
+  }
+  for (var i = 0; i < layers.length; i++) {
+    final l = layers[i];
+    if (l is! Map || !ocfxLayerTypes.contains(l['type'])) {
+      throw FormatException(
+        'Camada ${i + 1}: "type" deve ser um destes: ${ocfxLayerTypes.join(', ')}.',
+      );
+    }
+  }
+  final props = <EffectProperty>[];
+  final params = doc['params'];
+  if (params != null && params is! Map) {
+    throw const FormatException('"params" precisa ser um objeto.');
+  }
+  (params as Map? ?? {}).forEach((key, value) {
+    if (value is! Map || !_paramTypes.contains(value['type'])) {
+      throw FormatException(
+        'Parâmetro "$key": "type" deve ser ${_paramTypes.join(', ')}.',
+      );
+    }
+    props.add(
+      EffectProperty({
+        'property': '$key',
+        'label': '${value['label'] ?? key}',
+        'type': '${value['type']}',
+        if (value['min'] != null) 'min': '${value['min']}',
+        if (value['max'] != null) 'max': '${value['max']}',
+        if (value['default'] != null) 'default': '${value['default']}',
+        if (value['values'] is List)
+          'values': (value['values'] as List).join(','),
+        if (value['description'] != null) 'tooltip': '${value['description']}',
+      }),
+    );
+  });
+  return EffectInfo(
+    path: path,
+    title: name.trim(),
+    description: '${doc['description'] ?? ''}',
+    author: '${doc['author'] ?? ''}',
+    properties: props,
+    thumbnail: null,
+    kind: EffectKind.ocfx,
+    imported: imported,
+    definition: doc,
+  );
+}
+
+/// Builds the library: HTML effects from [htmlRoots], `.ocfx` effects from
+/// [bundledDir], and anything the user imported into [importedDir].
+List<EffectInfo> scanEffects({
+  required List<String> htmlRoots,
+  required String bundledDir,
+  required String importedDir,
+}) {
   final out = <EffectInfo>[];
   final seen = <String>{};
-  for (var i = 0; i < roots.length; i++) {
-    final dir = Directory(roots[i]);
-    if (!dir.existsSync()) continue;
-    final source = i == 0
-        ? 'Built-in'
-        : (i == roots.length - 1 ? 'Marketplace cache' : 'User');
-    for (final f in dir.listSync(recursive: true).whereType<File>()) {
-      if (!f.path.toLowerCase().endsWith('.html')) continue;
-      final e = parseEffect(f.path, source);
-      if (e == null || !seen.add(e.title.toLowerCase())) continue;
-      out.add(e);
+
+  void add(EffectInfo? e) {
+    if (e == null || _hidden.contains(e.title.toLowerCase())) return;
+    if (!seen.add(e.title.toLowerCase())) return;
+    out.add(e);
+  }
+
+  Iterable<File> files(String dir, {bool recursive = true}) {
+    final d = Directory(dir);
+    if (!d.existsSync()) return const [];
+    return d.listSync(recursive: recursive).whereType<File>();
+  }
+
+  // User imports win over bundled/third-party effects with the same name.
+  for (final f in files(importedDir, recursive: false)) {
+    final lower = f.path.toLowerCase();
+    if (lower.endsWith('.ocfx') || lower.endsWith('.json')) {
+      try {
+        add(parseOcfx(f.path, imported: true));
+      } on FormatException {
+        // Invalid imports are rejected at import time; skip stale ones.
+      }
+    } else if (lower.endsWith('.html')) {
+      add(parseHtmlEffect(f.path, imported: true, force: true));
+    }
+  }
+  for (final f in files(bundledDir, recursive: false)) {
+    if (f.path.toLowerCase().endsWith('.ocfx')) {
+      try {
+        add(parseOcfx(f.path));
+      } on FormatException {
+        // Bundled effects are validated in tests.
+      }
+    }
+  }
+  for (final root in htmlRoots) {
+    for (final f in files(root)) {
+      if (f.path.toLowerCase().endsWith('.html')) add(parseHtmlEffect(f.path));
     }
   }
   out.sort((a, b) => a.title.toLowerCase().compareTo(b.title.toLowerCase()));

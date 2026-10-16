@@ -1,0 +1,15 @@
+{
+  "openchroma": 1,
+  "name": "Brasa",
+  "description": "Vermelhos e laranjas quentes com fagulhas subindo, como carvão em brasa.",
+  "author": "OpenChroma",
+  "background": "#120200",
+  "params": {
+    "velocidade": { "label": "Velocidade", "type": "number", "min": 0, "max": 100, "default": 30 },
+    "fagulhas": { "label": "Fagulhas", "type": "number", "min": 0, "max": 120, "default": 45 }
+  },
+  "layers": [
+    { "type": "gradient", "colors": ["#7A0A00", "#E8400C", "#FF8A00", "#B31B00"], "angle": 90, "scale": 1.3, "speed": "$velocidade" },
+    { "type": "sparkle", "color": "#FFD27A", "density": "$fagulhas", "size": 7, "speed": 60, "blend": "add" }
+  ]
+}

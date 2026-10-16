@@ -32,51 +32,62 @@ class _ShellState extends State<Shell> {
   Widget build(BuildContext context) {
     final engine = widget.engine;
     return Scaffold(
-      body: Column(
+      body: Stack(
         children: [
-          Expanded(
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                ListenableBuilder(
-                  listenable: engine,
-                  builder: (context, _) => _Sidebar(
-                    engine: engine,
-                    index: _page,
-                    items: _nav,
-                    onSelect: (i) => setState(() => _page = i),
-                  ),
-                ),
-                const VerticalDivider(width: 1),
-                Expanded(
-                  child: ListenableBuilder(
-                    listenable: engine,
-                    builder: (context, _) => Column(
+          // Renders effect covers off to the side; the UI covers it.
+          Positioned(left: 0, top: 0, child: CoverBaker(engine: engine)),
+          Positioned.fill(
+            child: ColoredBox(
+              color: Oc.bg,
+              child: Column(
+                children: [
+                  Expanded(
+                    child: Row(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        if (engine.conflicts.isNotEmpty)
-                          _ConflictBanner(names: engine.conflicts),
-                        Expanded(
-                          child: IndexedStack(
+                        ListenableBuilder(
+                          listenable: engine,
+                          builder: (context, _) => _Sidebar(
+                            engine: engine,
                             index: _page,
-                            children: [
-                              EffectsPage(engine: engine),
-                              DevicesPage(engine: engine),
-                              LayoutPage(engine: engine),
-                              SettingsPage(engine: engine),
-                            ],
+                            items: _nav,
+                            onSelect: (i) => setState(() => _page = i),
+                          ),
+                        ),
+                        const VerticalDivider(width: 1),
+                        Expanded(
+                          child: ListenableBuilder(
+                            listenable: engine,
+                            builder: (context, _) => Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                if (engine.conflicts.isNotEmpty)
+                                  _ConflictBanner(names: engine.conflicts),
+                                Expanded(
+                                  child: IndexedStack(
+                                    index: _page,
+                                    children: [
+                                      EffectsPage(engine: engine),
+                                      DevicesPage(engine: engine),
+                                      LayoutPage(engine: engine),
+                                      SettingsPage(engine: engine),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
                         ),
                       ],
                     ),
                   ),
-                ),
-              ],
+                  NowPlayingBar(
+                    engine: engine,
+                    onOpenEffects: () => setState(() => _page = 0),
+                  ),
+                ],
+              ),
             ),
-          ),
-          NowPlayingBar(
-            engine: engine,
-            onOpenEffects: () => setState(() => _page = 0),
           ),
         ],
       ),
