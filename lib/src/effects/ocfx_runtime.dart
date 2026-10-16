@@ -18,7 +18,12 @@ const ocfxRuntimeHtml = r'''<!doctype html>
   var ctx = c.getContext('2d');
   var t0 = performance.now();
 
+  // Live audio analysis pushed by the host (0..1 values, 64 log bands).
+  function audio() { return window.__audio || { bands: [], level: 0, bass: 0, mid: 0, treble: 0, beat: 0 }; }
+  function signal(name) { var a = audio(); var v = a[name]; return typeof v === 'number' ? v : 0; }
+
   function val(v) {
+    if (typeof v === 'string' && v.charAt(0) === '@') return signal(v.slice(1)) * 100;
     if (typeof v === 'string' && v.charAt(0) === '$') {
       var g = window[v.slice(1)];
       return g === undefined ? (fx.params && fx.params[v.slice(1)] ? fx.params[v.slice(1)]['default'] : 0) : g;
@@ -31,7 +36,8 @@ const ocfxRuntimeHtml = r'''<!doctype html>
   // (sliders) or are written as percentages.
   function frac(v, d) {
     var n = num(v, d);
-    return (typeof v === 'string' && v.charAt(0) === '$') || n > 1 ? n / 100 : n;
+    var ref = typeof v === 'string' && (v.charAt(0) === '$' || v.charAt(0) === '@');
+    return ref || n > 1 ? n / 100 : n;
   }
   function hexA(hex, a) {
     var m = /^#?([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})/i.exec(String(hex)) || [0, 'ff', 'ff', 'ff'];
@@ -62,7 +68,70 @@ const ocfxRuntimeHtml = r'''<!doctype html>
     ctx.fillRect(0, 0, W, H);
   }
 
+  // Color at position t (0..1) along a list of colors.
+  function ramp(colors, t) {
+    if (colors === 'spectrum') return 'hsl(' + Math.round(t * 300) + ',100%,55%)';
+    var n = colors.length;
+    if (n === 1) return colors[0];
+    return colors[Math.min(n - 1, Math.round(t * (n - 1)))];
+  }
+  function bandsFor(count) {
+    var b = audio().bands || [], out = [];
+    for (var i = 0; i < count; i++) {
+      var a0 = Math.floor(i * b.length / count), a1 = Math.max(a0 + 1, Math.floor((i + 1) * b.length / count)), m = 0;
+      for (var j = a0; j < a1; j++) m = Math.max(m, b[j] || 0);
+      out.push(m);
+    }
+    return out;
+  }
+  var ripples = {};
+
   var draw = {
+    bars: function (l) {
+      var mirror = !!val(l.mirror), center = val(l.from) === 'center';
+      var count = Math.max(4, Math.round(num(l.count, 32)));
+      var bands = bandsFor(mirror ? Math.ceil(count / 2) : count);
+      var cols = val(l.colors) || 'spectrum', gap = frac(l.gap, 0.2);
+      var bw = W / count;
+      for (var i = 0; i < count; i++) {
+        var k = mirror ? Math.abs(i - (count - 1) / 2) / ((count - 1) / 2) : i / (count - 1);
+        var v = mirror ? bands[Math.min(bands.length - 1, Math.floor(k * bands.length))] : bands[i];
+        v = Math.pow(v, num(l.curve, 1.3)) * frac(l.gain, 1) * 1.15;
+        var h = Math.max(1, Math.min(1, v) * H);
+        ctx.fillStyle = ramp(cols, k);
+        var y = center ? (H - h) / 2 : H - h;
+        ctx.fillRect(i * bw + bw * gap / 2, y, bw * (1 - gap), h);
+      }
+    },
+    meter: function (l) {
+      var v = Math.min(1, frac(l.value === undefined ? '@level' : l.value, 0));
+      var cols = val(l.colors) || ['#22C55E', '#FACC15', '#EF4444'];
+      var g = ctx.createLinearGradient(0, 0, W, 0);
+      for (var i = 0; i < cols.length; i++) g.addColorStop(cols.length === 1 ? 0 : i / (cols.length - 1), cols[i]);
+      ctx.fillStyle = g;
+      if (val(l.from) === 'center') ctx.fillRect(W / 2 * (1 - v), 0, W * v, H);
+      else ctx.fillRect(0, 0, W * v, H);
+    },
+    flash: function (l) {
+      var k = Math.min(1, frac(l.value === undefined ? '@beat' : l.value, 0) * frac(l.strength, 1));
+      ctx.fillStyle = hexA(val(l.color) || '#ffffff', k);
+      ctx.fillRect(0, 0, W, H);
+    },
+    ripple: function (l, t, idx) {
+      var beats = signal('beats'), cols = val(l.colors) || ['#ffffff'];
+      var st = ripples[idx] || (ripples[idx] = { rings: [], last: beats, n: 0 });
+      // One ring per detected beat, even if some audio frames were dropped.
+      if (beats !== st.last) { st.rings.push({ r: 0, c: cols[st.n++ % cols.length] }); st.last = beats; }
+      var cx = num(l.x, 0.5) * W, cy = num(l.y, 0.5) * H, maxR = Math.hypot(W, H) / 1.5;
+      var step = 2 + num(l.speed, 50) / 10;
+      ctx.lineWidth = Math.max(2, num(l.thickness, 14));
+      st.rings = st.rings.filter(function (r) { r.r += step; return r.r < maxR; });
+      st.rings.forEach(function (r) {
+        ctx.globalAlpha = Math.max(0, 1 - r.r / maxR);
+        ctx.strokeStyle = r.c;
+        ctx.beginPath(); ctx.arc(cx, cy, r.r, 0, Math.PI * 2); ctx.stroke();
+      });
+    },
     solid: function (l) { ctx.fillStyle = val(l.color) || '#fff'; ctx.fillRect(0, 0, W, H); },
     gradient: function (l, t) { loopGradient(l, t, (val(l.colors) || ['#000', '#fff'])); },
     spectrum: function (l, t) {
@@ -77,9 +146,9 @@ const ocfxRuntimeHtml = r'''<!doctype html>
       ctx.fillRect(0, 0, W, H);
     },
     wave: function (l, t) {
-      var amp = num(l.amplitude, 0.25) * H, freq = num(l.frequency, 1.5);
-      var th = Math.max(0.02, num(l.thickness, 0.3)) * H, col = val(l.color);
-      var ph = t * rate(l) * Math.PI * 2, base = num(l.position, 0.5) * H;
+      var amp = frac(l.amplitude, 0.25) * H, freq = num(l.frequency, 1.5);
+      var th = Math.max(0.02, frac(l.thickness, 0.3)) * H, col = val(l.color);
+      var ph = t * rate(l) * Math.PI * 2, base = frac(l.position, 0.5) * H;
       for (var x = 0; x <= W; x += 4) {
         var y = base + Math.sin(x / W * freq * Math.PI * 2 + ph) * amp;
         var g = ctx.createLinearGradient(0, y - th, 0, y + th);
@@ -137,7 +206,7 @@ const ocfxRuntimeHtml = r'''<!doctype html>
       if (!fn || val(l.enabled) === false) continue;
       ctx.save();
       ctx.globalCompositeOperation = BLEND[l.blend] || 'source-over';
-      ctx.globalAlpha = l.type === 'rings' || l.type === 'sparkle' ? 1 : frac(l.opacity, 1);
+      ctx.globalAlpha = l.type === 'rings' || l.type === 'sparkle' || l.type === 'ripple' ? 1 : frac(l.opacity, 1);
       try { fn(l, t, i); } catch (e) { console.error(e); }
       ctx.restore();
     }

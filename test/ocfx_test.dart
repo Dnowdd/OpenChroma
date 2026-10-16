@@ -24,6 +24,13 @@ void main() {
     });
   }
 
+  test('audio effects are detected as audio-reactive', () {
+    for (final name in ['spectrum', 'neon-equalizer', 'bass-pulse', 'beat', 'sound-wave', 'volume-meter']) {
+      expect(parseOcfx('assets/effects/$name.ocfx').usesAudio, isTrue, reason: name);
+    }
+    expect(parseOcfx('assets/effects/aurora.ocfx').usesAudio, isFalse);
+  });
+
   test('rejects documents without layers', () {
     final tmp = File('${Directory.systemTemp.path}/bad.ocfx')
       ..writeAsStringSync('{"openchroma": 1, "name": "x", "layers": []}');

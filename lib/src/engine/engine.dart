@@ -7,6 +7,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:path/path.dart' as p;
 
+import '../audio/audio_service.dart';
 import '../effects/effect_library.dart';
 import '../effects/ocfx_runtime.dart';
 import '../hid/hid_ffi.dart';
@@ -160,6 +161,13 @@ class Engine extends ChangeNotifier {
   EffectInfo? currentEffect;
   CanvasFrame? frame;
   int brightness = 100;
+
+  final audio = AudioService();
+  AudioSource audioSource = AudioSource.system;
+
+  /// Latest audio analysis, refreshed at ~30 Hz while an audio-reactive
+  /// effect runs.
+  final audioNotifier = ValueNotifier<AudioFrame>(AudioFrame.silent);
   bool scanning = false;
 
   /// Running RGB apps that also drive the devices (e.g. SignalRGB); writing
@@ -177,6 +185,7 @@ class Engine extends ChangeNotifier {
   Future<void> start() async {
     _loadSettings();
     brightness = (_settings['brightness'] as int?) ?? 100;
+    audioSource = AudioSource.byName(_settings['audioSource'] as String?);
     await _installBundledContent();
     _scanEffects();
     final saved = _settings['effect'] as String?;
@@ -201,10 +210,10 @@ class Engine extends ChangeNotifier {
       _checkConflicts();
       refreshDevices();
     });
-    _tick = Timer.periodic(
-      const Duration(milliseconds: 33),
-      (_) => _pushFrames(),
-    );
+    _tick = Timer.periodic(const Duration(milliseconds: 33), (_) {
+      _pollAudio();
+      _pushFrames();
+    });
   }
 
   // ---------------------------------------------------------------- settings
@@ -285,6 +294,24 @@ class Engine extends ChangeNotifier {
     effectSettings(e)[name] = value;
     _save();
     notifyListeners();
+  }
+
+  void setAudioSource(AudioSource source) {
+    audioSource = source;
+    _settings['audioSource'] = source.name;
+    _save();
+    notifyListeners();
+  }
+
+  /// Captures audio only while the running effect listens to it.
+  void _pollAudio() {
+    final listening = currentEffect?.usesAudio ?? false;
+    audio.setSource(listening ? audioSource : AudioSource.off);
+    if (listening) {
+      audioNotifier.value = audio.read();
+    } else if (audioNotifier.value.bands.isNotEmpty) {
+      audioNotifier.value = AudioFrame.silent;
+    }
   }
 
   void setBrightness(int v) {
@@ -733,6 +760,7 @@ class Engine extends ChangeNotifier {
     _shuttingDown = true;
     _tick?.cancel();
     _rescan?.cancel();
+    audio.setSource(AudioSource.off);
     _saveDebounce?.cancel();
     try {
       File(_settingsFile).writeAsStringSync(

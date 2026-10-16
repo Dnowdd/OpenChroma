@@ -3,6 +3,8 @@ import 'dart:io';
 
 import 'package:path/path.dart' as p;
 
+import '../i18n/pt_br.dart';
+
 /// One adjustable effect parameter (an HTML effect `<meta property=...>` or
 /// an `.ocfx` `params` entry).
 class EffectProperty {
@@ -47,6 +49,7 @@ class EffectInfo {
     required this.thumbnail,
     required this.kind,
     required this.imported,
+    this.usesAudio = false,
     this.definition,
   });
 
@@ -63,6 +66,9 @@ class EffectInfo {
   /// Added by the user through "Importar" (can be removed).
   final bool imported;
 
+  /// Reacts to sound, so audio capture runs while it is active.
+  final bool usesAudio;
+
   /// Parsed `.ocfx` document, for [EffectKind.ocfx].
   final Map<String, dynamic>? definition;
 
@@ -77,24 +83,6 @@ final _unsupportedInputs = RegExp(r'engine\.(audio|zone|vision)');
 /// Effects that technically run but read poorly on LEDs (e.g. thousands of
 /// random dots, which turn into flicker).
 const _hidden = {'biohazard'};
-
-/// Short descriptions, in the app's language, for known effects.
-const _descriptions = {
-  'rainbow': 'O espectro completo de cores correndo pelo setup, sem parar.',
-  'neon shift': 'Transição suave entre tons neon, em ciclo contínuo.',
-  'side to side': 'Faixas de cor que varrem o setup de um lado ao outro.',
-  'solid color': 'Uma única cor, fixa, em todos os dispositivos.',
-  'space': 'Estrelas passando devagar por um céu escuro.',
-  'gradient': 'Degradê de até quatro cores, do jeito que você montar.',
-  'neon storm': 'Tempestade neon com chuva, nuvens e relâmpagos.',
-  'neon sunset': 'Pôr do sol em tons de rosa, roxo e laranja.',
-  'dark matter': 'Formas escuras e raios em rosa e azul num fundo profundo.',
-  'arctic': 'Gotas de luz gelada caindo em tons de azul e branco.',
-  'electric space': 'Espaço escuro com estrelas e faíscas elétricas.',
-  'rainbow tunnel': 'Um túnel de luz colorida correndo pela tela.',
-  'calm water': 'Água azul, calma, se mexendo devagar.',
-  'indigo sky': 'Um céu índigo ondulando sobre o teclado.',
-};
 
 // --------------------------------------------------------------------- HTML
 final _metaTag = RegExp(
@@ -133,6 +121,7 @@ EffectInfo? parseHtmlEffect(
   for (final m in _metaTag.allMatches(head)) {
     final a = _parseAttrs(m.group(1)!);
     if (a.containsKey('property')) {
+      if (hiddenParameters.contains((a['label'] ?? '').toLowerCase())) continue;
       props.add(EffectProperty(a));
     } else if (a.containsKey('description')) {
       description = a['description']!;
@@ -150,19 +139,20 @@ EffectInfo? parseHtmlEffect(
     }
   } catch (_) {}
   final rawTitle = _title.firstMatch(head)?.group(1)?.trim();
-  final title = (rawTitle == null || rawTitle.isEmpty)
+  final original = (rawTitle == null || rawTitle.isEmpty)
       ? p.basenameWithoutExtension(path)
       : rawTitle;
+  final key = original.toLowerCase();
   return EffectInfo(
     path: path,
-    title: title,
-    description:
-        _descriptions[title.toLowerCase()] ?? _firstSentence(description),
+    title: effectTitles[key] ?? original,
+    description: effectDescriptions[key] ?? _firstSentence(description),
     author: author,
     properties: props,
     thumbnail: thumb,
     kind: EffectKind.html,
     imported: imported,
+    usesAudio: html.contains('engine.audio'),
   );
 }
 
@@ -181,7 +171,13 @@ const ocfxLayerTypes = {
   'sweep',
   'rings',
   'sparkle',
+  // Audio-reactive
+  'bars',
+  'meter',
+  'ripple',
+  'flash',
 };
+const _audioLayerTypes = {'bars', 'meter', 'ripple', 'flash'};
 const _paramTypes = {'number', 'color', 'boolean', 'combobox', 'hue'};
 
 /// Parses and validates an `.ocfx` effect. Throws [FormatException] with a
@@ -251,6 +247,10 @@ EffectInfo parseOcfx(String path, {bool imported = false}) {
     thumbnail: null,
     kind: EffectKind.ocfx,
     imported: imported,
+    // Audio layers, or any value bound to an audio signal ("@bass", ...).
+    usesAudio:
+        layers.any((l) => _audioLayerTypes.contains((l as Map)['type'])) ||
+        jsonEncode(layers).contains('"@'),
     definition: doc,
   );
 }

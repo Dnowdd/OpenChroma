@@ -1,0 +1,27 @@
+{
+  "openchroma": 1,
+  "name": "Medidor de Volume",
+  "description": "Um medidor que enche do centro para as pontas conforme o volume, do verde ao vermelho.",
+  "author": "OpenChroma",
+  "background": "#050505",
+  "params": {},
+  "layers": [
+    {
+      "type": "meter",
+      "value": "@level",
+      "from": "center",
+      "colors": [
+        "#22C55E",
+        "#22C55E",
+        "#FACC15",
+        "#EF4444"
+      ]
+    },
+    {
+      "type": "flash",
+      "color": "#FFFFFF",
+      "value": "@beat",
+      "strength": 0.12
+    }
+  ]
+}

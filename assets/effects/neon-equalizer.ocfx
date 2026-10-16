@@ -1,0 +1,47 @@
+{
+  "openchroma": 1,
+  "name": "Equalizador Neon",
+  "description": "Equalizador espelhado a partir do centro, em rosa e ciano.",
+  "author": "OpenChroma",
+  "background": "#07020F",
+  "params": {
+    "edgeColor": {
+      "label": "Cor das bordas",
+      "type": "color",
+      "default": "#2EE6FF"
+    },
+    "centerColor": {
+      "label": "Cor do centro",
+      "type": "color",
+      "default": "#FF2EC4"
+    },
+    "gain": {
+      "label": "Sensibilidade",
+      "type": "number",
+      "min": 20,
+      "max": 200,
+      "default": 100
+    }
+  },
+  "layers": [
+    {
+      "type": "bars",
+      "colors": [
+        "$centerColor",
+        "$edgeColor"
+      ],
+      "mirror": true,
+      "from": "center",
+      "count": 40,
+      "gain": "$gain",
+      "gap": 0.3
+    },
+    {
+      "type": "flash",
+      "color": "$centerColor",
+      "value": "@beat",
+      "strength": 0.25,
+      "blend": "screen"
+    }
+  ]
+}

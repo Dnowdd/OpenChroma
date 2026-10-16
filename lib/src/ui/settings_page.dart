@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 
+import '../audio/audio_service.dart';
 import '../engine/engine.dart';
 import 'effects_page.dart';
 import 'theme.dart';
@@ -38,6 +39,20 @@ class SettingsPage extends StatelessWidget {
                           max: 100,
                           suffix: '%',
                           onChanged: (v) => engine.setBrightness(v.round()),
+                        ),
+                      ),
+                      OcRow(
+                        title: 'Áudio',
+                        description: engine.audio.available
+                            ? 'O que os efeitos com som escutam.'
+                            : 'Captura de áudio indisponível nesta build.',
+                        trailing: OcSelect(
+                          value: engine.audioSource.name,
+                          options: [for (final s in AudioSource.values) s.name],
+                          labelOf: (n) => AudioSource.byName(n).label,
+                          onChanged: (n) =>
+                              engine.setAudioSource(AudioSource.byName(n)),
+                          width: 200,
                         ),
                       ),
                       OcRow(

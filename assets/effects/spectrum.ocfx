@@ -1,0 +1,32 @@
+{
+  "openchroma": 1,
+  "name": "Espectro",
+  "description": "Barras que sobem e descem com cada frequência da música, do grave ao agudo.",
+  "author": "OpenChroma",
+  "background": "#05060A",
+  "params": {
+    "gain": {
+      "label": "Sensibilidade",
+      "type": "number",
+      "min": 20,
+      "max": 200,
+      "default": 100
+    },
+    "bars": {
+      "label": "Barras",
+      "type": "number",
+      "min": 8,
+      "max": 64,
+      "default": 32
+    }
+  },
+  "layers": [
+    {
+      "type": "bars",
+      "colors": "spectrum",
+      "count": "$bars",
+      "gain": "$gain",
+      "gap": 0.25
+    }
+  ]
+}

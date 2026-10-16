@@ -1,0 +1,38 @@
+{
+  "openchroma": 1,
+  "name": "Pulso do Grave",
+  "description": "Todo o setup acende no ritmo do grave, como um subwoofer de luz.",
+  "author": "OpenChroma",
+  "background": "#000000",
+  "params": {
+    "color": {
+      "label": "Cor",
+      "type": "color",
+      "default": "#FF2D55"
+    },
+    "backgroundColor": {
+      "label": "Cor de fundo",
+      "type": "color",
+      "default": "#1A0010"
+    },
+    "intensity": {
+      "label": "Intensidade",
+      "type": "number",
+      "min": 10,
+      "max": 100,
+      "default": 90
+    }
+  },
+  "layers": [
+    {
+      "type": "solid",
+      "color": "$backgroundColor"
+    },
+    {
+      "type": "flash",
+      "color": "$color",
+      "value": "@bass",
+      "strength": "$intensity"
+    }
+  ]
+}

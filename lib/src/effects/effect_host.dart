@@ -34,7 +34,8 @@ String _bootstrap(
     vision: {}, getSensorValue: function () { return { value: 0 }; },
     keypressed: false
   };
-  ${stream ? _streamScript : ''}
+  $_audioScript
+  ${stream ? _streamScript : _demoAudioScript}
   // Run change handlers once so effects that derive state from them initialize.
   window.addEventListener('load', function () {
     for (var k in P) {
@@ -63,6 +64,41 @@ const _streamScript =
     window.chrome.webview.postMessage({ f: btoa(bin) });
   }
   setInterval(grab, 33);
+''';
+
+/// Receives audio frames from the host: exposes them as `window.__audio`
+/// (read by .ocfx effects) and fills `engine.audio` the way HTML audio
+/// effects read it (200 bins of 0..127, level in dB).
+const _audioScript = '''
+  window.__audio = { bands: [], level: 0, bass: 0, mid: 0, treble: 0, beat: 0 };
+  if (window.chrome && window.chrome.webview) {
+    window.chrome.webview.addEventListener('message', function (e) {
+      var d = e.data;
+      if (typeof d === 'string') { try { d = JSON.parse(d); } catch (_) { return; } }
+      if (!d || !d.audio) return;
+      var a = d.audio, b = a.bands || [], f = new Array(200);
+      window.__audio = a;
+      for (var i = 0; i < 200; i++) f[i] = Math.round((b[Math.floor(i * b.length / 200)] || 0) * 127);
+      window.engine.audio.freq = f;
+      window.engine.audio.level = a.level > 0 ? -60 + a.level * 60 : -100;
+      window.engine.audio.density = a.treble;
+    });
+  }
+''';
+
+/// Synthetic music for the cover baker, so audio effects render as if a
+/// song were playing.
+const _demoAudioScript = '''
+  setInterval(function () {
+    var t = performance.now() / 1000, bands = [];
+    for (var i = 0; i < 64; i++) {
+      var x = i / 63;
+      bands.push(Math.max(0, Math.min(1, 0.85 - x * 0.55 + 0.18 * Math.sin(t * 3 + i * 0.7))));
+    }
+    var beat = (t % 0.5) < 0.12 ? 1 : 0.2;
+    window.__audio = { bands: bands, level: 0.75, bass: 0.85, mid: 0.6, treble: 0.4, beat: beat,
+                       beats: Math.floor(t / 0.5) };
+  }, 33);
 ''';
 
 /// Loads effects into one WebView: maps the effect's folder to a virtual
@@ -139,6 +175,18 @@ class _EffectPreviewState extends State<EffectPreview> {
     super.initState();
     _init();
     widget.engine.addListener(_sync);
+    widget.engine.audioNotifier.addListener(_sendAudio);
+  }
+
+  bool _sendingAudio = false;
+
+  void _sendAudio() {
+    final frame = widget.engine.audioNotifier.value;
+    if (!_ready || _sendingAudio || frame.bands.isEmpty) return;
+    _sendingAudio = true;
+    _controller
+        .postWebMessage(jsonEncode({'audio': frame.toJson()}))
+        .whenComplete(() => _sendingAudio = false);
   }
 
   Future<void> _init() async {
@@ -212,6 +260,7 @@ class _EffectPreviewState extends State<EffectPreview> {
   @override
   void dispose() {
     widget.engine.removeListener(_sync);
+    widget.engine.audioNotifier.removeListener(_sendAudio);
     _messages?.cancel();
     _controller.dispose();
     super.dispose();

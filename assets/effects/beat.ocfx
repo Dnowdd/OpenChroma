@@ -1,0 +1,46 @@
+{
+  "openchroma": 1,
+  "name": "Batida",
+  "description": "Cada batida da música dispara um anel de luz que se espalha pelo setup.",
+  "author": "OpenChroma",
+  "background": "#03040A",
+  "params": {
+    "speed": {
+      "label": "Velocidade dos anéis",
+      "type": "number",
+      "min": 10,
+      "max": 100,
+      "default": 50
+    }
+  },
+  "layers": [
+    {
+      "type": "gradient",
+      "colors": [
+        "#0A0F2C",
+        "#1B0A2C",
+        "#0A0F2C"
+      ],
+      "angle": 30,
+      "speed": 10
+    },
+    {
+      "type": "ripple",
+      "colors": [
+        "#4C8DFF",
+        "#FF3D7F",
+        "#3CFFB4",
+        "#FFD25A"
+      ],
+      "speed": "$speed",
+      "thickness": 16,
+      "blend": "add"
+    },
+    {
+      "type": "flash",
+      "color": "#FFFFFF",
+      "value": "@beat",
+      "strength": 0.15
+    }
+  ]
+}
