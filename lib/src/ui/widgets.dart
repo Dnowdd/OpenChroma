@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import 'accent.dart';
 import 'theme.dart';
 
 /// Rebuilds [builder] with the current hover state.
@@ -53,37 +54,38 @@ class OcButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final enabled = onPressed != null;
+    final accent = LiveAccent.of(context);
     return Hover(
       onTap: onPressed,
       builder: (context, h) {
         late Color bg, fg, border;
         switch (variant) {
           case OcButtonVariant.primary:
-            bg = h ? Colors.white : Oc.text;
-            fg = Oc.bg;
+            bg = h ? Color.lerp(accent, Colors.white, .2)! : accent;
+            fg = onAccent(accent);
             border = Colors.transparent;
           case OcButtonVariant.secondary:
-            bg = h ? Oc.hover : Oc.raised;
+            bg = h ? Oc.pressed : Oc.hover;
             fg = Oc.text;
-            border = Oc.lineStrong;
+            border = Colors.transparent;
           case OcButtonVariant.ghost:
             bg = h ? Oc.hover : Colors.transparent;
             fg = Oc.textSecondary;
             border = Colors.transparent;
           case OcButtonVariant.danger:
-            bg = h ? Oc.danger.withValues(alpha: .16) : Oc.raised;
+            bg = Oc.danger.withValues(alpha: h ? .2 : .1);
             fg = Oc.danger;
-            border = Oc.lineStrong;
+            border = Colors.transparent;
         }
         return Opacity(
           opacity: enabled ? 1 : .4,
           child: AnimatedContainer(
             duration: Oc.fast,
-            height: 30,
-            padding: const EdgeInsets.symmetric(horizontal: 12),
+            height: Oc.control,
+            padding: const EdgeInsets.symmetric(horizontal: 16),
             decoration: BoxDecoration(
               color: bg,
-              borderRadius: Oc.r6,
+              borderRadius: Oc.pill,
               border: Border.all(color: border),
             ),
             child: Row(
@@ -97,7 +99,7 @@ class OcButton extends StatelessWidget {
                   label,
                   style: TextStyle(
                     fontSize: 12.5,
-                    fontWeight: FontWeight.w500,
+                    fontWeight: FontWeight.w600,
                     color: fg,
                   ),
                 ),
@@ -116,7 +118,7 @@ class OcIconButton extends StatelessWidget {
     required this.icon,
     required this.tooltip,
     this.onPressed,
-    this.size = 30,
+    this.size = 34,
   });
   final IconData icon;
   final String tooltip;
@@ -134,9 +136,9 @@ class OcIconButton extends StatelessWidget {
         height: size,
         decoration: BoxDecoration(
           color: h ? Oc.hover : Colors.transparent,
-          borderRadius: Oc.r6,
+          shape: BoxShape.circle,
         ),
-        child: Icon(icon, size: 17, color: h ? Oc.text : Oc.textSecondary),
+        child: Icon(icon, size: 18, color: h ? Oc.text : Oc.textSecondary),
       ),
     ),
   );
@@ -152,9 +154,10 @@ class OcPanel extends StatelessWidget {
   Widget build(BuildContext context) => Container(
     decoration: BoxDecoration(
       color: Oc.panel,
-      borderRadius: Oc.r10,
+      borderRadius: Oc.r12,
       border: Border.all(color: Oc.line),
     ),
+    clipBehavior: Clip.antiAlias,
     padding: padding,
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -199,7 +202,7 @@ class OcRow extends StatelessWidget {
       ],
     );
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
       child: stacked
           ? Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -222,33 +225,39 @@ class OcSwitch extends StatelessWidget {
   final ValueChanged<bool>? onChanged;
 
   @override
-  Widget build(BuildContext context) => Hover(
-    onTap: onChanged == null ? null : () => onChanged!(!value),
-    builder: (context, h) => AnimatedContainer(
-      duration: Oc.fast,
-      width: 34,
-      height: 20,
-      padding: const EdgeInsets.all(2),
-      decoration: BoxDecoration(
-        color: value ? Oc.text : (h ? Oc.pressed : Oc.hover),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: value ? Oc.text : Oc.lineStrong),
-      ),
-      child: AnimatedAlign(
-        duration: Oc.fast,
-        curve: Curves.easeOut,
-        alignment: value ? Alignment.centerRight : Alignment.centerLeft,
-        child: Container(
-          width: 14,
-          height: 14,
+  Widget build(BuildContext context) {
+    final accent = LiveAccent.of(context);
+    return Opacity(
+      opacity: onChanged == null ? .45 : 1,
+      child: Hover(
+        onTap: onChanged == null ? null : () => onChanged!(!value),
+        builder: (context, h) => AnimatedContainer(
+          duration: Oc.smooth,
+          curve: Curves.easeOutCubic,
+          width: 42,
+          height: 25,
+          padding: const EdgeInsets.all(3),
           decoration: BoxDecoration(
-            color: value ? Oc.bg : Oc.textSecondary,
-            shape: BoxShape.circle,
+            color: value ? accent : (h ? Oc.pressed : Oc.hover),
+            borderRadius: Oc.pill,
+          ),
+          child: AnimatedAlign(
+            duration: Oc.smooth,
+            curve: Curves.easeOutCubic,
+            alignment: value ? Alignment.centerRight : Alignment.centerLeft,
+            child: Container(
+              width: 19,
+              height: 19,
+              decoration: BoxDecoration(
+                color: value ? onAccent(accent) : Oc.textSecondary,
+                shape: BoxShape.circle,
+              ),
+            ),
           ),
         ),
       ),
-    ),
-  );
+    );
+  }
 }
 
 class OcSlider extends StatelessWidget {
@@ -277,9 +286,10 @@ class OcSlider extends StatelessWidget {
       children: [
         Expanded(
           child: SliderTheme(
-            data: SliderTheme.of(
-              context,
-            ).copyWith(activeTrackColor: activeColor, thumbColor: activeColor),
+            data: SliderTheme.of(context).copyWith(
+              activeTrackColor: activeColor ?? LiveAccent.of(context),
+              thumbColor: activeColor ?? LiveAccent.of(context),
+            ),
             child: Slider(value: v, min: min, max: max, onChanged: onChanged),
           ),
         ),
@@ -339,12 +349,11 @@ class OcSelect extends StatelessWidget {
       builder: (context, h) => AnimatedContainer(
         duration: Oc.fast,
         width: width,
-        height: 30,
-        padding: const EdgeInsets.only(left: 10, right: 6),
+        height: Oc.control,
+        padding: const EdgeInsets.only(left: 14, right: 10),
         decoration: BoxDecoration(
-          color: h ? Oc.hover : Oc.raised,
-          borderRadius: Oc.r6,
-          border: Border.all(color: Oc.lineStrong),
+          color: h ? Oc.pressed : Oc.hover,
+          borderRadius: Oc.pill,
         ),
         child: Row(
           children: [
@@ -376,11 +385,11 @@ class OcSegmented<T> extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Container(
-    height: 30,
-    padding: const EdgeInsets.all(2),
+    height: Oc.control,
+    padding: const EdgeInsets.all(3),
     decoration: BoxDecoration(
       color: Oc.panel,
-      borderRadius: Oc.r8,
+      borderRadius: Oc.pill,
       border: Border.all(color: Oc.line),
     ),
     child: Row(
@@ -391,14 +400,11 @@ class OcSegmented<T> extends StatelessWidget {
             onTap: () => onChanged(v),
             builder: (context, h) => AnimatedContainer(
               duration: Oc.fast,
-              padding: const EdgeInsets.symmetric(horizontal: 12),
+              padding: const EdgeInsets.symmetric(horizontal: 14),
               alignment: Alignment.center,
               decoration: BoxDecoration(
-                color: v == value ? Oc.hover : Colors.transparent,
-                borderRadius: Oc.r6,
-                border: Border.all(
-                  color: v == value ? Oc.lineStrong : Colors.transparent,
-                ),
+                color: v == value ? Oc.pressed : Colors.transparent,
+                borderRadius: Oc.pill,
               ),
               child: Text(
                 label,
@@ -447,13 +453,9 @@ class OcBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Container(
-    height: 22,
-    padding: const EdgeInsets.symmetric(horizontal: 8),
-    decoration: BoxDecoration(
-      color: Oc.raised,
-      borderRadius: Oc.r6,
-      border: Border.all(color: Oc.line),
-    ),
+    height: 24,
+    padding: const EdgeInsets.symmetric(horizontal: 10),
+    decoration: const BoxDecoration(color: Oc.raised, borderRadius: Oc.pill),
     child: Row(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -485,9 +487,13 @@ class OcSearchField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => SizedBox(
-    height: 30,
+    height: Oc.control,
     child: TextField(
       onChanged: onChanged,
+      // Fill the control height like the buttons next to it.
+      expands: true,
+      maxLines: null,
+      textAlignVertical: TextAlignVertical.center,
       style: const TextStyle(fontSize: 12.5, color: Oc.text),
       decoration: _fieldDecoration(hint).copyWith(
         prefixIcon: const Icon(Icons.search, size: 16, color: Oc.textTertiary),
@@ -573,15 +579,15 @@ InputDecoration _fieldDecoration(String hint) => InputDecoration(
   hintStyle: const TextStyle(fontSize: 12.5, color: Oc.textTertiary),
   isDense: true,
   filled: true,
-  fillColor: Oc.raised,
-  contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+  fillColor: Oc.hover,
+  contentPadding: const EdgeInsets.symmetric(horizontal: 14),
   enabledBorder: const OutlineInputBorder(
-    borderRadius: Oc.r6,
-    borderSide: BorderSide(color: Oc.lineStrong),
+    borderRadius: Oc.pill,
+    borderSide: BorderSide(color: Colors.transparent),
   ),
   focusedBorder: const OutlineInputBorder(
-    borderRadius: Oc.r6,
-    borderSide: BorderSide(color: Oc.textSecondary),
+    borderRadius: Oc.pill,
+    borderSide: BorderSide(color: Oc.lineStrong),
   ),
 );
 
@@ -600,7 +606,7 @@ class PageHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.fromLTRB(32, 28, 32, 20),
+    padding: Oc.headerInsets,
     child: Row(
       crossAxisAlignment: CrossAxisAlignment.end,
       children: [
@@ -608,10 +614,13 @@ class PageHeader extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(title, style: OcText.pageTitle),
+              Text(title, style: OcText.pageTitle.copyWith(fontSize: 28)),
               if (subtitle != null) ...[
                 const SizedBox(height: 4),
-                Text(subtitle!, style: OcText.secondary),
+                Text(
+                  subtitle!,
+                  style: OcText.secondary.copyWith(fontSize: 13.5),
+                ),
               ],
             ],
           ),
@@ -663,14 +672,13 @@ class EmptyState extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           Container(
-            width: 44,
-            height: 44,
-            decoration: BoxDecoration(
+            width: 56,
+            height: 56,
+            decoration: const BoxDecoration(
               color: Oc.raised,
-              borderRadius: Oc.r10,
-              border: Border.all(color: Oc.line),
+              shape: BoxShape.circle,
             ),
-            child: Icon(icon, size: 20, color: Oc.textSecondary),
+            child: Icon(icon, size: 24, color: Oc.textSecondary),
           ),
           const SizedBox(height: 16),
           Text(title, style: OcText.label),
@@ -680,5 +688,97 @@ class EmptyState extends StatelessWidget {
         ],
       ),
     ),
+  );
+}
+
+/// The redesign's surface: a large rounded card. With [onTap] it lifts its
+/// border on hover.
+class OcCard extends StatelessWidget {
+  const OcCard({
+    super.key,
+    required this.child,
+    this.onTap,
+    this.padding = const EdgeInsets.all(22),
+    this.color,
+  });
+  final Widget child;
+  final VoidCallback? onTap;
+  final EdgeInsets padding;
+  final Color? color;
+
+  @override
+  Widget build(BuildContext context) => Hover(
+    onTap: onTap,
+    builder: (context, h) => AnimatedContainer(
+      duration: Oc.smooth,
+      curve: Curves.easeOutCubic,
+      padding: padding,
+      decoration: BoxDecoration(
+        color: color ?? (h && onTap != null ? Oc.raised : Oc.panel),
+        borderRadius: Oc.r24,
+        border: Border.all(color: h && onTap != null ? Oc.lineStrong : Oc.line),
+      ),
+      child: child,
+    ),
+  );
+}
+
+/// Card heading: title on the left, optional controls on the right.
+class OcCardTitle extends StatelessWidget {
+  const OcCardTitle(this.title, {super.key, this.trailing});
+  final String title;
+  final Widget? trailing;
+
+  @override
+  Widget build(BuildContext context) => Row(
+    children: [
+      Expanded(
+        child: Text(
+          title,
+          overflow: TextOverflow.ellipsis,
+          style: OcText.title.copyWith(fontSize: 16),
+        ),
+      ),
+      ?trailing,
+    ],
+  );
+}
+
+/// A tiny tag such as "Em breve".
+class OcTag extends StatelessWidget {
+  const OcTag(this.text, {super.key});
+  final String text;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+    decoration: const BoxDecoration(color: Oc.raised, borderRadius: Oc.pill),
+    child: Text(
+      text,
+      style: const TextStyle(
+        fontSize: 11,
+        fontWeight: FontWeight.w600,
+        color: Oc.textSecondary,
+      ),
+    ),
+  );
+}
+
+/// An iOS-style settings icon: a white glyph on a small colored square.
+class OcIconTile extends StatelessWidget {
+  const OcIconTile(this.icon, {super.key, required this.color, this.size = 30});
+  final IconData icon;
+  final Color color;
+  final double size;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    width: size,
+    height: size,
+    decoration: BoxDecoration(
+      color: color,
+      borderRadius: BorderRadius.circular(size * .3),
+    ),
+    child: Icon(icon, size: size * .58, color: Colors.white),
   );
 }

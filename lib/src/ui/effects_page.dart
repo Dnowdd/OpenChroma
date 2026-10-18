@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 
 import '../effects/effect_library.dart';
 import '../engine/engine.dart';
+import 'accent.dart';
 import 'property_controls.dart';
 import 'theme.dart';
 import 'widgets.dart';
@@ -50,19 +51,8 @@ class _EffectsPageState extends State<EffectsPage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              PageHeader(
-                title: 'Efeitos',
-                subtitle: 'Escolha um efeito para todos os dispositivos.',
-                actions: [
-                  OcButton(
-                    label: 'Importar',
-                    icon: Icons.add_rounded,
-                    onPressed: () => showImportDialog(context, engine),
-                  ),
-                ],
-              ),
               Padding(
-                padding: const EdgeInsets.fromLTRB(32, 0, 32, 20),
+                padding: const EdgeInsets.fromLTRB(16, 0, 20, 20),
                 child: Row(
                   children: [
                     OcSegmented<String>(
@@ -77,11 +67,18 @@ class _EffectsPageState extends State<EffectsPage> {
                     ),
                     const Spacer(),
                     SizedBox(
-                      width: 240,
+                      width: 260,
                       child: OcSearchField(
                         hint: 'Buscar efeitos',
                         onChanged: (s) => setState(() => _query = s),
                       ),
+                    ),
+                    const SizedBox(width: 10),
+                    OcButton(
+                      label: 'Importar',
+                      icon: Icons.add_rounded,
+                      variant: OcButtonVariant.primary,
+                      onPressed: () => showImportDialog(context, engine),
                     ),
                   ],
                 ),
@@ -93,19 +90,14 @@ class _EffectsPageState extends State<EffectsPage> {
                         builder: (context, box) {
                           // Size cells so the cover is exactly 16:10 (the
                           // effect canvas ratio) with the title below it.
-                          const gap = 20.0, pad = 32.0, minWidth = 220.0;
-                          final inner = box.maxWidth - pad * 2;
+                          const gap = 18.0, minWidth = 220.0;
+                          final inner = box.maxWidth - 16 - 20;
                           final cols = ((inner + gap) / (minWidth + gap))
                               .floor()
                               .clamp(1, 8);
                           final cell = (inner - gap * (cols - 1)) / cols;
                           return GridView.builder(
-                            padding: const EdgeInsets.fromLTRB(
-                              pad,
-                              0,
-                              pad,
-                              pad,
-                            ),
+                            padding: const EdgeInsets.fromLTRB(16, 0, 20, 32),
                             gridDelegate:
                                 SliverGridDelegateWithFixedCrossAxisCount(
                                   crossAxisCount: cols,
@@ -129,10 +121,11 @@ class _EffectsPageState extends State<EffectsPage> {
             ],
           ),
         ),
-        if (current != null) ...[
-          const VerticalDivider(width: 1),
-          _Inspector(engine: engine, effect: current),
-        ],
+        if (current != null)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(0, 0, 20, 24),
+            child: _Inspector(engine: engine, effect: current),
+          ),
       ],
     );
   }
@@ -186,7 +179,7 @@ class _EffectCard extends StatelessWidget {
         AspectRatio(
           aspectRatio: 1.6,
           child: ClipRRect(
-            borderRadius: Oc.r10,
+            borderRadius: Oc.r12,
             child: Stack(
               fit: StackFit.expand,
               children: [
@@ -217,21 +210,21 @@ class _EffectCard extends StatelessWidget {
                 AnimatedContainer(
                   duration: Oc.fast,
                   decoration: BoxDecoration(
-                    borderRadius: Oc.r10,
+                    borderRadius: Oc.r12,
                     border: Border.all(
                       color: selected
-                          ? Colors.white
+                          ? LiveAccent.of(context)
                           : Colors.white.withValues(alpha: h ? .28 : .06),
-                      width: selected ? 2 : 1,
+                      width: selected ? 2.5 : 1,
                     ),
                   ),
                 ),
                 if (selected)
-                  const Positioned(top: 8, left: 8, child: _LiveChip()),
+                  const Positioned(top: 10, left: 10, child: _LiveChip()),
                 if (h || favorite)
                   Positioned(
-                    top: 6,
-                    right: 6,
+                    top: 8,
+                    right: 8,
                     child: _FavoriteButton(active: favorite, onTap: onFavorite),
                   ),
               ],
@@ -280,12 +273,12 @@ class _FavoriteButton extends StatelessWidget {
       onTap: onTap,
       builder: (context, h) => AnimatedContainer(
         duration: Oc.fast,
-        width: 28,
-        height: 28,
+        width: 30,
+        height: 30,
         decoration: BoxDecoration(
-          color: Colors.black.withValues(alpha: h ? .75 : .55),
-          borderRadius: Oc.r6,
-          border: Border.all(color: Colors.white.withValues(alpha: .1)),
+          color: Colors.black.withValues(alpha: h ? .75 : .5),
+          shape: BoxShape.circle,
+          border: Border.all(color: Colors.white.withValues(alpha: .12)),
         ),
         child: Icon(
           active ? Icons.star_rounded : Icons.star_outline_rounded,
@@ -302,20 +295,20 @@ class _LiveChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Container(
-    height: 22,
-    padding: const EdgeInsets.symmetric(horizontal: 8),
+    height: 26,
+    padding: const EdgeInsets.symmetric(horizontal: 10),
     decoration: BoxDecoration(
-      color: Colors.black.withValues(alpha: .62),
-      borderRadius: Oc.r6,
-      border: Border.all(color: Colors.white.withValues(alpha: .1)),
+      color: Colors.black.withValues(alpha: .5),
+      borderRadius: Oc.pill,
+      border: Border.all(color: Colors.white.withValues(alpha: .14)),
     ),
-    child: const Row(
+    child: Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        OcStatusDot(color: Oc.success, size: 6),
-        SizedBox(width: 6),
-        Text(
-          'Ativo',
+        OcStatusDot(color: LiveAccent.of(context), size: 6),
+        const SizedBox(width: 7),
+        const Text(
+          'Ao vivo',
           style: TextStyle(
             fontSize: 11.5,
             fontWeight: FontWeight.w500,
@@ -431,72 +424,105 @@ class _Inspector extends StatelessWidget {
     // Only show authors of our own and user-made effects.
     final showAuthor =
         effect.kind == EffectKind.ocfx && effect.author.isNotEmpty;
-    return SizedBox(
-      width: 340,
+    return Container(
+      width: 360,
+      decoration: BoxDecoration(
+        color: Oc.panel,
+        borderRadius: Oc.r24,
+        border: Border.all(color: Oc.line),
+      ),
+      clipBehavior: Clip.antiAlias,
       child: ListView(
-        padding: const EdgeInsets.fromLTRB(24, 28, 24, 24),
+        padding: const EdgeInsets.fromLTRB(12, 12, 12, 20),
         children: [
-          Row(
-            children: [
-              Expanded(child: Text(effect.title, style: OcText.title)),
-              OcIconButton(
-                icon: favorite
-                    ? Icons.star_rounded
-                    : Icons.star_outline_rounded,
-                tooltip: favorite ? 'Remover dos favoritos' : 'Favoritar',
-                onPressed: () => engine.toggleFavorite(effect),
-              ),
-              if (effect.imported)
-                OcIconButton(
-                  icon: Icons.delete_outline_rounded,
-                  tooltip: 'Remover efeito importado',
-                  onPressed: () => _confirmRemove(context),
-                ),
-            ],
-          ),
-          if (showAuthor) ...[
-            const SizedBox(height: 2),
-            Text('por ${effect.author}', style: OcText.caption),
-          ],
-          if (effect.description.isNotEmpty) ...[
-            const SizedBox(height: 10),
-            Text(displayText(effect.description), style: OcText.secondary),
-          ],
-          const SizedBox(height: 28),
-          if (effect.properties.isNotEmpty) ...[
-            SectionLabel(
-              'Ajustes',
-              trailing: OcButton(
-                label: 'Restaurar',
-                variant: OcButtonVariant.ghost,
-                onPressed: () {
-                  for (final prop in effect.properties) {
-                    engine.setEffectProperty(
-                      effect,
-                      prop.name,
-                      prop.coerce(null),
-                    );
-                  }
-                },
-              ),
+          AspectRatio(
+            aspectRatio: 1.6,
+            child: ClipRRect(
+              borderRadius: Oc.r12,
+              child: LiveCanvas(engine: engine),
             ),
-            OcPanel(
+          ),
+          const SizedBox(height: 18),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                for (final prop in effect.properties)
-                  PropertyControl(
-                    label: prop.label,
-                    type: prop.type,
-                    min: prop.min,
-                    max: prop.max,
-                    values: prop.values,
-                    value: prop.coerce(saved[prop.name]),
-                    onChanged: (v) =>
-                        engine.setEffectProperty(effect, prop.name, v),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        effect.title,
+                        style: OcText.title.copyWith(fontSize: 20),
+                      ),
+                    ),
+                    OcIconButton(
+                      icon: favorite
+                          ? Icons.star_rounded
+                          : Icons.star_outline_rounded,
+                      tooltip: favorite ? 'Remover dos favoritos' : 'Favoritar',
+                      onPressed: () => engine.toggleFavorite(effect),
+                    ),
+                    if (effect.imported)
+                      OcIconButton(
+                        icon: Icons.delete_outline_rounded,
+                        tooltip: 'Remover efeito importado',
+                        onPressed: () => _confirmRemove(context),
+                      ),
+                  ],
+                ),
+                if (showAuthor) ...[
+                  const SizedBox(height: 2),
+                  Text('por ${effect.author}', style: OcText.caption),
+                ],
+                if (effect.description.isNotEmpty) ...[
+                  const SizedBox(height: 10),
+                  Text(
+                    displayText(effect.description),
+                    style: OcText.secondary,
+                  ),
+                ],
+                const SizedBox(height: 28),
+                if (effect.properties.isNotEmpty) ...[
+                  SectionLabel(
+                    'Ajustes',
+                    trailing: OcButton(
+                      label: 'Restaurar',
+                      variant: OcButtonVariant.ghost,
+                      onPressed: () {
+                        for (final prop in effect.properties) {
+                          engine.setEffectProperty(
+                            effect,
+                            prop.name,
+                            prop.coerce(null),
+                          );
+                        }
+                      },
+                    ),
+                  ),
+                  OcPanel(
+                    children: [
+                      for (final prop in effect.properties)
+                        PropertyControl(
+                          label: prop.label,
+                          type: prop.type,
+                          min: prop.min,
+                          max: prop.max,
+                          values: prop.values,
+                          value: prop.coerce(saved[prop.name]),
+                          onChanged: (v) =>
+                              engine.setEffectProperty(effect, prop.name, v),
+                        ),
+                    ],
+                  ),
+                ] else
+                  const Text(
+                    'Este efeito não tem ajustes.',
+                    style: OcText.caption,
                   ),
               ],
             ),
-          ] else
-            const Text('Este efeito não tem ajustes.', style: OcText.caption),
+          ),
         ],
       ),
     );

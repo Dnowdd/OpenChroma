@@ -50,72 +50,97 @@ class _DevicesPageState extends State<DevicesPage> {
     final devices = engine.devices.values.toList()
       ..sort((a, b) => a.name.compareTo(b.name));
     final sel = engine.devices[_selected] ?? devices.firstOrNull;
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        SizedBox(
-          width: 300,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(24, 28, 16, 16),
+    final running = devices.where((d) => d.status == 'running').length;
+    return Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 1400),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            PageHeader(
+              title: 'Dispositivos',
+              subtitle: engine.scanning
+                  ? 'Procurando…'
+                  : running == 1
+                  ? '1 conectado'
+                  : '$running conectados',
+              actions: [
+                OcButton(
+                  label: 'Procurar',
+                  icon: Icons.refresh_rounded,
+                  onPressed: engine.refreshDevices,
+                ),
+              ],
+            ),
+            Expanded(
+              child: Padding(
+                padding: Oc.pageInsets,
                 child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    const Expanded(
-                      child: Text('Dispositivos', style: OcText.pageTitle),
-                    ),
-                    OcIconButton(
-                      icon: Icons.refresh_rounded,
-                      tooltip: 'Procurar dispositivos',
-                      onPressed: engine.refreshDevices,
-                    ),
-                  ],
-                ),
-              ),
-              Expanded(
-                child: ListView(
-                  padding: const EdgeInsets.symmetric(horizontal: 12),
-                  children: [
-                    for (final d in devices)
-                      _DeviceTile(
-                        device: d,
-                        selected: d.key == sel?.key,
-                        onTap: () => setState(() => _selected = d.key),
-                      ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-        const VerticalDivider(width: 1),
-        Expanded(
-          child: sel != null
-              ? _DeviceDetail(
-                  key: ValueKey(sel.key),
-                  engine: engine,
-                  device: sel,
-                )
-              : EmptyState(
-                  icon: Icons.usb_rounded,
-                  title: engine.scanning
-                      ? 'Carregando plugins'
-                      : 'Nenhum dispositivo',
-                  message: engine.scanning
-                      ? 'Preparando a compatibilidade com seus dispositivos.'
-                      : 'Conecte um dispositivo compatível. Se outro programa de RGB '
-                            'estiver aberto, feche-o antes.',
-                  action: engine.scanning
-                      ? null
-                      : OcButton(
-                          label: 'Procurar novamente',
-                          icon: Icons.refresh_rounded,
-                          onPressed: engine.refreshDevices,
+                    if (devices.isNotEmpty) ...[
+                      Container(
+                        width: 320,
+                        decoration: BoxDecoration(
+                          color: Oc.panel,
+                          borderRadius: Oc.r24,
+                          border: Border.all(color: Oc.line),
                         ),
+                        clipBehavior: Clip.antiAlias,
+                        child: ListView(
+                          padding: const EdgeInsets.all(10),
+                          children: [
+                            for (final d in devices)
+                              _DeviceTile(
+                                device: d,
+                                selected: d.key == sel?.key,
+                                onTap: () => setState(() => _selected = d.key),
+                              ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                    ],
+                    Expanded(
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: Oc.panel,
+                          borderRadius: Oc.r24,
+                          border: Border.all(color: Oc.line),
+                        ),
+                        clipBehavior: Clip.antiAlias,
+                        child: sel != null
+                            ? _DeviceDetail(
+                                key: ValueKey(sel.key),
+                                engine: engine,
+                                device: sel,
+                              )
+                            : EmptyState(
+                                icon: Icons.usb_rounded,
+                                title: engine.scanning
+                                    ? 'Carregando plugins'
+                                    : 'Nenhum dispositivo',
+                                message: engine.scanning
+                                    ? 'Preparando a compatibilidade com seus dispositivos.'
+                                    : 'Conecte um dispositivo compatível. Se outro programa de RGB '
+                                          'estiver aberto, feche-o antes.',
+                                action: engine.scanning
+                                    ? null
+                                    : OcButton(
+                                        label: 'Procurar novamente',
+                                        icon: Icons.refresh_rounded,
+                                        onPressed: engine.refreshDevices,
+                                      ),
+                              ),
+                      ),
+                    ),
+                  ],
                 ),
+              ),
+            ),
+          ],
         ),
-      ],
+      ),
     );
   }
 }
@@ -138,8 +163,7 @@ class DeviceThumb extends StatelessWidget {
       padding: EdgeInsets.all(size * .12),
       decoration: BoxDecoration(
         color: Oc.raised,
-        borderRadius: size > 48 ? Oc.r12 : Oc.r8,
-        border: Border.all(color: Oc.line),
+        borderRadius: BorderRadius.circular(size * .28),
       ),
       child: url.startsWith('http')
           ? Image.network(
@@ -171,20 +195,19 @@ class _DeviceTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final (color, label) = statusStyle(device.status);
     return Padding(
-      padding: const EdgeInsets.only(bottom: 2),
+      padding: const EdgeInsets.only(bottom: 4),
       child: Hover(
         onTap: onTap,
         builder: (context, h) => AnimatedContainer(
           duration: Oc.fast,
-          padding: const EdgeInsets.all(8),
+          padding: const EdgeInsets.all(10),
           decoration: BoxDecoration(
-            color: selected ? Oc.raised : (h ? Oc.panel : Colors.transparent),
-            borderRadius: Oc.r8,
-            border: Border.all(color: selected ? Oc.line : Colors.transparent),
+            color: selected ? Oc.hover : (h ? Oc.raised : Colors.transparent),
+            borderRadius: Oc.r12,
           ),
           child: Row(
             children: [
-              DeviceThumb(url: device.imageUrl),
+              DeviceThumb(url: device.imageUrl, size: 46),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
@@ -242,23 +265,27 @@ class _DeviceDetailState extends State<_DeviceDetail> {
     final tab = !hasChannels && _tab == 'channels' ? 'lighting' : _tab;
 
     return ListView(
-      padding: const EdgeInsets.fromLTRB(40, 32, 40, 40),
+      padding: const EdgeInsets.fromLTRB(32, 28, 32, 32),
       children: [
-        Center(
+        Align(
+          alignment: Alignment.topLeft,
           child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 760),
+            constraints: const BoxConstraints(),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 Row(
                   children: [
-                    DeviceThumb(url: d.imageUrl, size: 72),
+                    DeviceThumb(url: d.imageUrl, size: 84),
                     const SizedBox(width: 20),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(d.name, style: OcText.pageTitle),
+                          Text(
+                            d.name,
+                            style: OcText.pageTitle.copyWith(fontSize: 24),
+                          ),
                           const SizedBox(height: 8),
                           Wrap(
                             spacing: 6,
@@ -297,7 +324,7 @@ class _DeviceDetailState extends State<_DeviceDetail> {
                     padding: const EdgeInsets.all(14),
                     decoration: BoxDecoration(
                       color: Oc.danger.withValues(alpha: .06),
-                      borderRadius: Oc.r8,
+                      borderRadius: Oc.r12,
                       border: Border.all(
                         color: Oc.danger.withValues(alpha: .25),
                       ),

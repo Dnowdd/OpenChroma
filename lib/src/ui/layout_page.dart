@@ -1,96 +1,9 @@
-import 'dart:typed_data';
-import 'dart:ui' as ui;
-
 import 'package:flutter/material.dart';
 
 import '../engine/engine.dart';
+import 'accent.dart';
 import 'theme.dart';
 import 'widgets.dart';
-
-/// Paints the latest effect frame, rebuilt as a GPU image per frame.
-class LiveCanvas extends StatefulWidget {
-  const LiveCanvas({super.key, required this.engine, this.opacity = 1});
-  final Engine engine;
-  final double opacity;
-
-  @override
-  State<LiveCanvas> createState() => _LiveCanvasState();
-}
-
-class _LiveCanvasState extends State<LiveCanvas> {
-  ui.Image? _image;
-  bool _decoding = false;
-
-  @override
-  void initState() {
-    super.initState();
-    widget.engine.frameNotifier.addListener(_onFrame);
-  }
-
-  void _onFrame() {
-    final f = widget.engine.frameNotifier.value;
-    if (f == null || _decoding) return;
-    _decoding = true;
-    final rgba = Uint8List(f.width * f.height * 4);
-    for (var i = 0, j = 0; i < f.rgb.length; i += 3, j += 4) {
-      rgba[j] = f.rgb[i];
-      rgba[j + 1] = f.rgb[i + 1];
-      rgba[j + 2] = f.rgb[i + 2];
-      rgba[j + 3] = 255;
-    }
-    ui.decodeImageFromPixels(rgba, f.width, f.height, ui.PixelFormat.rgba8888, (
-      img,
-    ) {
-      _decoding = false;
-      if (!mounted) {
-        img.dispose();
-        return;
-      }
-      setState(() {
-        _image?.dispose();
-        _image = img;
-      });
-    });
-  }
-
-  @override
-  void dispose() {
-    widget.engine.frameNotifier.removeListener(_onFrame);
-    _image?.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) => CustomPaint(
-    painter: _ImagePainter(_image, widget.opacity),
-    size: Size.infinite,
-  );
-}
-
-class _ImagePainter extends CustomPainter {
-  _ImagePainter(this.image, this.opacity);
-  final ui.Image? image;
-  final double opacity;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    canvas.drawRect(Offset.zero & size, Paint()..color = Colors.black);
-    final img = image;
-    if (img == null) return;
-    paintImage(
-      canvas: canvas,
-      rect: Offset.zero & size,
-      image: img,
-      fit: BoxFit.fill,
-      opacity: opacity,
-      filterQuality: FilterQuality.medium,
-    );
-  }
-
-  @override
-  bool shouldRepaint(_ImagePainter old) =>
-      old.image != image || old.opacity != opacity;
-}
 
 class LayoutPage extends StatefulWidget {
   const LayoutPage({super.key, required this.engine});
@@ -124,30 +37,38 @@ class _LayoutPageState extends State<LayoutPage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              PageHeader(
-                title: 'Layout',
-                subtitle: 'Arraste cada zona sobre o efeito. Cada ponto é um LED e recebe a cor daquele lugar.',
-                actions: [
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Text('Escurecer efeito', style: OcText.secondary),
-                      const SizedBox(width: 10),
-                      OcSwitch(
-                        value: _dim,
-                        onChanged: (v) => setState(() => _dim = v),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 20, 18),
+                child: Row(
+                  children: [
+                    const Icon(
+                      Icons.pan_tool_alt_outlined,
+                      size: 16,
+                      color: Oc.textTertiary,
+                    ),
+                    const SizedBox(width: 8),
+                    const Expanded(
+                      child: Text(
+                        'Arraste cada zona sobre o efeito. Cada ponto é um LED.',
+                        style: OcText.secondary,
                       ),
-                    ],
-                  ),
-                ],
+                    ),
+                    const Text('Escurecer efeito', style: OcText.secondary),
+                    const SizedBox(width: 10),
+                    OcSwitch(
+                      value: _dim,
+                      onChanged: (v) => setState(() => _dim = v),
+                    ),
+                  ],
+                ),
               ),
               Expanded(
                 child: Padding(
-                  padding: const EdgeInsets.fromLTRB(32, 0, 32, 32),
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
                   child: Container(
                     decoration: BoxDecoration(
                       color: Oc.panel,
-                      borderRadius: Oc.r12,
+                      borderRadius: Oc.r24,
                       border: Border.all(color: Oc.line),
                     ),
                     child: CustomPaint(
@@ -163,18 +84,19 @@ class _LayoutPageState extends State<LayoutPage> {
                                 return DecoratedBox(
                                   position: DecorationPosition.foreground,
                                   decoration: BoxDecoration(
-                                    borderRadius: Oc.r8,
+                                    borderRadius: Oc.r10,
                                     border: Border.all(color: Oc.lineStrong),
                                   ),
                                   child: ClipRRect(
-                                    borderRadius: Oc.r8,
+                                    borderRadius: Oc.r10,
                                     child: Stack(
                                       clipBehavior: Clip.none,
                                       children: [
                                         Positioned.fill(
-                                          child: LiveCanvas(
-                                            engine: engine,
+                                          child: AnimatedOpacity(
+                                            duration: Oc.smooth,
                                             opacity: _dim ? .35 : 1,
+                                            child: LiveCanvas(engine: engine),
                                           ),
                                         ),
                                         Positioned.fill(
@@ -201,11 +123,17 @@ class _LayoutPageState extends State<LayoutPage> {
             ],
           ),
         ),
-        const VerticalDivider(width: 1),
-        SizedBox(
-          width: 320,
+        Container(
+          width: 330,
+          margin: const EdgeInsets.fromLTRB(0, 0, 20, 24),
+          decoration: BoxDecoration(
+            color: Oc.panel,
+            borderRadius: Oc.r24,
+            border: Border.all(color: Oc.line),
+          ),
+          clipBehavior: Clip.antiAlias,
           child: ListView(
-            padding: const EdgeInsets.fromLTRB(20, 28, 20, 24),
+            padding: const EdgeInsets.fromLTRB(16, 20, 16, 20),
             children: [
               if (running.isEmpty)
                 const Padding(

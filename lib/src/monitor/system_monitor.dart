@@ -275,14 +275,26 @@ class SystemMonitor extends ChangeNotifier {
 
   bool get available => _read != null;
 
-  /// Samples only while the monitor is on screen.
+  final _users = <Object>{};
+
+  /// Samples only while some page that shows readings is on screen; each
+  /// page registers itself as a [user].
+  void setActive(Object user, bool on) {
+    on ? _users.add(user) : _users.remove(user);
+    active = _users.isNotEmpty;
+  }
+
   set active(bool value) {
     if (value == _active || !available) return;
     _active = value;
     if (value) {
       _activatedAt ??= DateTime.now();
       _start!();
-      _poll();
+      // Pages turn sampling on while they build; reading now would notify
+      // listeners mid-build, so take the first sample right after.
+      Timer.run(() {
+        if (_active) _poll();
+      });
       _timer = Timer.periodic(const Duration(seconds: 1), (_) => _poll());
     } else {
       _timer?.cancel();

@@ -1,14 +1,34 @@
+import 'dart:math' as math;
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 
 import '../effects/effect_host.dart';
 import '../engine/engine.dart';
+import '../monitor/system_monitor.dart';
+import '../system/launch_settings.dart';
+import 'accent.dart';
 import 'devices_page.dart';
 import 'effects_page.dart';
+import 'fans_page.dart';
+import 'home_page.dart';
 import 'layout_page.dart';
 import 'monitor_page.dart';
 import 'settings_page.dart';
 import 'theme.dart';
 import 'widgets.dart';
+import 'window_frame.dart';
+
+/// Page indices, also used by --page=N and OC_PAGE.
+abstract final class Pages {
+  static const home = 0;
+  static const lighting = 1;
+  static const devices = 2;
+  static const fans = 3;
+  static const performance = 4;
+  static const settings = 5;
+}
 
 class Shell extends StatefulWidget {
   const Shell({super.key, required this.engine, this.initialPage});
@@ -21,89 +41,183 @@ class Shell extends StatefulWidget {
 
 class _ShellState extends State<Shell> {
   // OC_PAGE opens a given page on launch (handy for screenshots).
-  late int _page = widget.initialPage ?? const int.fromEnvironment('OC_PAGE');
+  late int _page = (widget.initialPage ?? const int.fromEnvironment('OC_PAGE'))
+      .clamp(0, Pages.settings);
+  late final _accent = AccentController(widget.engine);
+  final _monitor = SystemMonitor();
 
   static const _nav = [
-    (Icons.grid_view_rounded, 'Efeitos'),
-    (Icons.devices_other_outlined, 'Dispositivos'),
-    (Icons.space_dashboard_outlined, 'Layout'),
-    (Icons.monitor_heart_outlined, 'Monitor'),
-    (Icons.tune_rounded, 'Configurações'),
+    (Icons.home_outlined, Icons.home_rounded, 'Início'),
+    (Icons.auto_awesome_outlined, Icons.auto_awesome, 'Iluminação'),
+    (Icons.keyboard_alt_outlined, Icons.keyboard_alt, 'Dispositivos'),
+    (Icons.air_rounded, Icons.air_rounded, 'Ventoinhas'),
+    (Icons.speed_outlined, Icons.speed_rounded, 'Desempenho'),
   ];
+
+  @override
+  void dispose() {
+    _accent.dispose();
+    _monitor.dispose();
+    super.dispose();
+  }
+
+  void _go(int page) => setState(() => _page = page);
 
   @override
   Widget build(BuildContext context) {
     final engine = widget.engine;
-    return Scaffold(
-      body: Stack(
-        children: [
-          // Renders effect covers off to the side; the UI covers it.
-          Positioned(left: 0, top: 0, child: CoverBaker(engine: engine)),
-          Positioned.fill(
-            child: ColoredBox(
-              color: Oc.bg,
-              child: Column(
-                children: [
-                  Expanded(
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        ListenableBuilder(
-                          listenable: engine,
-                          builder: (context, _) => _Sidebar(
-                            engine: engine,
-                            index: _page,
-                            items: _nav,
-                            onSelect: (i) => setState(() => _page = i),
-                          ),
-                        ),
-                        const VerticalDivider(width: 1),
-                        Expanded(
-                          child: ListenableBuilder(
+    return LiveAccent(
+      controller: _accent,
+      child: Scaffold(
+        backgroundColor: Oc.bg,
+        body: Stack(
+          children: [
+            // Renders effect covers off to the side; the UI covers it.
+            Positioned(left: 0, top: 0, child: CoverBaker(engine: engine)),
+            Positioned.fill(
+              child: ColoredBox(
+                color: Oc.bg,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    const TitleBar(),
+                    Expanded(
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          ListenableBuilder(
                             listenable: engine,
-                            builder: (context, _) => Column(
+                            builder: (context, _) => _Rail(
+                              engine: engine,
+                              index: _page,
+                              items: _nav,
+                              onSelect: _go,
+                            ),
+                          ),
+                          Expanded(
+                            child: Column(
                               crossAxisAlignment: CrossAxisAlignment.stretch,
                               children: [
-                                if (engine.conflicts.isNotEmpty)
-                                  _ConflictBanner(names: engine.conflicts),
+                                ListenableBuilder(
+                                  listenable: engine,
+                                  builder: (context, _) =>
+                                      engine.conflicts.isEmpty
+                                      ? const SizedBox.shrink()
+                                      : _ConflictBanner(
+                                          names: engine.conflicts,
+                                        ),
+                                ),
                                 Expanded(
-                                  child: IndexedStack(
-                                    index: _page,
-                                    children: [
-                                      EffectsPage(engine: engine),
-                                      DevicesPage(engine: engine),
-                                      LayoutPage(engine: engine),
-                                      MonitorPage(
-                                        engine: engine,
-                                        active: _page == 3,
+                                  // Content fades out above the player
+                                  // instead of being cut off.
+                                  child: ShaderMask(
+                                    blendMode: BlendMode.dstIn,
+                                    shaderCallback: (rect) => LinearGradient(
+                                      begin: Alignment.topCenter,
+                                      end: Alignment.bottomCenter,
+                                      stops: [0, 1 - 28 / rect.height, 1],
+                                      colors: const [
+                                        Colors.white,
+                                        Colors.white,
+                                        Colors.transparent,
+                                      ],
+                                    ).createShader(rect),
+                                    child: ListenableBuilder(
+                                      listenable: engine,
+                                      builder: (context, _) => IndexedStack(
+                                        index: _page,
+                                        children: [
+                                          HomePage(
+                                            engine: engine,
+                                            monitor: _monitor,
+                                            active: _page == Pages.home,
+                                            onNavigate: _go,
+                                          ),
+                                          _LightingPage(engine: engine),
+                                          DevicesPage(engine: engine),
+                                          FansPage(
+                                            monitor: _monitor,
+                                            active: _page == Pages.fans,
+                                          ),
+                                          MonitorPage(
+                                            engine: engine,
+                                            monitor: _monitor,
+                                            active: _page == Pages.performance,
+                                          ),
+                                          SettingsPage(engine: engine),
+                                        ],
                                       ),
-                                      SettingsPage(engine: engine),
-                                    ],
+                                    ),
                                   ),
+                                ),
+                                NowPlayingBar(
+                                  engine: engine,
+                                  onOpenEffects: () => _go(Pages.lighting),
                                 ),
                               ],
                             ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
-                  ),
-                  NowPlayingBar(
-                    engine: engine,
-                    onOpenEffects: () => setState(() => _page = 0),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
 }
 
-class _Sidebar extends StatelessWidget {
-  const _Sidebar({
+/// Effects and their placement on the canvas, under one destination.
+class _LightingPage extends StatefulWidget {
+  const _LightingPage({required this.engine});
+  final Engine engine;
+
+  @override
+  State<_LightingPage> createState() => _LightingPageState();
+}
+
+class _LightingPageState extends State<_LightingPage> {
+  int _tab = 0;
+
+  @override
+  Widget build(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
+      Padding(
+        padding: Oc.headerInsets,
+        child: Row(
+          children: [
+            Text('Iluminação', style: OcText.pageTitle.copyWith(fontSize: 28)),
+            const Spacer(),
+            OcSegmented<int>(
+              value: _tab,
+              options: const [(0, 'Efeitos'), (1, 'Layout')],
+              onChanged: (v) => setState(() => _tab = v),
+            ),
+          ],
+        ),
+      ),
+      Expanded(
+        child: IndexedStack(
+          index: _tab,
+          children: [
+            EffectsPage(engine: widget.engine),
+            LayoutPage(engine: widget.engine),
+          ],
+        ),
+      ),
+    ],
+  );
+}
+
+/// Navigation: a column of round icon buttons, the selected one lit with
+/// the live accent.
+class _Rail extends StatelessWidget {
+  const _Rail({
     required this.engine,
     required this.index,
     required this.items,
@@ -111,7 +225,7 @@ class _Sidebar extends StatelessWidget {
   });
   final Engine engine;
   final int index;
-  final List<(IconData, String)> items;
+  final List<(IconData, IconData, String)> items;
   final ValueChanged<int> onSelect;
 
   @override
@@ -119,168 +233,183 @@ class _Sidebar extends StatelessWidget {
     final active = engine.devices.values
         .where((d) => d.status == 'running')
         .length;
-    return Container(
-      width: 220,
-      color: Oc.bg,
-      padding: const EdgeInsets.fromLTRB(12, 20, 12, 16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          const Padding(
-            padding: EdgeInsets.only(left: 8, bottom: 24),
-            child: Row(
+    final elevated = Elevation.isElevated;
+    return SizedBox(
+      width: 88,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(0, 6, 0, 16),
+        child: Column(
+          children: [
+            _RailGroup(
               children: [
-                _LogoMark(),
-                SizedBox(width: 10),
-                Text(
-                  'OpenChroma',
-                  style: TextStyle(
-                    fontFamily: Oc.fontDisplay,
-                    fontSize: 15,
-                    fontWeight: FontWeight.w600,
-                    letterSpacing: -0.2,
-                    color: Oc.text,
+                for (var i = 0; i < items.length; i++)
+                  _RailButton(
+                    icon: index == i ? items[i].$2 : items[i].$1,
+                    label: items[i].$3,
+                    selected: index == i,
+                    badge: i == Pages.devices && active > 0 ? '$active' : null,
+                    onTap: () => onSelect(i),
                   ),
+              ],
+            ),
+            const Spacer(),
+            _RailGroup(
+              children: [
+                _RailButton(
+                  icon: Icons.tune_rounded,
+                  label: 'Configurações',
+                  selected: index == Pages.settings,
+                  onTap: () => onSelect(Pages.settings),
+                ),
+                _RailButton(
+                  icon: elevated
+                      ? Icons.verified_user_rounded
+                      : Icons.shield_outlined,
+                  label: elevated
+                      ? 'Modo administrador ativo'
+                      : 'Reiniciar como administrador',
+                  selected: false,
+                  dot: elevated ? Oc.success : null,
+                  onTap: elevated
+                      ? null
+                      : () => restartAsAdmin(
+                          page: index,
+                          shutdown: engine.shutdown,
+                        ),
                 ),
               ],
             ),
-          ),
-          for (var i = 0; i < items.length; i++)
-            _NavItem(
-              icon: items[i].$1,
-              label: items[i].$2,
-              selected: index == i,
-              trailing: i == 1 && active > 0 ? '$active' : null,
-              onTap: () => onSelect(i),
-            ),
-          const Spacer(),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 8),
-            child: Row(
-              children: [
-                OcStatusDot(
-                  color: engine.scanning
-                      ? Oc.warning
-                      : (active > 0 ? Oc.success : Oc.textTertiary),
-                  size: 6,
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    engine.scanning
-                        ? 'Carregando plugins…'
-                        : active == 1
-                        ? '1 dispositivo conectado'
-                        : '$active dispositivos conectados',
-                    style: OcText.caption,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
 }
 
-/// A minimal mark: a ring with a lit segment.
-class _LogoMark extends StatelessWidget {
-  const _LogoMark();
+class _RailGroup extends StatelessWidget {
+  const _RailGroup({required this.children});
+  final List<Widget> children;
 
   @override
-  Widget build(BuildContext context) => const SizedBox(
-    width: 20,
-    height: 20,
-    child: CustomPaint(painter: _LogoPainter()),
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.all(6),
+    decoration: BoxDecoration(
+      color: Oc.panel,
+      borderRadius: Oc.pill,
+      border: Border.all(color: Oc.line),
+    ),
+    child: Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        for (var i = 0; i < children.length; i++) ...[
+          if (i > 0) const SizedBox(height: 6),
+          children[i],
+        ],
+      ],
+    ),
   );
 }
 
-class _LogoPainter extends CustomPainter {
-  const _LogoPainter();
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final c = size.center(Offset.zero);
-    final r = size.width / 2 - 2;
-    canvas.drawCircle(
-      c,
-      r,
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 2.4
-        ..color = Oc.lineStrong,
-    );
-    canvas.drawArc(
-      Rect.fromCircle(center: c, radius: r),
-      -1.9,
-      2.6,
-      false,
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 2.4
-        ..strokeCap = StrokeCap.round
-        ..color = Oc.text,
-    );
-    canvas.drawCircle(c, 2.2, Paint()..color = Oc.text);
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
-}
-
-class _NavItem extends StatelessWidget {
-  const _NavItem({
+class _RailButton extends StatelessWidget {
+  const _RailButton({
     required this.icon,
     required this.label,
     required this.selected,
     required this.onTap,
-    this.trailing,
+    this.badge,
+    this.dot,
   });
   final IconData icon;
   final String label;
   final bool selected;
-  final VoidCallback onTap;
-  final String? trailing;
+
+  /// Null shows the button without hover or click.
+  final VoidCallback? onTap;
+  final String? badge;
+  final Color? dot;
 
   @override
-  Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.only(bottom: 2),
-    child: Hover(
-      onTap: onTap,
-      builder: (context, h) => AnimatedContainer(
-        duration: Oc.fast,
-        height: 34,
-        padding: const EdgeInsets.symmetric(horizontal: 10),
-        decoration: BoxDecoration(
-          color: selected ? Oc.raised : (h ? Oc.panel : Colors.transparent),
-          borderRadius: Oc.r6,
-          border: Border.all(color: selected ? Oc.line : Colors.transparent),
-        ),
-        child: Row(
+  Widget build(BuildContext context) {
+    final accent = LiveAccent.of(context);
+    return Tooltip(
+      message: label,
+      preferBelow: false,
+      verticalOffset: 30,
+      child: Hover(
+        onTap: onTap,
+        builder: (context, h) => Stack(
+          clipBehavior: Clip.none,
           children: [
-            Icon(
-              icon,
-              size: 17,
-              color: selected || h ? Oc.text : Oc.textSecondary,
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Text(
-                label,
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: selected ? FontWeight.w500 : FontWeight.w400,
-                  color: selected || h ? Oc.text : Oc.textSecondary,
-                ),
+            AnimatedContainer(
+              duration: Oc.smooth,
+              curve: Curves.easeOutCubic,
+              width: 48,
+              height: 48,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: selected
+                    ? accent
+                    : (h && onTap != null ? Oc.hover : Colors.transparent),
+                boxShadow: selected
+                    ? [
+                        BoxShadow(
+                          color: accent.withValues(alpha: .35),
+                          blurRadius: 18,
+                        ),
+                      ]
+                    : null,
+              ),
+              child: Icon(
+                icon,
+                size: 21,
+                color: selected
+                    ? onAccent(accent)
+                    : (h && onTap != null ? Oc.text : Oc.textSecondary),
               ),
             ),
-            if (trailing != null) Text(trailing!, style: OcText.caption),
+            if (badge != null)
+              Positioned(
+                right: -2,
+                top: -2,
+                child: Container(
+                  constraints: const BoxConstraints(minWidth: 18),
+                  height: 18,
+                  padding: const EdgeInsets.symmetric(horizontal: 5),
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: Oc.text,
+                    borderRadius: Oc.pill,
+                    border: Border.all(color: Oc.panel, width: 2),
+                  ),
+                  child: Text(
+                    badge!,
+                    style: const TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w700,
+                      color: Oc.bg,
+                    ),
+                  ),
+                ),
+              ),
+            if (dot != null)
+              Positioned(
+                right: 9,
+                top: 9,
+                child: Container(
+                  width: 9,
+                  height: 9,
+                  decoration: BoxDecoration(
+                    color: dot,
+                    shape: BoxShape.circle,
+                    border: Border.all(color: Oc.panel, width: 2),
+                  ),
+                ),
+              ),
           ],
         ),
       ),
-    ),
-  );
+    );
+  }
 }
 
 class _ConflictBanner extends StatelessWidget {
@@ -288,42 +417,44 @@ class _ConflictBanner extends StatelessWidget {
   final List<String> names;
 
   @override
-  Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 10),
-    decoration: BoxDecoration(
-      color: Oc.warning.withValues(alpha: .07),
-      border: Border(
-        bottom: BorderSide(color: Oc.warning.withValues(alpha: .2)),
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.fromLTRB(0, 0, 20, 8),
+    child: Container(
+      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+      decoration: BoxDecoration(
+        color: Oc.warning.withValues(alpha: .08),
+        borderRadius: Oc.r12,
+        border: Border.all(color: Oc.warning.withValues(alpha: .22)),
       ),
-    ),
-    child: Row(
-      children: [
-        const Icon(Icons.error_outline_rounded, size: 16, color: Oc.warning),
-        const SizedBox(width: 10),
-        Expanded(
-          child: Text.rich(
-            TextSpan(
-              children: [
-                TextSpan(
-                  text: '${names.join(', ')} está em execução. ',
-                  style: const TextStyle(fontWeight: FontWeight.w600),
-                ),
-                const TextSpan(
-                  text:
-                      'Dois programas controlando os mesmos LEDs fazem as cores piscarem. '
-                      'Feche-o, inclusive na bandeja do sistema.',
-                ),
-              ],
+      child: Row(
+        children: [
+          const Icon(Icons.error_outline_rounded, size: 17, color: Oc.warning),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text.rich(
+              TextSpan(
+                children: [
+                  TextSpan(
+                    text: '${names.join(', ')} está aberto. ',
+                    style: const TextStyle(fontWeight: FontWeight.w600),
+                  ),
+                  const TextSpan(
+                    text:
+                        'Dois programas nos mesmos LEDs fazem as cores '
+                        'piscarem. Feche-o, inclusive na bandeja.',
+                  ),
+                ],
+              ),
+              style: const TextStyle(fontSize: 12.5, color: Oc.warning),
             ),
-            style: const TextStyle(fontSize: 12.5, color: Oc.warning),
           ),
-        ),
-      ],
+        ],
+      ),
     ),
   );
 }
 
-/// Persistent bottom bar with the running effect. It hosts the WebView that
+/// Persistent player with the running effect. It hosts the WebView that
 /// renders the effect, so it is always mounted and on screen.
 class NowPlayingBar extends StatelessWidget {
   const NowPlayingBar({
@@ -335,166 +466,260 @@ class NowPlayingBar extends StatelessWidget {
   final VoidCallback onOpenEffects;
 
   @override
-  Widget build(BuildContext context) => Container(
-    height: 76,
-    decoration: const BoxDecoration(
-      color: Oc.bg,
-      border: Border(top: BorderSide(color: Oc.line)),
-    ),
-    child: Stack(
-      children: [
-        Positioned(
-          left: 0,
-          right: 0,
-          top: -1,
-          child: LightStrip(engine: engine),
+  Widget build(BuildContext context) {
+    final accent = LiveAccent.of(context);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(0, 12, 20, 16),
+      child: Container(
+        height: 72,
+        decoration: BoxDecoration(
+          color: Oc.panel,
+          borderRadius: Oc.r24,
+          border: Border.all(color: Oc.line),
         ),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          child: Row(
-            children: [
-              ClipRRect(
-                borderRadius: Oc.r6,
-                child: Container(
-                  width: 80,
-                  height: 50,
-                  foregroundDecoration: BoxDecoration(
-                    borderRadius: Oc.r6,
-                    border: Border.all(
-                      color: Colors.white.withValues(alpha: .08),
-                    ),
-                  ),
-                  child: EffectPreview(engine: engine),
-                ),
-              ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: ListenableBuilder(
-                  listenable: engine,
-                  builder: (context, _) => Row(
-                    children: [
-                      Flexible(
-                        child: Hover(
-                          onTap: onOpenEffects,
-                          builder: (context, h) => Column(
-                            mainAxisSize: MainAxisSize.min,
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                engine.currentEffect?.title ?? 'Nenhum efeito',
-                                overflow: TextOverflow.ellipsis,
-                                style: OcText.label.copyWith(
-                                  decoration: h
-                                      ? TextDecoration.underline
-                                      : null,
-                                  decorationColor: Oc.textSecondary,
-                                ),
-                              ),
-                              const SizedBox(height: 3),
-                              Row(
-                                children: [
-                                  const OcStatusDot(color: Oc.success, size: 5),
-                                  const SizedBox(width: 6),
-                                  Text(
-                                    'Ao vivo em ${_devicesLabel(engine)}',
-                                    style: OcText.caption,
-                                  ),
-                                ],
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                      const Spacer(),
-                      const Icon(
-                        Icons.wb_sunny_outlined,
-                        size: 16,
-                        color: Oc.textSecondary,
-                      ),
-                      const SizedBox(width: 4),
-                      SizedBox(
-                        width: 200,
-                        child: OcSlider(
-                          value: engine.brightness.toDouble(),
-                          min: 0,
-                          max: 100,
-                          suffix: '%',
-                          onChanged: (v) => engine.setBrightness(v.round()),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
-    ),
-  );
-
-  static String _devicesLabel(Engine e) {
-    final n = e.devices.values.where((d) => d.status == 'running').length;
-    return n == 1 ? '1 dispositivo' : '$n dispositivos';
-  }
-}
-
-/// A hairline that shows the middle row of the effect canvas, with a soft
-/// glow, so the chrome always carries the current light.
-class LightStrip extends StatelessWidget {
-  const LightStrip({super.key, required this.engine});
-  final Engine engine;
-
-  @override
-  Widget build(BuildContext context) => ValueListenableBuilder<CanvasFrame?>(
-    valueListenable: engine.frameNotifier,
-    builder: (context, f, _) {
-      if (f == null) return const SizedBox(height: 1);
-      const samples = 48;
-      final y = f.height ~/ 2;
-      final colors = <Color>[
-        for (var i = 0; i < samples; i++)
-          () {
-            final x = (i * (f.width - 1) / (samples - 1)).round();
-            final p = (y * f.width + x) * 3;
-            return Color.fromARGB(255, f.rgb[p], f.rgb[p + 1], f.rgb[p + 2]);
-          }(),
-      ];
-      final gradient = LinearGradient(colors: colors);
-      return SizedBox(
-        height: 14,
+        clipBehavior: Clip.antiAlias,
         child: Stack(
           children: [
             Positioned(
               left: 0,
               right: 0,
               top: 0,
-              height: 1,
-              child: DecoratedBox(
-                decoration: BoxDecoration(gradient: gradient),
-              ),
+              child: LightStrip(engine: engine),
             ),
             Positioned.fill(
-              top: 1,
-              child: Opacity(
-                opacity: .12,
-                child: DecoratedBox(
-                  decoration: BoxDecoration(gradient: gradient),
-                  child: const DecoratedBox(
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                        colors: [Colors.transparent, Oc.bg],
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                child: Row(
+                  children: [
+                    ClipRRect(
+                      borderRadius: Oc.r10,
+                      child: SizedBox(
+                        width: 76,
+                        height: 48,
+                        child: EffectPreview(engine: engine),
                       ),
                     ),
-                  ),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: ListenableBuilder(
+                        listenable: engine,
+                        builder: (context, _) => Row(
+                          children: [
+                            Flexible(
+                              child: Hover(
+                                onTap: onOpenEffects,
+                                builder: (context, h) => Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      engine.currentEffect?.title ??
+                                          'Nenhum efeito',
+                                      overflow: TextOverflow.ellipsis,
+                                      style: OcText.label.copyWith(
+                                        fontSize: 14,
+                                        decoration: h
+                                            ? TextDecoration.underline
+                                            : null,
+                                        decorationColor: Oc.textSecondary,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 3),
+                                    Row(
+                                      children: [
+                                        OcStatusDot(color: accent, size: 6),
+                                        const SizedBox(width: 7),
+                                        Text(
+                                          _devicesLabel(engine),
+                                          style: OcText.caption,
+                                        ),
+                                      ],
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                            const Spacer(),
+                            Container(
+                              height: 40,
+                              padding: const EdgeInsets.only(
+                                left: 14,
+                                right: 6,
+                              ),
+                              decoration: const BoxDecoration(
+                                color: Oc.raised,
+                                borderRadius: Oc.pill,
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Icon(
+                                    Icons.light_mode_outlined,
+                                    size: 16,
+                                    color: Oc.textSecondary,
+                                  ),
+                                  const SizedBox(width: 4),
+                                  SizedBox(
+                                    width: 210,
+                                    child: OcSlider(
+                                      value: engine.brightness.toDouble(),
+                                      min: 0,
+                                      max: 100,
+                                      suffix: '%',
+                                      activeColor: accent,
+                                      onChanged: (v) =>
+                                          engine.setBrightness(v.round()),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ),
           ],
         ),
-      );
-    },
+      ),
+    );
+  }
+
+  static String _devicesLabel(Engine e) {
+    final n = e.devices.values.where((d) => d.status == 'running').length;
+    return n == 1 ? 'Ao vivo em 1 dispositivo' : 'Ao vivo em $n dispositivos';
+  }
+}
+
+/// A hairline that shows the middle row of the effect canvas, with a soft
+/// glow, so the chrome always carries the current light. Effect frames
+/// arrive at about 30 Hz and unevenly; the strip repaints at the display's
+/// rate and eases its colors toward the latest frame, so it flows instead
+/// of stepping.
+class LightStrip extends StatefulWidget {
+  const LightStrip({super.key, required this.engine});
+  final Engine engine;
+
+  @override
+  State<LightStrip> createState() => _LightStripState();
+}
+
+class _LightStripState extends State<LightStrip>
+    with SingleTickerProviderStateMixin {
+  static const _samples = 64;
+
+  // Current (displayed) and target colors, as RGB floats.
+  final _current = Float32List(_samples * 3);
+  final _target = Float32List(_samples * 3);
+  final _repaint = ValueNotifier<int>(0);
+  late final Ticker _ticker;
+  Duration _last = Duration.zero;
+  bool _hasFrame = false;
+
+  @override
+  void initState() {
+    super.initState();
+    widget.engine.frameNotifier.addListener(_onFrame);
+    _ticker = createTicker(_tick)..start();
+    _onFrame();
+  }
+
+  @override
+  void dispose() {
+    widget.engine.frameNotifier.removeListener(_onFrame);
+    _ticker.dispose();
+    _repaint.dispose();
+    super.dispose();
+  }
+
+  void _onFrame() {
+    final f = widget.engine.frameNotifier.value;
+    if (f == null) return;
+    final y = f.height ~/ 2;
+    for (var i = 0; i < _samples; i++) {
+      final x = (i * (f.width - 1) / (_samples - 1)).round();
+      final p = (y * f.width + x) * 3;
+      _target[i * 3] = f.rgb[p].toDouble();
+      _target[i * 3 + 1] = f.rgb[p + 1].toDouble();
+      _target[i * 3 + 2] = f.rgb[p + 2].toDouble();
+    }
+    if (!_hasFrame) {
+      _current.setAll(0, _target);
+      _hasFrame = true;
+    }
+  }
+
+  void _tick(Duration now) {
+    final dt = (now - _last).inMicroseconds / 1e6;
+    _last = now;
+    if (!_hasFrame || dt <= 0) return;
+    // Exponential approach: about 70 ms to cover two thirds of the way.
+    final k = 1 - math.exp(-dt.clamp(0, .1) / .07);
+    var moving = false;
+    for (var i = 0; i < _current.length; i++) {
+      final d = _target[i] - _current[i];
+      if (d.abs() > .3) moving = true;
+      _current[i] += d * k;
+    }
+    if (moving) _repaint.value++;
+  }
+
+  @override
+  Widget build(BuildContext context) => SizedBox(
+    height: 14,
+    child: CustomPaint(
+      painter: _StripPainter(_current, _repaint, () => _hasFrame),
+    ),
   );
+}
+
+class _StripPainter extends CustomPainter {
+  _StripPainter(this.rgb, Listenable repaint, this.ready)
+    : super(repaint: repaint);
+  final Float32List rgb;
+  final bool Function() ready;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (!ready()) return;
+    final n = rgb.length ~/ 3;
+    final colors = <Color>[
+      for (var i = 0; i < n; i++)
+        Color.fromARGB(
+          255,
+          rgb[i * 3].round().clamp(0, 255),
+          rgb[i * 3 + 1].round().clamp(0, 255),
+          rgb[i * 3 + 2].round().clamp(0, 255),
+        ),
+    ];
+    final line = Rect.fromLTWH(0, 0, size.width, 1);
+    final gradient = LinearGradient(colors: colors);
+    canvas.drawRect(line, Paint()..shader = gradient.createShader(line));
+    // Soft glow below the line, fading into the panel.
+    final glow = Rect.fromLTWH(0, 1, size.width, size.height - 1);
+    canvas.saveLayer(glow, Paint());
+    canvas.drawRect(
+      glow,
+      Paint()
+        ..shader = gradient.createShader(glow)
+        ..color = const Color(0x1FFFFFFF),
+    );
+    canvas.drawRect(
+      glow,
+      Paint()
+        ..blendMode = BlendMode.dstIn
+        ..shader = const LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [Color(0xFF000000), Color(0x00000000)],
+        ).createShader(glow),
+    );
+    canvas.restore();
+  }
+
+  @override
+  bool shouldRepaint(_StripPainter old) => false;
 }

@@ -3,27 +3,28 @@ import 'package:flutter/material.dart';
 /// Design tokens. Neutral near-black surfaces separated by hairline borders;
 /// the only saturated color in the chrome is the live effect light itself.
 class Oc {
-  // Surfaces, from the window background up.
-  static const bg = Color(0xFF0A0A0B);
-  static const panel = Color(0xFF101012);
-  static const raised = Color(0xFF161618);
-  static const hover = Color(0xFF1C1C1F);
-  static const pressed = Color(0xFF232327);
+  // Surfaces, from the window background up. Graphite, slightly cool.
+  static const bg = Color(0xFF0C0C0E);
+  static const panel = Color(0xFF161619);
+  static const raised = Color(0xFF1F1F23);
+  static const hover = Color(0xFF27272C);
+  static const pressed = Color(0xFF303036);
 
   // Lines.
-  static const line = Color(0xFF1F1F23);
-  static const lineStrong = Color(0xFF2E2E33);
+  static const line = Color(0xFF232328);
+  static const lineStrong = Color(0xFF34343A);
 
   // Text.
-  static const text = Color(0xFFEDEDEF);
-  static const textSecondary = Color(0xFF9B9BA4);
-  static const textTertiary = Color(0xFF63636C);
+  static const text = Color(0xFFF2F2F4);
+  static const textSecondary = Color(0xFFA1A1AA);
+  static const textTertiary = Color(0xFF6B6B74);
 
-  // Semantic.
-  static const accent = Color(0xFF4C8DFF);
-  static const success = Color(0xFF3FCF8E);
-  static const warning = Color(0xFFF5A524);
-  static const danger = Color(0xFFF2555A);
+  // Semantic. [accent] is the fallback for the live accent (see accent.dart),
+  // used when no effect is running or the effect has no clear color.
+  static const accent = Color(0xFF9AA5FF);
+  static const success = Color(0xFF4ADE80);
+  static const warning = Color(0xFFFBBF24);
+  static const danger = Color(0xFFF87171);
 
   // Type.
   static const font = 'Segoe UI Variable Text';
@@ -31,12 +32,22 @@ class Oc {
   static const mono = 'Cascadia Mono';
 
   // Radii.
-  static const r6 = BorderRadius.all(Radius.circular(6));
-  static const r8 = BorderRadius.all(Radius.circular(8));
-  static const r10 = BorderRadius.all(Radius.circular(10));
-  static const r12 = BorderRadius.all(Radius.circular(12));
+  static const r6 = BorderRadius.all(Radius.circular(8));
+  static const r8 = BorderRadius.all(Radius.circular(10));
+  static const r10 = BorderRadius.all(Radius.circular(16));
+  static const r12 = BorderRadius.all(Radius.circular(20));
+  static const r24 = BorderRadius.all(Radius.circular(24));
+  static const pill = BorderRadius.all(Radius.circular(999));
+
+  // Page layout: content starts just right of the rail.
+  static const pageInsets = EdgeInsets.fromLTRB(16, 0, 20, 24);
+  static const headerInsets = EdgeInsets.fromLTRB(16, 18, 20, 22);
+
+  /// Height of buttons, fields, selects and segmented controls.
+  static const control = 36.0;
 
   static const fast = Duration(milliseconds: 120);
+  static const smooth = Duration(milliseconds: 260);
 }
 
 /// Text styles used across the app.

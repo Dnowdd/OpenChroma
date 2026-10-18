@@ -6,8 +6,21 @@ import '../audio/audio_service.dart';
 import '../engine/engine.dart';
 import '../system/launch_settings.dart';
 import 'effects_page.dart';
+import 'shell.dart' show Pages;
 import 'theme.dart';
 import 'widgets.dart';
+
+/// iOS system colors for the settings icons.
+abstract final class _Tint {
+  static const orange = Color(0xFFFF9F0A);
+  static const pink = Color(0xFFFF375F);
+  static const blue = Color(0xFF0A84FF);
+  static const purple = Color(0xFFBF5AF2);
+  static const green = Color(0xFF30D158);
+  static const indigo = Color(0xFF5E5CE6);
+  static const teal = Color(0xFF40C8E0);
+  static const gray = Color(0xFF8E8E93);
+}
 
 class SettingsPage extends StatelessWidget {
   const SettingsPage({super.key, required this.engine});
@@ -20,79 +33,109 @@ class SettingsPage extends StatelessWidget {
         .length;
     return ListView(
       children: [
-        const PageHeader(title: 'Configurações'),
         Center(
           child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 680),
+            constraints: const BoxConstraints(maxWidth: 760),
             child: Padding(
-              padding: const EdgeInsets.fromLTRB(32, 0, 32, 40),
+              padding: Oc.pageInsets,
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
+                  Padding(
+                    padding: const EdgeInsets.only(top: 18, bottom: 22),
+                    child: Text(
+                      'Configurações',
+                      style: OcText.pageTitle.copyWith(fontSize: 28),
+                    ),
+                  ),
+                  const SectionLabel('Iluminação'),
                   OcPanel(
                     children: [
                       OcRow(
+                        leading: const OcIconTile(
+                          Icons.light_mode_rounded,
+                          color: _Tint.orange,
+                        ),
                         title: 'Brilho',
-                        stacked: true,
-                        trailing: OcSlider(
-                          value: engine.brightness.toDouble(),
-                          min: 0,
-                          max: 100,
-                          suffix: '%',
-                          onChanged: (v) => engine.setBrightness(v.round()),
+                        trailing: SizedBox(
+                          width: 280,
+                          child: OcSlider(
+                            value: engine.brightness.toDouble(),
+                            min: 0,
+                            max: 100,
+                            suffix: '%',
+                            onChanged: (v) => engine.setBrightness(v.round()),
+                          ),
                         ),
                       ),
                       OcRow(
-                        title: 'Áudio',
+                        leading: const OcIconTile(
+                          Icons.graphic_eq_rounded,
+                          color: _Tint.pink,
+                        ),
+                        title: 'Áudio dos efeitos',
                         description: engine.audio.available
-                            ? 'O que os efeitos com som escutam.'
-                            : 'Captura de áudio indisponível nesta build.',
+                            ? null
+                            : 'Indisponível nesta build.',
                         trailing: OcSelect(
                           value: engine.audioSource.name,
                           options: [for (final s in AudioSource.values) s.name],
                           labelOf: (n) => AudioSource.byName(n).label,
                           onChanged: (n) =>
                               engine.setAudioSource(AudioSource.byName(n)),
-                          width: 200,
+                          width: 220,
                         ),
                       ),
+                    ],
+                  ),
+                  const SizedBox(height: 28),
+                  const SectionLabel('Biblioteca'),
+                  OcPanel(
+                    children: [
                       OcRow(
+                        leading: const OcIconTile(
+                          Icons.usb_rounded,
+                          color: _Tint.blue,
+                        ),
                         title: 'Dispositivos',
-                        description: 'Novos dispositivos aparecem sozinhos.',
+                        description: '$supported modelos compatíveis',
                         trailing: OcButton(
-                          label: 'Procurar agora',
+                          label: 'Procurar',
                           onPressed: engine.refreshDevices,
                         ),
                       ),
                       OcRow(
+                        leading: const OcIconTile(
+                          Icons.auto_awesome,
+                          color: _Tint.purple,
+                        ),
                         title: 'Efeitos',
-                        description:
-                            'Adicione efeitos .ocfx ou .html à biblioteca.',
+                        description: '${engine.effects.length} na biblioteca',
                         trailing: OcButton(
                           label: 'Importar',
                           onPressed: () => showImportDialog(context, engine),
                         ),
                       ),
+                      OcRow(
+                        leading: const OcIconTile(
+                          Icons.folder_rounded,
+                          color: _Tint.gray,
+                        ),
+                        title: 'Pasta de dados',
+                        trailing: OcButton(
+                          label: 'Abrir',
+                          onPressed: () =>
+                              Process.run('explorer', [engine.dataDir]),
+                        ),
+                      ),
                     ],
                   ),
-                  const SizedBox(height: 32),
+                  const SizedBox(height: 28),
                   const SectionLabel('Inicialização e permissões'),
                   _LaunchPanel(engine: engine),
-                  const SizedBox(height: 32),
-                  Row(
-                    children: [
-                      Text(
-                        'OpenChroma 0.1 · $supported dispositivos compatíveis',
-                        style: OcText.caption,
-                      ),
-                      const Spacer(),
-                      OcButton(
-                        label: 'Abrir pasta de dados',
-                        variant: OcButtonVariant.ghost,
-                        onPressed: () =>
-                            Process.run('explorer', [engine.dataDir]),
-                      ),
-                    ],
+                  const SizedBox(height: 28),
+                  const Center(
+                    child: Text('OpenChroma 0.1', style: OcText.caption),
                   ),
                 ],
               ),
@@ -134,22 +177,36 @@ class _LaunchPanelState extends State<_LaunchPanel> {
           OcPanel(
             children: [
               OcRow(
+                leading: OcIconTile(
+                  elevated
+                      ? Icons.verified_user_rounded
+                      : Icons.shield_outlined,
+                  color: elevated ? _Tint.green : _Tint.gray,
+                ),
                 title: 'Modo administrador',
                 description: elevated
                     ? 'Ativo. A temperatura da CPU aparece no Monitor.'
                     : 'Desativado. É preciso para ler a temperatura da CPU.',
-                trailing: elevated
-                    ? const OcBadge('Ativo', dot: Oc.success)
-                    : OcButton(
-                        label: 'Reiniciar como administrador',
-                        icon: Icons.admin_panel_settings_outlined,
-                        onPressed: () => restartAsAdmin(
-                          page: 4,
+                trailing: OcButton(
+                  label: elevated
+                      ? 'Já está ativo'
+                      : 'Reiniciar como administrador',
+                  icon: elevated
+                      ? Icons.check_rounded
+                      : Icons.admin_panel_settings_outlined,
+                  onPressed: elevated
+                      ? null
+                      : () => restartAsAdmin(
+                          page: Pages.settings,
                           shutdown: widget.engine.shutdown,
                         ),
-                      ),
+                ),
               ),
               OcRow(
+                leading: const OcIconTile(
+                  Icons.admin_panel_settings_rounded,
+                  color: _Tint.indigo,
+                ),
                 title: 'Sempre abrir como administrador',
                 description:
                     'O Windows pede permissão (UAC) toda vez que o '
@@ -160,6 +217,10 @@ class _LaunchPanelState extends State<_LaunchPanel> {
                 ),
               ),
               OcRow(
+                leading: const OcIconTile(
+                  Icons.power_settings_new_rounded,
+                  color: _Tint.teal,
+                ),
                 title: 'Abrir ao ligar o PC',
                 description: l.alwaysAdmin
                     ? 'Abre como administrador ao entrar no Windows, sem '

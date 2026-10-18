@@ -5,13 +5,21 @@ import 'package:flutter/material.dart';
 import '../engine/engine.dart';
 import '../monitor/system_monitor.dart';
 import '../system/launch_settings.dart';
+import 'accent.dart';
+import 'shell.dart' show Pages;
 import 'theme.dart';
 import 'widgets.dart';
 
 /// Temperatures and usage of the PC's main components.
 class MonitorPage extends StatefulWidget {
-  const MonitorPage({super.key, required this.engine, required this.active});
+  const MonitorPage({
+    super.key,
+    required this.engine,
+    required this.monitor,
+    required this.active,
+  });
   final Engine engine;
+  final SystemMonitor monitor;
 
   /// Whether the page is on screen; sampling only runs while it is.
   final bool active;
@@ -21,29 +29,29 @@ class MonitorPage extends StatefulWidget {
 }
 
 class _MonitorPageState extends State<MonitorPage> {
-  final _monitor = SystemMonitor();
+  SystemMonitor get _monitor => widget.monitor;
   bool _sortByMemory = false;
 
   @override
   void initState() {
     super.initState();
-    _monitor.active = widget.active;
+    _monitor.setActive(this, widget.active);
   }
 
   @override
   void didUpdateWidget(MonitorPage old) {
     super.didUpdateWidget(old);
-    _monitor.active = widget.active;
+    _monitor.setActive(this, widget.active);
   }
 
   @override
   void dispose() {
-    _monitor.dispose();
+    _monitor.setActive(this, false);
     super.dispose();
   }
 
   Future<void> _relaunchElevated() =>
-      restartAsAdmin(page: 3, shutdown: widget.engine.shutdown);
+      restartAsAdmin(page: Pages.performance, shutdown: widget.engine.shutdown);
 
   @override
   Widget build(BuildContext context) {
@@ -61,7 +69,7 @@ class _MonitorPageState extends State<MonitorPage> {
         return ListView(
           children: [
             PageHeader(
-              title: 'Monitor',
+              title: 'Desempenho',
               subtitle: s == null
                   ? 'Lendo os sensores…'
                   : 'Atualizado a cada segundo · PC ligado há ${_fmtUptime(s.uptime)}',
@@ -93,7 +101,7 @@ class _MonitorPageState extends State<MonitorPage> {
               )
             else
               Padding(
-                padding: const EdgeInsets.fromLTRB(32, 0, 32, 40),
+                padding: Oc.pageInsets,
                 child: LayoutBuilder(
                   builder: (context, c) => _layout(s, wide: c.maxWidth >= 1000),
                 ),
@@ -233,7 +241,7 @@ class _CpuCard extends StatelessWidget {
                 title: 'Uso',
                 history: monitor.cpuUsage,
                 format: _fmtPercent,
-                color: Oc.accent,
+                color: LiveAccent.of(context),
                 range: _percentRange,
               ),
             ),
@@ -376,7 +384,7 @@ class _GpuCard extends StatelessWidget {
                 title: 'Uso',
                 history: monitor.gpuUsage,
                 format: _fmtPercent,
-                color: Oc.accent,
+                color: LiveAccent.of(context),
                 range: _percentRange,
               ),
             ),
@@ -484,7 +492,7 @@ class _MemoryCard extends StatelessWidget {
         title: 'Uso',
         history: history,
         format: _fmtPercent,
-        color: Oc.accent,
+        color: LiveAccent.of(context),
         range: _percentRange,
       ),
       const SizedBox(height: 20),
@@ -654,7 +662,7 @@ class _RateBlock extends StatelessWidget {
       _Sparkline(
         history: history,
         format: _fmtRate,
-        color: Oc.accent,
+        color: LiveAccent.of(context),
         range: (lo, hi) => (0, math.max(hi * 1.2, 1024 * 64)),
         height: 44,
       ),
@@ -811,10 +819,10 @@ class _Card extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.all(20),
+    padding: const EdgeInsets.all(22),
     decoration: BoxDecoration(
       color: Oc.panel,
-      borderRadius: Oc.r10,
+      borderRadius: Oc.r24,
       border: Border.all(color: Oc.line),
     ),
     child: Column(
@@ -840,12 +848,11 @@ class _CardHeader extends StatelessWidget {
   Widget build(BuildContext context) => Row(
     children: [
       Container(
-        width: 34,
-        height: 34,
-        decoration: BoxDecoration(
+        width: 36,
+        height: 36,
+        decoration: const BoxDecoration(
           color: Oc.raised,
-          borderRadius: Oc.r8,
-          border: Border.all(color: Oc.line),
+          shape: BoxShape.circle,
         ),
         child: Icon(icon, size: 17, color: Oc.textSecondary),
       ),
@@ -993,7 +1000,7 @@ class _UsageRing extends StatelessWidget {
       duration: const Duration(milliseconds: 600),
       curve: Curves.easeOutCubic,
       builder: (context, v, _) => CustomPaint(
-        painter: _RingPainter(v),
+        painter: _RingPainter(v, LiveAccent.of(context)),
         child: Center(
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -1017,8 +1024,9 @@ class _UsageRing extends StatelessWidget {
 }
 
 class _RingPainter extends CustomPainter {
-  _RingPainter(this.value);
+  _RingPainter(this.value, this.color);
   final double value;
+  final Color color;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -1035,18 +1043,13 @@ class _RingPainter extends CustomPainter {
       ..strokeCap = StrokeCap.round;
     canvas.drawArc(rect, start, sweep, false, paint..color = Oc.hover);
     if (value > 0.005) {
-      canvas.drawArc(
-        rect,
-        start,
-        sweep * value,
-        false,
-        paint..color = Oc.accent,
-      );
+      canvas.drawArc(rect, start, sweep * value, false, paint..color = color);
     }
   }
 
   @override
-  bool shouldRepaint(_RingPainter old) => old.value != value;
+  bool shouldRepaint(_RingPainter old) =>
+      old.value != value || old.color != color;
 }
 
 class _StatRow extends StatelessWidget {
@@ -1098,7 +1101,7 @@ class _Bar extends StatelessWidget {
           FractionallySizedBox(
             widthFactor: (percent / 100).clamp(0, 1),
             heightFactor: 1,
-            child: ColoredBox(color: color ?? Oc.accent),
+            child: ColoredBox(color: color ?? LiveAccent.of(context)),
           ),
         ],
       ),
@@ -1168,7 +1171,7 @@ class _InlineMeter extends StatelessWidget {
         child: _Bar(
           percent: percent,
           height: 4,
-          color: emphasized ? Oc.accent : Oc.lineStrong,
+          color: emphasized ? LiveAccent.of(context) : Oc.lineStrong,
         ),
       ),
     ],
@@ -1202,9 +1205,9 @@ class _ThreadBars extends StatelessWidget {
                   curve: Curves.easeOutCubic,
                   heightFactor: (values[i] / 100).clamp(0.04, 1),
                   widthFactor: 1,
-                  child: const DecoratedBox(
+                  child: DecoratedBox(
                     decoration: BoxDecoration(
-                      color: Oc.accent,
+                      color: LiveAccent.of(context),
                       borderRadius: BorderRadius.vertical(
                         top: Radius.circular(3),
                       ),
