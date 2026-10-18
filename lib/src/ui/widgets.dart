@@ -700,11 +700,15 @@ class OcCard extends StatelessWidget {
     this.onTap,
     this.padding = const EdgeInsets.all(22),
     this.color,
+    this.borderColor,
   });
   final Widget child;
   final VoidCallback? onTap;
   final EdgeInsets padding;
   final Color? color;
+
+  /// Overrides the hairline border, e.g. to mark a selected card.
+  final Color? borderColor;
 
   @override
   Widget build(BuildContext context) => Hover(
@@ -716,7 +720,9 @@ class OcCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: color ?? (h && onTap != null ? Oc.raised : Oc.panel),
         borderRadius: Oc.r24,
-        border: Border.all(color: h && onTap != null ? Oc.lineStrong : Oc.line),
+        border: Border.all(
+          color: borderColor ?? (h && onTap != null ? Oc.lineStrong : Oc.line),
+        ),
       ),
       child: child,
     ),

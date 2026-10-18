@@ -1,15 +1,18 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
 import '../effects/effect_library.dart';
 import '../engine/engine.dart';
+import '../fans/fan_service.dart';
 import '../monitor/system_monitor.dart';
 import 'accent.dart';
 import 'devices_page.dart';
 import 'effects_page.dart' show EffectArtwork;
 import 'fan_glyph.dart';
+import 'fans_page.dart' show fanSpin;
 import 'shell.dart' show Pages;
 import 'theme.dart';
 import 'widgets.dart';
@@ -21,11 +24,13 @@ class HomePage extends StatefulWidget {
     super.key,
     required this.engine,
     required this.monitor,
+    required this.fans,
     required this.active,
     required this.onNavigate,
   });
   final Engine engine;
   final SystemMonitor monitor;
+  final FanService fans;
   final bool active;
   final ValueChanged<int> onNavigate;
 
@@ -90,10 +95,7 @@ class _HomePageState extends State<HomePage> {
       loading: s == null,
       onOpen: () => go(Pages.performance),
     );
-    final fans = _FansCard(
-      gpu: s?.gpus.firstOrNull,
-      onOpen: () => go(Pages.fans),
-    );
+    final fans = _FansCard(fans: widget.fans, onOpen: () => go(Pages.fans));
     final reactive = _ReactiveLightCard(snapshot: s);
     final devices = _DevicesCard(
       engine: widget.engine,
@@ -950,90 +952,113 @@ class _AlertsCard extends StatelessWidget {
 
 // ---------------------------------------------------------------- Fans
 
-class _FansCard extends StatefulWidget {
-  const _FansCard({required this.gpu, required this.onOpen});
-  final GpuReading? gpu;
+class _FansCard extends StatelessWidget {
+  const _FansCard({required this.fans, required this.onOpen});
+  final FanService fans;
   final VoidCallback onOpen;
 
-  @override
-  State<_FansCard> createState() => _FansCardState();
-}
-
-class _FansCardState extends State<_FansCard> {
-  int _mode = 1;
-
   static const _modes = [
-    ('Silencioso', .25),
-    ('Equilibrado', .6),
-    ('Turbo', 1.6),
+    (FanProfile.silent, 'Silencioso'),
+    (FanProfile.balanced, 'Equilibrado'),
+    (FanProfile.turbo, 'Turbo'),
   ];
 
   @override
   Widget build(BuildContext context) {
     final accent = LiveAccent.of(context);
-    final gpu = widget.gpu;
-    return OcCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          const OcCardTitle('Ventoinhas', trailing: OcTag('Prévia')),
-          const SizedBox(height: 14),
-          Expanded(
-            child: Row(
-              children: [
-                FanGlyph(color: accent, size: 104, speed: _modes[_mode].$2),
-                const SizedBox(width: 20),
-                Expanded(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      for (var i = 0; i < _modes.length; i++) ...[
-                        if (i > 0) const SizedBox(height: 6),
-                        Hover(
-                          onTap: () => setState(() => _mode = i),
-                          builder: (context, h) => AnimatedContainer(
-                            duration: Oc.smooth,
-                            height: 34,
-                            padding: const EdgeInsets.symmetric(horizontal: 14),
-                            alignment: Alignment.centerLeft,
-                            decoration: BoxDecoration(
-                              color: _mode == i
-                                  ? accent
-                                  : (h ? Oc.hover : Oc.raised),
-                              borderRadius: Oc.pill,
+    return ListenableBuilder(
+      listenable: fans,
+      builder: (context, _) {
+        final connected = [
+          for (final f in fans.snapshot?.fans ?? const <FanReading>[])
+            if (fans.isConnected(f)) f,
+        ];
+        final rpms = [for (final f in connected) f.rpm ?? 0];
+        final fastest = rpms.isEmpty ? null : rpms.reduce(math.max);
+        return OcCard(
+          onTap: onOpen,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const OcCardTitle('Ventoinhas'),
+              const SizedBox(height: 14),
+              Expanded(
+                child: Row(
+                  children: [
+                    FanGlyph(color: accent, size: 104, speed: fanSpin(fastest)),
+                    const SizedBox(width: 20),
+                    Expanded(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          for (var i = 0; i < _modes.length; i++) ...[
+                            if (i > 0) const SizedBox(height: 6),
+                            _ModeButton(
+                              label: _modes[i].$2,
+                              selected: fans.profile == _modes[i].$1,
+                              onTap: () => fans.setProfile(_modes[i].$1),
                             ),
-                            child: Text(
-                              _modes[i].$1,
-                              style: TextStyle(
-                                fontSize: 12.5,
-                                fontWeight: FontWeight.w600,
-                                color: _mode == i
-                                    ? onAccent(accent)
-                                    : Oc.textSecondary,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ],
-                  ),
+                          ],
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              if (connected.isNotEmpty) ...[
+                const SizedBox(height: 12),
+                Text(
+                  [
+                    connected.length == 1
+                        ? '1 ventoinha'
+                        : '${connected.length} ventoinhas',
+                    if (fastest != null && fastest > 0)
+                      'até ${fastest.round()} RPM',
+                  ].join(' · '),
+                  style: OcText.caption,
                 ),
               ],
-            ),
+            ],
           ),
-          if (gpu != null && (gpu.fan != null || gpu.fanRpm != null)) ...[
-            const SizedBox(height: 12),
-            Text(
-              [
-                'GPU',
-                if (gpu.fan != null) '${_fmt(gpu.fan!, 0)}%',
-                if (gpu.fanRpm != null) '${_fmt(gpu.fanRpm!, 0)} RPM',
-              ].join(' · '),
-              style: OcText.caption,
-            ),
-          ],
-        ],
+        );
+      },
+    );
+  }
+}
+
+class _ModeButton extends StatelessWidget {
+  const _ModeButton({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final accent = LiveAccent.of(context);
+    return Hover(
+      onTap: onTap,
+      builder: (context, h) => AnimatedContainer(
+        duration: Oc.smooth,
+        height: 34,
+        padding: const EdgeInsets.symmetric(horizontal: 14),
+        alignment: Alignment.centerLeft,
+        decoration: BoxDecoration(
+          color: selected ? accent : (h ? Oc.hover : Oc.raised),
+          borderRadius: Oc.pill,
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 12.5,
+            fontWeight: FontWeight.w600,
+            color: selected ? onAccent(accent) : Oc.textSecondary,
+          ),
+        ),
       ),
     );
   }

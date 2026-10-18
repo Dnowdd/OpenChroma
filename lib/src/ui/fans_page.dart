@@ -1,101 +1,91 @@
+import 'dart:io';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
-import '../monitor/system_monitor.dart';
+import '../fans/fan_service.dart';
 import 'accent.dart';
 import 'fan_glyph.dart';
 import 'theme.dart';
 import 'widgets.dart';
 
-/// Fan control. Visual preview for now: the hardware side (motherboard
-/// Super I/O through PawnIO, AIO pumps over HID) comes later. Temperatures
-/// are real.
+/// Fan control: motherboard headers (Super I/O through PawnIO) and GPU
+/// coolers (NvAPI), each left to the BIOS / driver, on the shared profile
+/// curve or at a fixed speed.
 class FansPage extends StatefulWidget {
-  const FansPage({super.key, required this.monitor, required this.active});
-  final SystemMonitor monitor;
+  const FansPage({
+    super.key,
+    required this.fans,
+    required this.active,
+    required this.onRestartAsAdmin,
+  });
+  final FanService fans;
+
+  /// On screen: the curve shows live temperatures.
   final bool active;
+  final VoidCallback onRestartAsAdmin;
 
   @override
   State<FansPage> createState() => _FansPageState();
 }
 
-/// A fan curve: (temperature °C, speed %) points.
-typedef _Curve = List<(double, double)>;
+/// Turns per second for the glyph at [rpm].
+double fanSpin(double? rpm) =>
+    rpm == null ? .15 : (rpm / 1400).clamp(0, 2.4).toDouble();
 
 class _FansPageState extends State<FansPage> {
-  int _mode = 1;
-  bool _gpu = false;
-  bool _zeroRpm = true;
-
-  static const _modes = ['Silencioso', 'Equilibrado', 'Turbo'];
-  static const _curves = <_Curve>[
-    [(20, 20), (50, 25), (70, 45), (85, 75), (100, 100)],
-    [(20, 30), (50, 40), (70, 65), (85, 90), (100, 100)],
-    [(20, 50), (50, 65), (70, 85), (85, 100), (100, 100)],
-  ];
-  static const _fans = ['CPU', 'Frente 1', 'Frente 2', 'Frente 3', 'Traseira'];
+  String? _selected;
+  bool _showEmpty = false;
 
   @override
   void initState() {
     super.initState();
-    widget.monitor.setActive(this, widget.active);
+    widget.fans.monitor.setActive(this, widget.active);
   }
 
   @override
   void didUpdateWidget(FansPage old) {
     super.didUpdateWidget(old);
-    widget.monitor.setActive(this, widget.active);
+    widget.fans.monitor.setActive(this, widget.active);
   }
 
   @override
   void dispose() {
-    widget.monitor.setActive(this, false);
+    widget.fans.monitor.setActive(this, false);
     super.dispose();
   }
 
-  static double _speedAt(_Curve curve, double t) {
-    if (t <= curve.first.$1) return curve.first.$2;
-    for (var i = 1; i < curve.length; i++) {
-      final (t1, s1) = curve[i];
-      final (t0, s0) = curve[i - 1];
-      if (t <= t1) return s0 + (s1 - s0) * (t - t0) / (t1 - t0);
-    }
-    return curve.last.$2;
-  }
+  static const _profiles = [
+    (FanProfile.silent, 'Silencioso'),
+    (FanProfile.balanced, 'Equilibrado'),
+    (FanProfile.turbo, 'Turbo'),
+    (FanProfile.custom, 'Personalizado'),
+  ];
 
   @override
   Widget build(BuildContext context) => ListenableBuilder(
-    listenable: widget.monitor,
+    listenable: widget.fans,
     builder: (context, _) {
-      final s = widget.monitor.snapshot;
-      final cpuTemp = s?.cpu.temp;
-      final gpuTemp = s?.gpus.firstOrNull?.temp;
-      // Without the CPU sensor (no admin), follow the GPU.
-      final useGpu = _gpu || cpuTemp == null;
-      final temp = useGpu ? gpuTemp : cpuTemp;
-      final curve = _curves[_mode];
-      final speed = temp == null ? null : _speedAt(curve, temp);
-      final spin = .15 + (speed ?? 40) / 100 * 1.6;
+      final fans = widget.fans;
+      final s = fans.snapshot;
+      final all = s?.fans ?? const <FanReading>[];
+      final connected = all.where(fans.isConnected).toList();
+      final empty = all.where((f) => !fans.isConnected(f)).toList();
+      final shown = [...connected, if (_showEmpty) ...empty];
+      final selected =
+          all.where((f) => f.id == _selected).firstOrNull ??
+          connected.firstOrNull ??
+          all.firstOrNull;
       return LayoutBuilder(
         builder: (context, c) {
           final wide = c.maxWidth >= 1100;
-          final curveCard = _CurveCard(
-            curve: curve,
-            temp: temp,
-            speed: speed,
-            source: useGpu ? 'GPU' : 'CPU',
-            gpu: useGpu,
-            cpuAvailable: cpuTemp != null,
-            onSource: (v) => setState(() => _gpu = v),
+          final curveCard = _CurveCard(fans: fans, fan: selected);
+          final fanCard = _FanCard(
+            key: ValueKey(selected?.id),
+            fans: fans,
+            fan: selected,
           );
-          final now = _NowCard(
-            speed: speed,
-            spin: spin,
-            mode: _modes[_mode],
-            zeroRpm: _zeroRpm,
-            onZeroRpm: (v) => setState(() => _zeroRpm = v),
-          );
+          final notice = _notice(s);
           return ListView(
             padding: const EdgeInsets.fromLTRB(12, 0, 20, 24),
             children: [
@@ -113,67 +103,90 @@ class _FansPageState extends State<FansPage> {
                               'Ventoinhas',
                               style: OcText.pageTitle.copyWith(fontSize: 28),
                             ),
-                            const SizedBox(width: 12),
-                            const OcTag('Prévia'),
                             const Spacer(),
-                            OcSegmented<int>(
-                              value: _mode,
-                              options: [
-                                for (var i = 0; i < _modes.length; i++)
-                                  (i, _modes[i]),
-                              ],
-                              onChanged: (v) => setState(() => _mode = v),
+                            OcSegmented<FanProfile>(
+                              value: fans.profile,
+                              options: _profiles,
+                              onChanged: fans.setProfile,
                             ),
                           ],
                         ),
                       ),
+                      if (notice != null) ...[
+                        notice,
+                        const SizedBox(height: 16),
+                      ],
+                      if (fans.askPump) ...[
+                        _PumpQuestion(
+                          fans: fans,
+                          // Fastest first: pumps usually spin faster than
+                          // fans, so it is the likely answer.
+                          candidates: [
+                            for (final f in connected)
+                              if (!f.gpu) f,
+                          ]..sort((a, b) => (b.rpm ?? 0).compareTo(a.rpm ?? 0)),
+                        ),
+                        const SizedBox(height: 16),
+                      ],
                       if (wide)
                         SizedBox(
-                          height: 380,
+                          height: 420,
                           child: Row(
                             crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: [
                               Expanded(flex: 5, child: curveCard),
                               const SizedBox(width: 16),
-                              Expanded(flex: 3, child: now),
+                              Expanded(flex: 3, child: fanCard),
                             ],
                           ),
                         )
                       else ...[
                         SizedBox(height: 360, child: curveCard),
                         const SizedBox(height: 16),
-                        SizedBox(height: 380, child: now),
+                        SizedBox(height: 420, child: fanCard),
                       ],
-                      const SizedBox(height: 28),
-                      const Padding(
-                        padding: EdgeInsets.only(left: 4, bottom: 14),
-                        child: Row(
-                          children: [
-                            Text('Conectadas', style: OcText.title),
-                            SizedBox(width: 10),
-                            OcTag('Exemplo'),
-                          ],
+                      if (all.isNotEmpty) ...[
+                        const SizedBox(height: 28),
+                        Padding(
+                          padding: const EdgeInsets.only(left: 4, bottom: 14),
+                          child: Row(
+                            children: [
+                              const Text('Conectadas', style: OcText.title),
+                              const SizedBox(width: 10),
+                              OcTag('${connected.length}'),
+                              const Spacer(),
+                              if (empty.isNotEmpty)
+                                OcButton(
+                                  label: _showEmpty
+                                      ? 'Ocultar vazias'
+                                      : 'Mostrar vazias (${empty.length})',
+                                  variant: OcButtonVariant.ghost,
+                                  onPressed: () =>
+                                      setState(() => _showEmpty = !_showEmpty),
+                                ),
+                            ],
+                          ),
                         ),
-                      ),
-                      GridView.builder(
-                        shrinkWrap: true,
-                        physics: const NeverScrollableScrollPhysics(),
-                        gridDelegate:
-                            const SliverGridDelegateWithMaxCrossAxisExtent(
-                              maxCrossAxisExtent: 260,
-                              mainAxisSpacing: 16,
-                              crossAxisSpacing: 16,
-                              childAspectRatio: .78,
-                            ),
-                        itemCount: _fans.length,
-                        itemBuilder: (context, i) => _FanTile(
-                          name: _fans[i],
-                          speed: speed == null
-                              ? null
-                              : (speed * (i == 0 ? 1 : .85)).clamp(0, 100),
-                          spin: spin * (i == 0 ? 1.1 : .9),
+                        GridView.builder(
+                          shrinkWrap: true,
+                          physics: const NeverScrollableScrollPhysics(),
+                          gridDelegate:
+                              const SliverGridDelegateWithMaxCrossAxisExtent(
+                                maxCrossAxisExtent: 260,
+                                mainAxisSpacing: 16,
+                                crossAxisSpacing: 16,
+                                childAspectRatio: .78,
+                              ),
+                          itemCount: shown.length,
+                          itemBuilder: (context, i) => _FanTile(
+                            fans: fans,
+                            fan: shown[i],
+                            selected: shown[i].id == selected?.id,
+                            onTap: () =>
+                                setState(() => _selected = shown[i].id),
+                          ),
                         ),
-                      ),
+                      ],
                     ],
                   ),
                 ),
@@ -184,60 +197,216 @@ class _FansPageState extends State<FansPage> {
       );
     },
   );
+
+  Widget? _notice(FanSnapshot? s) {
+    if (s == null) return null;
+    if (s.conflict.isNotEmpty) {
+      return _Notice(
+        color: Oc.warning,
+        icon: Icons.error_outline_rounded,
+        title: '${s.conflict} está aberto.',
+        text:
+            ' Dois programas nas mesmas ventoinhas brigam pela velocidade. '
+            'Feche-o, inclusive na bandeja, para controlar por aqui.',
+      );
+    }
+    return switch (s.superIo) {
+      SuperIoStatus.needsAdmin => _Notice(
+        color: Oc.textSecondary,
+        icon: Icons.shield_outlined,
+        title: 'Modo administrador',
+        text: ' para controlar as ventoinhas e ver as da placa-mãe.',
+        action: OcButton(
+          label: 'Reiniciar como administrador',
+          icon: Icons.admin_panel_settings_outlined,
+          variant: OcButtonVariant.primary,
+          onPressed: widget.onRestartAsAdmin,
+        ),
+      ),
+      SuperIoStatus.noDriver => _Notice(
+        color: Oc.textSecondary,
+        icon: Icons.download_rounded,
+        title: 'Instale o PawnIO',
+        text: ' para ver as ventoinhas da placa-mãe.',
+        action: OcButton(
+          label: 'Baixar',
+          icon: Icons.open_in_new_rounded,
+          onPressed: () => Process.run('explorer', ['https://pawnio.eu']),
+        ),
+      ),
+      SuperIoStatus.busy => const _Notice(
+        color: Oc.warning,
+        icon: Icons.hourglass_empty_rounded,
+        title: 'A placa-mãe estava ocupada',
+        text: ' por outro programa. Reabra o OpenChroma para tentar de novo.',
+      ),
+      _ => null,
+    };
+  }
 }
 
-class _CurveCard extends StatelessWidget {
-  const _CurveCard({
-    required this.curve,
-    required this.temp,
-    required this.speed,
-    required this.source,
-    required this.gpu,
-    required this.cpuAvailable,
-    required this.onSource,
+/// Asked once: nothing tells a water cooling pump from a fan, and a pump
+/// must never slow down or stop.
+class _PumpQuestion extends StatelessWidget {
+  const _PumpQuestion({required this.fans, required this.candidates});
+  final FanService fans;
+  final List<FanReading> candidates;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.fromLTRB(18, 14, 14, 14),
+    decoration: BoxDecoration(
+      color: Oc.panel,
+      borderRadius: Oc.r12,
+      border: Border.all(color: Oc.line),
+    ),
+    child: Row(
+      children: [
+        const Icon(
+          Icons.water_drop_outlined,
+          size: 17,
+          color: Oc.textSecondary,
+        ),
+        const SizedBox(width: 10),
+        const Expanded(
+          child: Text.rich(
+            TextSpan(
+              children: [
+                TextSpan(
+                  text: 'Tem water cooler?',
+                  style: TextStyle(fontWeight: FontWeight.w600, color: Oc.text),
+                ),
+                TextSpan(
+                  text:
+                      ' Toque na bomba para protegê-la: ela nunca fica '
+                      'abaixo de 70% nem para.',
+                ),
+              ],
+            ),
+            style: TextStyle(fontSize: 12.5, color: Oc.textSecondary),
+          ),
+        ),
+        const SizedBox(width: 12),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            for (final f in candidates)
+              OcButton(
+                label: fans.nameOf(f),
+                icon: Icons.water_drop_outlined,
+                // Only a hint: fast fans exist too, so the user decides.
+                variant: f == candidates.first && (f.rpm ?? 0) >= 2200
+                    ? OcButtonVariant.primary
+                    : OcButtonVariant.secondary,
+                onPressed: () => fans.answerPump(f.id),
+              ),
+            OcButton(
+              label: 'Não tenho',
+              variant: OcButtonVariant.ghost,
+              onPressed: () => fans.answerPump(null),
+            ),
+          ],
+        ),
+      ],
+    ),
+  );
+}
+
+class _Notice extends StatelessWidget {
+  const _Notice({
+    required this.color,
+    required this.icon,
+    required this.title,
+    required this.text,
+    this.action,
   });
-  final _Curve curve;
-  final double? temp;
-  final double? speed;
-  final String source;
-  final bool gpu;
-  final bool cpuAvailable;
-  final ValueChanged<bool> onSource;
+  final Color color;
+  final IconData icon;
+  final String title;
+  final String text;
+  final Widget? action;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    padding: EdgeInsets.fromLTRB(18, action == null ? 12 : 8, 8, 8),
+    constraints: const BoxConstraints(minHeight: 52),
+    decoration: BoxDecoration(
+      color: color.withValues(alpha: .08),
+      borderRadius: Oc.r12,
+      border: Border.all(color: color.withValues(alpha: .22)),
+    ),
+    child: Row(
+      children: [
+        Icon(icon, size: 17, color: color),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Text.rich(
+            TextSpan(
+              children: [
+                TextSpan(
+                  text: title,
+                  style: const TextStyle(fontWeight: FontWeight.w600),
+                ),
+                TextSpan(text: text),
+              ],
+            ),
+            style: TextStyle(fontSize: 12.5, color: color),
+          ),
+        ),
+        if (action != null) ...[const SizedBox(width: 12), action!],
+      ],
+    ),
+  );
+}
+
+// ---------------------------------------------------------------- Curve
+
+class _CurveCard extends StatelessWidget {
+  const _CurveCard({required this.fans, required this.fan});
+  final FanService fans;
+  final FanReading? fan;
 
   @override
   Widget build(BuildContext context) {
     final accent = LiveAccent.of(context);
+    final f = fan;
+    final source = f == null ? TempSource.cpu : fans.sourceOf(f);
+    final temp = fans.temperature(source);
     return OcCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           OcCardTitle(
             'Curva',
-            trailing: Tooltip(
-              message: cpuAvailable
-                  ? ''
-                  : 'A temperatura da CPU pede o modo administrador',
-              child: OcSegmented<bool>(
-                value: gpu,
-                options: const [(false, 'CPU'), (true, 'GPU')],
-                onChanged: onSource,
-              ),
-            ),
+            trailing: f == null
+                ? null
+                : Tooltip(
+                    message:
+                        source == TempSource.cpu &&
+                            temp == null &&
+                            !(fans.snapshot?.elevated ?? false)
+                        ? 'A temperatura da CPU pede o modo administrador'
+                        : '',
+                    child: OcSegmented<TempSource>(
+                      value: source,
+                      options: const [
+                        (TempSource.cpu, 'CPU'),
+                        (TempSource.gpu, 'GPU'),
+                      ],
+                      onChanged: (v) => fans.setSource(f.id, v),
+                    ),
+                  ),
           ),
           const SizedBox(height: 18),
           Expanded(
-            child: TweenAnimationBuilder<double>(
-              tween: Tween(end: temp ?? -1),
-              duration: const Duration(milliseconds: 600),
-              curve: Curves.easeOutCubic,
-              builder: (context, t, _) => CustomPaint(
-                painter: _CurvePainter(
-                  curve: curve,
-                  temp: temp == null ? null : t,
-                  label: temp == null ? null : source,
-                  color: accent,
-                ),
-              ),
+            child: _CurveEditor(
+              curve: fans.curve,
+              temp: temp,
+              label: source == TempSource.cpu ? 'CPU' : 'GPU',
+              color: accent,
+              onEditStart: fans.beginCustomEdit,
+              onMove: fans.moveCustomPoint,
             ),
           ),
         ],
@@ -246,27 +415,132 @@ class _CurveCard extends StatelessWidget {
   }
 }
 
+/// The curve chart; dragging a point edits the custom curve (starting it
+/// from the current profile).
+class _CurveEditor extends StatefulWidget {
+  const _CurveEditor({
+    required this.curve,
+    required this.temp,
+    required this.label,
+    required this.color,
+    required this.onEditStart,
+    required this.onMove,
+  });
+  final FanCurve curve;
+  final double? temp;
+  final String label;
+  final Color color;
+  final VoidCallback onEditStart;
+  final void Function(int index, double t, double s) onMove;
+
+  @override
+  State<_CurveEditor> createState() => _CurveEditorState();
+}
+
+class _CurveEditorState extends State<_CurveEditor> {
+  int? _hover;
+  int? _drag;
+
+  int? _hit(Offset pos, Size size) {
+    int? best;
+    var bestD = 18.0;
+    for (var i = 0; i < widget.curve.length; i++) {
+      final (t, s) = widget.curve[i];
+      final d = (_CurvePainter.at(size, t, s) - pos).distance;
+      if (d < bestD) {
+        best = i;
+        bestD = d;
+      }
+    }
+    return best;
+  }
+
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, c) {
+      final size = c.biggest;
+      return MouseRegion(
+        cursor: _drag != null
+            ? SystemMouseCursors.grabbing
+            : _hover != null
+            ? SystemMouseCursors.grab
+            : MouseCursor.defer,
+        onHover: (e) {
+          final h = _hit(e.localPosition, size);
+          if (h != _hover) setState(() => _hover = h);
+        },
+        onExit: (_) => setState(() => _hover = null),
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onPanStart: (e) {
+            final i = _hit(e.localPosition, size);
+            if (i == null) return;
+            widget.onEditStart();
+            setState(() => _drag = i);
+          },
+          onPanUpdate: (e) {
+            final i = _drag;
+            if (i == null) return;
+            final (t, s) = _CurvePainter.valueAt(size, e.localPosition);
+            widget.onMove(i, t, s);
+          },
+          onPanEnd: (_) => setState(() => _drag = null),
+          onPanCancel: () => setState(() => _drag = null),
+          child: TweenAnimationBuilder<double>(
+            tween: Tween(end: widget.temp ?? -1),
+            duration: const Duration(milliseconds: 600),
+            curve: Curves.easeOutCubic,
+            builder: (context, t, _) => CustomPaint(
+              size: size,
+              painter: _CurvePainter(
+                curve: widget.curve,
+                temp: widget.temp == null ? null : t,
+                label: widget.temp == null ? null : widget.label,
+                color: widget.color,
+                active: _drag ?? _hover,
+              ),
+            ),
+          ),
+        ),
+      );
+    },
+  );
+}
+
 class _CurvePainter extends CustomPainter {
   _CurvePainter({
     required this.curve,
     required this.temp,
     required this.label,
     required this.color,
+    required this.active,
   });
-  final _Curve curve;
+  final FanCurve curve;
   final double? temp;
   final String? label;
   final Color color;
 
+  /// Point under the pointer or being dragged.
+  final int? active;
+
   static const _tMin = 20.0, _tMax = 100.0;
   static const _left = 40.0, _bottom = 26.0;
 
-  @override
-  void paint(Canvas canvas, Size size) {
+  static Offset at(Size size, double t, double s) {
     final w = size.width - _left;
     final h = size.height - _bottom;
-    Offset at(double t, double s) =>
-        Offset(_left + (t - _tMin) / (_tMax - _tMin) * w, h * (1 - s / 100));
+    return Offset(_left + (t - _tMin) / (_tMax - _tMin) * w, h * (1 - s / 100));
+  }
+
+  static (double, double) valueAt(Size size, Offset o) {
+    final w = size.width - _left;
+    final h = size.height - _bottom;
+    return (_tMin + (o.dx - _left) / w * (_tMax - _tMin), (1 - o.dy / h) * 100);
+  }
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final h = size.height - _bottom;
     void text(String s, Offset o, {TextAlign align = TextAlign.left}) {
       final tp = TextPainter(
         text: TextSpan(text: s, style: OcText.caption),
@@ -284,16 +558,16 @@ class _CurvePainter extends CustomPainter {
       ..color = Oc.line
       ..strokeWidth = 1;
     for (var s = 0; s <= 100; s += 25) {
-      final y = at(_tMin, s.toDouble()).dy;
+      final y = at(size, _tMin, s.toDouble()).dy;
       canvas.drawLine(Offset(_left, y), Offset(size.width, y), grid);
       text('$s%', Offset(_left - 10, y), align: TextAlign.right);
     }
     for (var t = 20; t <= 100; t += 20) {
-      final x = at(t.toDouble(), 0).dx;
+      final x = at(size, t.toDouble(), 0).dx;
       text('$t °C', Offset(x, h + 16), align: TextAlign.center);
     }
 
-    final points = [for (final (t, s) in curve) at(t, s)];
+    final points = [for (final (t, s) in curve) at(size, t, s)];
     final line = Path()..moveTo(points.first.dx, points.first.dy);
     for (final p in points.skip(1)) {
       line.lineTo(p.dx, p.dy);
@@ -319,8 +593,13 @@ class _CurvePainter extends CustomPainter {
         ..strokeJoin = StrokeJoin.round
         ..color = color,
     );
-    for (final p in points) {
-      canvas.drawCircle(p, 7, Paint()..color = Oc.panel);
+    for (var i = 0; i < points.length; i++) {
+      final p = points[i];
+      final hot = i == active;
+      if (hot) {
+        canvas.drawCircle(p, 13, Paint()..color = color.withValues(alpha: .2));
+      }
+      canvas.drawCircle(p, 7, Paint()..color = hot ? color : Oc.panel);
       canvas.drawCircle(
         p,
         5.5,
@@ -329,22 +608,20 @@ class _CurvePainter extends CustomPainter {
           ..strokeWidth = 2.5
           ..color = color,
       );
+      if (hot) {
+        final (t, s) = curve[i];
+        text(
+          '${t.round()} °C · ${s.round()}%',
+          p + const Offset(0, -22),
+          align: TextAlign.center,
+        );
+      }
     }
 
     final t = temp;
     if (t != null) {
-      final clamped = t.clamp(_tMin, _tMax);
-      double speed = curve.first.$2;
-      for (var i = 1; i < curve.length; i++) {
-        final (t1, s1) = curve[i];
-        final (t0, s0) = curve[i - 1];
-        if (clamped <= t1) {
-          speed = s0 + (s1 - s0) * (clamped - t0) / (t1 - t0);
-          break;
-        }
-        speed = s1;
-      }
-      final p = at(clamped, speed);
+      final clamped = t.clamp(_tMin, _tMax).toDouble();
+      final p = at(size, clamped, FanService.speedAt(curve, clamped));
       final dash = Paint()
         ..color = Oc.textTertiary
         ..strokeWidth = 1;
@@ -388,35 +665,142 @@ class _CurvePainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(_CurvePainter old) =>
-      old.curve != curve ||
-      old.temp != temp ||
-      old.color != color ||
-      old.label != label;
+  bool shouldRepaint(_CurvePainter old) => true;
 }
 
-class _NowCard extends StatelessWidget {
-  const _NowCard({
-    required this.speed,
-    required this.spin,
-    required this.mode,
-    required this.zeroRpm,
-    required this.onZeroRpm,
-  });
-  final double? speed;
-  final double spin;
-  final String mode;
-  final bool zeroRpm;
-  final ValueChanged<bool> onZeroRpm;
+// ---------------------------------------------------------------- Fan
+
+/// The selected fan: live speed, rename, mode and its options.
+class _FanCard extends StatefulWidget {
+  const _FanCard({super.key, required this.fans, required this.fan});
+  final FanService fans;
+  final FanReading? fan;
+
+  @override
+  State<_FanCard> createState() => _FanCardState();
+}
+
+class _FanCardState extends State<_FanCard> {
+  bool _editing = false;
+  final _name = TextEditingController();
+  final _focus = FocusNode();
+
+  @override
+  void initState() {
+    super.initState();
+    _focus.addListener(() {
+      if (!_focus.hasFocus && _editing) _commit();
+    });
+  }
+
+  @override
+  void dispose() {
+    _name.dispose();
+    _focus.dispose();
+    super.dispose();
+  }
+
+  void _startEdit(FanReading f) {
+    _name.text = widget.fans.nameOf(f);
+    _name.selection = TextSelection(
+      baseOffset: 0,
+      extentOffset: _name.text.length,
+    );
+    setState(() => _editing = true);
+    WidgetsBinding.instance.addPostFrameCallback((_) => _focus.requestFocus());
+  }
+
+  void _commit() {
+    final f = widget.fan;
+    if (f != null) widget.fans.rename(f.id, _name.text);
+    setState(() => _editing = false);
+  }
 
   @override
   Widget build(BuildContext context) {
     final accent = LiveAccent.of(context);
+    final fans = widget.fans;
+    final f = widget.fan;
+    if (f == null) {
+      return OcCard(
+        child: Center(
+          child: Text(
+            fans.snapshot == null
+                ? 'Procurando ventoinhas…'
+                : 'Nenhuma ventoinha',
+            style: OcText.secondary,
+          ),
+        ),
+      );
+    }
+    final cfg = fans.settingsOf(f.id);
+    final blocked = fans.blockedReason(f);
+    final duty = f.duty ?? (f.controlled ? fans.targetOf(f) : null);
+    final noTemp =
+        cfg.mode == FanMode.curve && fans.temperature(fans.sourceOf(f)) == null;
+    final status = [
+      if (f.rpm != null) '${f.rpm!.round()} RPM',
+      blocked ??
+          (noTemp
+              ? 'Sem temperatura · ${f.gpu ? 'driver' : 'BIOS'} no controle'
+              : switch (cfg.mode) {
+                  FanMode.auto => f.gpu ? 'Driver' : 'BIOS',
+                  FanMode.curve => 'Curva',
+                  FanMode.fixed => 'Fixo',
+                }),
+    ].join(' · ');
     return OcCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const OcCardTitle('Agora'),
+          SizedBox(
+            height: 34,
+            child: Row(
+              children: [
+                Expanded(
+                  child: _editing
+                      ? TextField(
+                          controller: _name,
+                          focusNode: _focus,
+                          style: OcText.title.copyWith(fontSize: 16),
+                          decoration: ocFieldDecoration(fans.defaultName(f)),
+                          onSubmitted: (_) => _commit(),
+                        )
+                      : Hover(
+                          onTap: () => _startEdit(f),
+                          cursor: SystemMouseCursors.text,
+                          builder: (context, h) => Row(
+                            children: [
+                              Flexible(
+                                child: Text(
+                                  fans.nameOf(f),
+                                  overflow: TextOverflow.ellipsis,
+                                  style: OcText.title.copyWith(fontSize: 16),
+                                ),
+                              ),
+                              const SizedBox(width: 6),
+                              AnimatedOpacity(
+                                duration: Oc.fast,
+                                opacity: h ? 1 : .45,
+                                child: const Icon(
+                                  Icons.edit_outlined,
+                                  size: 15,
+                                  color: Oc.textSecondary,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            f.gpu ? f.device : 'Placa-mãe · ${f.device}',
+            overflow: TextOverflow.ellipsis,
+            style: OcText.caption,
+          ),
           Expanded(
             child: Row(
               children: [
@@ -430,45 +814,87 @@ class _NowCard extends StatelessWidget {
                         textBaseline: TextBaseline.alphabetic,
                         children: [
                           Text(
-                            speed == null ? '—' : '${speed!.round()}',
-                            style: const TextStyle(
+                            duty == null ? 'Auto' : '${duty.round()}',
+                            style: TextStyle(
                               fontFamily: Oc.fontDisplay,
-                              fontSize: 56,
+                              fontSize: duty == null ? 44 : 56,
                               fontWeight: FontWeight.w600,
                               letterSpacing: -1.8,
                               height: 1,
                               color: Oc.text,
                             ),
                           ),
-                          const SizedBox(width: 4),
-                          const Text(
-                            '%',
-                            style: TextStyle(
-                              fontFamily: Oc.fontDisplay,
-                              fontSize: 20,
-                              color: Oc.textSecondary,
+                          if (duty != null) ...[
+                            const SizedBox(width: 4),
+                            const Text(
+                              '%',
+                              style: TextStyle(
+                                fontFamily: Oc.fontDisplay,
+                                fontSize: 20,
+                                color: Oc.textSecondary,
+                              ),
                             ),
-                          ),
+                          ],
                         ],
                       ),
-                      const SizedBox(height: 6),
-                      Text(mode, style: OcText.secondary),
+                      const SizedBox(height: 8),
+                      Text(status, style: OcText.secondary),
                     ],
                   ),
                 ),
-                FanGlyph(color: accent, size: 150, speed: spin),
+                FanGlyph(color: accent, size: 130, speed: fanSpin(f.rpm)),
               ],
             ),
           ),
-          const Divider(),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              const Expanded(
-                child: Text('Parar quando frio', style: OcText.label),
+          Tooltip(
+            message: blocked ?? '',
+            child: Opacity(
+              opacity: blocked == null ? 1 : .45,
+              child: IgnorePointer(
+                ignoring: blocked != null,
+                child: Row(
+                  children: [
+                    OcSegmented<FanMode>(
+                      value: cfg.mode,
+                      options: const [
+                        (FanMode.auto, 'Auto'),
+                        (FanMode.curve, 'Curva'),
+                        (FanMode.fixed, 'Fixo'),
+                      ],
+                      onChanged: (m) => fans.setMode(f.id, m),
+                    ),
+                  ],
+                ),
               ),
-              OcSwitch(value: zeroRpm, onChanged: onZeroRpm),
-            ],
+            ),
+          ),
+          const SizedBox(height: 10),
+          SizedBox(
+            height: 36,
+            child: cfg.mode == FanMode.fixed && blocked == null
+                ? OcSlider(
+                    value: math.max(
+                      cfg.fixed,
+                      cfg.pump ? FanService.pumpMinimum : 0,
+                    ),
+                    min: cfg.pump ? FanService.pumpMinimum : 0,
+                    max: 100,
+                    suffix: '%',
+                    onChanged: (v) => fans.setFixed(f.id, v),
+                  )
+                : _SwitchRow(
+                    label: 'Parar quando frio',
+                    value: cfg.zeroRpm && !cfg.pump,
+                    onChanged: cfg.mode == FanMode.curve && !cfg.pump
+                        ? (v) => fans.setZeroRpm(f.id, v)
+                        : null,
+                  ),
+          ),
+          const Divider(),
+          _SwitchRow(
+            label: 'Bomba de water cooler',
+            value: cfg.pump,
+            onChanged: (v) => fans.setPump(f.id, v),
           ),
         ],
       ),
@@ -476,28 +902,93 @@ class _NowCard extends StatelessWidget {
   }
 }
 
+class _SwitchRow extends StatelessWidget {
+  const _SwitchRow({
+    required this.label,
+    required this.value,
+    required this.onChanged,
+  });
+  final String label;
+  final bool value;
+  final ValueChanged<bool>? onChanged;
+
+  @override
+  Widget build(BuildContext context) => SizedBox(
+    height: 36,
+    child: Row(
+      children: [
+        Expanded(
+          child: Text(
+            label,
+            style: OcText.label.copyWith(
+              color: onChanged == null ? Oc.textTertiary : null,
+            ),
+          ),
+        ),
+        OcSwitch(value: value, onChanged: onChanged),
+      ],
+    ),
+  );
+}
+
 class _FanTile extends StatelessWidget {
-  const _FanTile({required this.name, required this.speed, required this.spin});
-  final String name;
-  final double? speed;
-  final double spin;
+  const _FanTile({
+    required this.fans,
+    required this.fan,
+    required this.selected,
+    required this.onTap,
+  });
+  final FanService fans;
+  final FanReading fan;
+  final bool selected;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     final accent = LiveAccent.of(context);
+    final cfg = fans.settingsOf(fan.id);
+    final duty = fan.duty;
+    final rpm = fan.rpm;
     return OcCard(
       padding: const EdgeInsets.all(18),
+      onTap: onTap,
+      borderColor: selected ? accent.withValues(alpha: .7) : null,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text(name, style: OcText.label),
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  fans.nameOf(fan),
+                  overflow: TextOverflow.ellipsis,
+                  style: OcText.label,
+                ),
+              ),
+              if (cfg.pump)
+                const Padding(
+                  padding: EdgeInsets.only(left: 6),
+                  child: Icon(
+                    Icons.water_drop_outlined,
+                    size: 14,
+                    color: Oc.textTertiary,
+                  ),
+                ),
+              const SizedBox(width: 6),
+              Text(switch (cfg.mode) {
+                FanMode.auto => 'Auto',
+                FanMode.curve => 'Curva',
+                FanMode.fixed => 'Fixo',
+              }, style: OcText.caption),
+            ],
+          ),
           Expanded(
             child: Center(
               child: LayoutBuilder(
                 builder: (context, c) => FanGlyph(
                   color: accent,
                   size: math.min(c.maxWidth, c.maxHeight) * .86,
-                  speed: spin,
+                  speed: fanSpin(rpm),
                 ),
               ),
             ),
@@ -507,13 +998,18 @@ class _FanTile extends StatelessWidget {
             textBaseline: TextBaseline.alphabetic,
             children: [
               Text(
-                speed == null ? '—' : '${speed!.round()}',
+                duty == null ? 'Auto' : '${duty.round()}',
                 style: OcText.pageTitle.copyWith(fontSize: 24),
               ),
-              const SizedBox(width: 3),
-              const Text('%', style: OcText.caption),
+              if (duty != null) ...[
+                const SizedBox(width: 3),
+                const Text('%', style: OcText.caption),
+              ],
               const Spacer(),
-              const Text('— RPM', style: OcText.caption),
+              Text(
+                rpm == null ? '— RPM' : '${rpm.round()} RPM',
+                style: OcText.caption,
+              ),
             ],
           ),
         ],

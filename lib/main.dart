@@ -6,6 +6,8 @@ import 'package:webview_windows/webview_windows.dart';
 
 import 'src/diagnostics/frame_profiler.dart';
 import 'src/engine/engine.dart';
+import 'src/fans/fan_service.dart';
+import 'src/monitor/system_monitor.dart';
 import 'src/paths.dart';
 import 'src/ui/shell.dart';
 import 'src/ui/theme.dart';
@@ -25,6 +27,9 @@ Future<void> main(List<String> args) async {
     // Already initialized (hot restart) or WebView2 missing; the preview reports it.
   }
   final engine = Engine();
+  final monitor = SystemMonitor();
+  // Fans run for the whole session, whichever page is open.
+  final fans = FanService(monitor)..start();
   // --page=N reopens a page, e.g. after restarting as administrator.
   final page = args
       .map((a) => a.startsWith('--page=') ? int.tryParse(a.substring(7)) : null)
@@ -32,13 +37,28 @@ Future<void> main(List<String> args) async {
       .firstOrNull;
   FrameProfiler.start();
   if (kProfile) engine.addListener(() => FrameProfiler.count('engine'));
-  runApp(OpenChromaApp(engine: engine, initialPage: page));
+  runApp(
+    OpenChromaApp(
+      engine: engine,
+      monitor: monitor,
+      fans: fans,
+      initialPage: page,
+    ),
+  );
   engine.start();
 }
 
 class OpenChromaApp extends StatefulWidget {
-  const OpenChromaApp({super.key, required this.engine, this.initialPage});
+  const OpenChromaApp({
+    super.key,
+    required this.engine,
+    required this.monitor,
+    required this.fans,
+    this.initialPage,
+  });
   final Engine engine;
+  final SystemMonitor monitor;
+  final FanService fans;
   final int? initialPage;
 
   @override
@@ -54,6 +74,8 @@ class _OpenChromaAppState extends State<OpenChromaApp> {
     // Give plugins a chance to apply their shutdown color before exiting.
     _lifecycle = AppLifecycleListener(
       onExitRequested: () async {
+        // Fans go back to the BIOS / driver before anything else.
+        widget.fans.shutdown();
         await widget.engine.shutdown();
         return AppExitResponse.exit;
       },
@@ -76,6 +98,11 @@ class _OpenChromaAppState extends State<OpenChromaApp> {
     // that move nodes between parents, which this UI does on filtering and
     // resizing. Publishing no semantics tree avoids that code path.
     builder: (context, child) => ExcludeSemantics(child: child!),
-    home: Shell(engine: widget.engine, initialPage: widget.initialPage),
+    home: Shell(
+      engine: widget.engine,
+      monitor: widget.monitor,
+      fans: widget.fans,
+      initialPage: widget.initialPage,
+    ),
   );
 }

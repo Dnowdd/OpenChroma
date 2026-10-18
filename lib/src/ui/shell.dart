@@ -6,6 +6,7 @@ import 'package:flutter/scheduler.dart';
 
 import '../effects/effect_host.dart';
 import '../engine/engine.dart';
+import '../fans/fan_service.dart';
 import '../monitor/system_monitor.dart';
 import '../system/launch_settings.dart';
 import 'accent.dart';
@@ -31,8 +32,16 @@ abstract final class Pages {
 }
 
 class Shell extends StatefulWidget {
-  const Shell({super.key, required this.engine, this.initialPage});
+  const Shell({
+    super.key,
+    required this.engine,
+    required this.monitor,
+    required this.fans,
+    this.initialPage,
+  });
   final Engine engine;
+  final SystemMonitor monitor;
+  final FanService fans;
   final int? initialPage;
 
   @override
@@ -44,7 +53,7 @@ class _ShellState extends State<Shell> {
   late int _page = (widget.initialPage ?? const int.fromEnvironment('OC_PAGE'))
       .clamp(0, Pages.settings);
   late final _accent = AccentController(widget.engine);
-  final _monitor = SystemMonitor();
+  SystemMonitor get _monitor => widget.monitor;
 
   static const _nav = [
     (Icons.home_outlined, Icons.home_rounded, 'Início'),
@@ -57,7 +66,6 @@ class _ShellState extends State<Shell> {
   @override
   void dispose() {
     _accent.dispose();
-    _monitor.dispose();
     super.dispose();
   }
 
@@ -130,14 +138,20 @@ class _ShellState extends State<Shell> {
                                           HomePage(
                                             engine: engine,
                                             monitor: _monitor,
+                                            fans: widget.fans,
                                             active: _page == Pages.home,
                                             onNavigate: _go,
                                           ),
                                           _LightingPage(engine: engine),
                                           DevicesPage(engine: engine),
                                           FansPage(
-                                            monitor: _monitor,
+                                            fans: widget.fans,
                                             active: _page == Pages.fans,
+                                            onRestartAsAdmin: () =>
+                                                restartAsAdmin(
+                                                  page: Pages.fans,
+                                                  shutdown: engine.shutdown,
+                                                ),
                                           ),
                                           MonitorPage(
                                             engine: engine,

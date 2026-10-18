@@ -9,6 +9,7 @@ project(runner LANGUAGES CXX)
 add_executable(${BINARY_NAME} WIN32
   "audio_capture.cpp"
   "elevation.cpp"
+  "fan_control.cpp"
   "system_monitor.cpp"
   "flutter_window.cpp"
   "main.cpp"
