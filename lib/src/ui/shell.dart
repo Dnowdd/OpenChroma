@@ -11,8 +11,9 @@ import 'theme.dart';
 import 'widgets.dart';
 
 class Shell extends StatefulWidget {
-  const Shell({super.key, required this.engine});
+  const Shell({super.key, required this.engine, this.initialPage});
   final Engine engine;
+  final int? initialPage;
 
   @override
   State<Shell> createState() => _ShellState();
@@ -20,7 +21,7 @@ class Shell extends StatefulWidget {
 
 class _ShellState extends State<Shell> {
   // OC_PAGE opens a given page on launch (handy for screenshots).
-  int _page = const int.fromEnvironment('OC_PAGE');
+  late int _page = widget.initialPage ?? const int.fromEnvironment('OC_PAGE');
 
   static const _nav = [
     (Icons.grid_view_rounded, 'Efeitos'),

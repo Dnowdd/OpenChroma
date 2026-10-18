@@ -242,9 +242,6 @@ class SystemMonitor extends ChangeNotifier {
             Int32 Function(Pointer<Utf8>, Int32),
             int Function(Pointer<Utf8>, int)
           >('OcSysmonRead');
-      _relaunch = exe.lookupFunction<Int32 Function(), int Function()>(
-        'OcRelaunchElevated',
-      );
     } catch (_) {
       // Not available (tests, other platforms).
     }
@@ -253,7 +250,6 @@ class SystemMonitor extends ChangeNotifier {
   void Function()? _start;
   void Function()? _stop;
   int Function(Pointer<Utf8>, int)? _read;
-  int Function()? _relaunch;
 
   Pointer<Utf8> _buf = nullptr;
   int _cap = 0;
@@ -294,10 +290,6 @@ class SystemMonitor extends ChangeNotifier {
       _stop!();
     }
   }
-
-  /// Starts an elevated copy of the app (UAC prompt). True when it launched;
-  /// the caller should then exit this instance.
-  bool relaunchElevated() => (_relaunch?.call() ?? 0) == 1;
 
   void _poll() {
     final read = _read!;

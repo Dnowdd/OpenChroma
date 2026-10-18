@@ -1,10 +1,10 @@
-import 'dart:io';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
 import '../engine/engine.dart';
 import '../monitor/system_monitor.dart';
+import '../system/launch_settings.dart';
 import 'theme.dart';
 import 'widgets.dart';
 
@@ -42,11 +42,8 @@ class _MonitorPageState extends State<MonitorPage> {
     super.dispose();
   }
 
-  Future<void> _relaunchElevated() async {
-    if (!_monitor.relaunchElevated()) return;
-    await widget.engine.shutdown();
-    exit(0);
-  }
+  Future<void> _relaunchElevated() =>
+      restartAsAdmin(page: 3, shutdown: widget.engine.shutdown);
 
   @override
   Widget build(BuildContext context) {

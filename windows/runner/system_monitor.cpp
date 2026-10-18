@@ -17,7 +17,6 @@
 #include <pdh.h>
 #include <pdhmsg.h>
 #include <psapi.h>
-#include <shellapi.h>
 #include <winioctl.h>
 #include <nvme.h>
 
@@ -1257,20 +1256,6 @@ __declspec(dllexport) void OcSysmonStop() { Instance().Stop(); }
 // sample).
 __declspec(dllexport) int OcSysmonRead(char* buf, int cap) {
   return Instance().Read(buf, cap);
-}
-
-__declspec(dllexport) int OcSysmonIsElevated() { return IsElevated() ? 1 : 0; }
-
-// Starts this executable again elevated (UAC prompt). Returns 1 when the new
-// instance was launched; the caller then exits.
-__declspec(dllexport) int OcRelaunchElevated() {
-  wchar_t path[MAX_PATH];
-  GetModuleFileNameW(nullptr, path, MAX_PATH);
-  SHELLEXECUTEINFOW info{sizeof(info)};
-  info.lpVerb = L"runas";
-  info.lpFile = path;
-  info.nShow = SW_SHOWNORMAL;
-  return ShellExecuteExW(&info) ? 1 : 0;
 }
 
 }  // extern "C"

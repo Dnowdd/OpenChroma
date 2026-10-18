@@ -9,7 +9,7 @@ import 'src/paths.dart';
 import 'src/ui/shell.dart';
 import 'src/ui/theme.dart';
 
-Future<void> main() async {
+Future<void> main(List<String> args) async {
   WidgetsFlutterBinding.ensureInitialized();
   try {
     // Keep effects animating when the window is minimized or covered.
@@ -24,13 +24,19 @@ Future<void> main() async {
     // Already initialized (hot restart) or WebView2 missing; the preview reports it.
   }
   final engine = Engine();
-  runApp(OpenChromaApp(engine: engine));
+  // --page=N reopens a page, e.g. after restarting as administrator.
+  final page = args
+      .map((a) => a.startsWith('--page=') ? int.tryParse(a.substring(7)) : null)
+      .nonNulls
+      .firstOrNull;
+  runApp(OpenChromaApp(engine: engine, initialPage: page));
   engine.start();
 }
 
 class OpenChromaApp extends StatefulWidget {
-  const OpenChromaApp({super.key, required this.engine});
+  const OpenChromaApp({super.key, required this.engine, this.initialPage});
   final Engine engine;
+  final int? initialPage;
 
   @override
   State<OpenChromaApp> createState() => _OpenChromaAppState();
@@ -67,6 +73,6 @@ class _OpenChromaAppState extends State<OpenChromaApp> {
     // that move nodes between parents, which this UI does on filtering and
     // resizing. Publishing no semantics tree avoids that code path.
     builder: (context, child) => ExcludeSemantics(child: child!),
-    home: Shell(engine: widget.engine),
+    home: Shell(engine: widget.engine, initialPage: widget.initialPage),
   );
 }
