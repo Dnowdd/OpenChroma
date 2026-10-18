@@ -11,6 +11,7 @@ add_executable(${BINARY_NAME} WIN32
   "elevation.cpp"
   "fan_control.cpp"
   "system_monitor.cpp"
+  "tray.cpp"
   "flutter_window.cpp"
   "main.cpp"
   "utils.cpp"

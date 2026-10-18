@@ -223,13 +223,27 @@ class _LaunchPanelState extends State<_LaunchPanel> {
                 ),
                 title: 'Abrir ao ligar o PC',
                 description: l.alwaysAdmin
-                    ? 'Abre como administrador ao entrar no Windows, sem '
-                          'pedir permissão. Ativar ou desativar pede o UAC '
-                          'uma vez.'
-                    : 'Abre junto com o Windows.',
+                    ? 'Abre na bandeja, como administrador, ao entrar no '
+                          'Windows, sem pedir permissão. Ativar ou desativar '
+                          'pede o UAC uma vez.'
+                    : 'Abre na bandeja junto com o Windows.',
                 trailing: OcSwitch(
                   value: l.startWithWindows,
                   onChanged: enabled ? l.setStartWithWindows : null,
+                ),
+              ),
+              OcRow(
+                leading: const OcIconTile(
+                  Icons.move_to_inbox_rounded,
+                  color: _Tint.blue,
+                ),
+                title: 'Continuar em segundo plano',
+                description:
+                    'Ao fechar a janela, o OpenChroma fica na bandeja e '
+                    'segue controlando luzes e ventoinhas.',
+                trailing: OcSwitch(
+                  value: l.runInBackground,
+                  onChanged: enabled ? l.setRunInBackground : null,
                 ),
               ),
             ],

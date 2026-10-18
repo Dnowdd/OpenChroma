@@ -9,6 +9,7 @@
 #include <string>
 
 #include "flutter_window.h"
+#include "tray.h"
 #include "utils.h"
 
 namespace {
@@ -106,6 +107,11 @@ int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
 
   ::SetUnhandledExceptionFilter(OnUnhandledException);
   std::signal(SIGABRT, OnAbort);
+
+  // One instance drives the devices; a second launch shows the first.
+  if (tray::SignalRunningInstance()) {
+    return EXIT_SUCCESS;
+  }
 
   // Initialize COM, so that it is available for use in the library and/or
   // plugins.

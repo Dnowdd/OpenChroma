@@ -5,6 +5,8 @@ import 'dart:isolate';
 import 'package:ffi/ffi.dart';
 import 'package:flutter/foundation.dart';
 
+import '../fans/fan_service.dart';
+
 typedef _RunElevatedNative = Int32 Function(
   Pointer<Utf16>,
   Pointer<Utf16>,
@@ -58,18 +60,30 @@ Future<void> restartAsAdmin({
   required int page,
   required Future<void> Function() shutdown,
 }) async {
-  if (!Elevation.relaunch(['--page=$page'])) return;
+  // --replace: the new instance starts even though this one still runs.
+  if (!Elevation.relaunch(['--page=$page', '--replace'])) return;
+  // The new instance saves the fans' firmware settings when it takes them
+  // over; hand them back first so it does not save ours.
+  FanService.releaseAll();
   await shutdown();
+  try {
+    DynamicLibrary.executable()
+        .lookupFunction<Void Function(), void Function()>('OcTrayRemoveIcon')();
+  } catch (_) {}
   exit(0);
 }
 
-/// "Always run as administrator" and "start with Windows", stored where
-/// Windows reads them, so they also apply to a packaged exe:
+/// "Always run as administrator", "start with Windows" and "keep running in
+/// the background", stored where Windows (or the runner) reads them, so they
+/// also apply to a packaged exe:
 /// - always admin: the RUNASADMIN compatibility flag for this exe (HKCU),
 ///   which makes every launch ask for elevation;
 /// - start with Windows: a value under HKCU\...\Run, or, when it should
 ///   start elevated, a logon task with the highest run level (the Run key
 ///   cannot start elevated programs, and the task does so without a prompt).
+///   Both pass --hidden, so the app starts in the tray;
+/// - background: RunInBackground under HKCU\Software\OpenChroma, read by
+///   windows/runner/tray.cpp when the window closes.
 class LaunchSettings extends ChangeNotifier {
   LaunchSettings() {
     load();
@@ -79,11 +93,15 @@ class LaunchSettings extends ChangeNotifier {
       r'HKCU\Software\Microsoft\Windows NT\CurrentVersion\AppCompatFlags\Layers';
   static const _runKey = r'HKCU\Software\Microsoft\Windows\CurrentVersion\Run';
   static const _name = 'OpenChroma';
+  static const _appKey = r'HKCU\Software\OpenChroma';
 
   final String exe = Platform.resolvedExecutable;
 
   bool alwaysAdmin = false;
   bool startWithWindows = false;
+
+  /// Closing the window leaves the app in the tray.
+  bool runInBackground = true;
   bool _task = false;
   bool busy = false;
   bool loaded = false;
@@ -99,6 +117,16 @@ class LaunchSettings extends ChangeNotifier {
     final task = await Process.run('schtasks', ['/Query', '/TN', _name]);
     _task = task.exitCode == 0;
     startWithWindows = run.exitCode == 0 || _task;
+    final bg = await Process.run('reg', [
+      'query',
+      _appKey,
+      '/v',
+      'RunInBackground',
+    ]);
+    // Missing means the default: on.
+    runInBackground =
+        bg.exitCode != 0 ||
+        !RegExp(r'REG_DWORD\s+0x0\b').hasMatch('${bg.stdout}');
     loaded = true;
     notifyListeners();
   }
@@ -123,6 +151,21 @@ class LaunchSettings extends ChangeNotifier {
     }
     // Startup must follow: only the task can start the app elevated.
     if (startWithWindows) await _applyStartup(true, admin: value);
+  });
+
+  Future<void> setRunInBackground(bool value) => _change(() async {
+    final r = await Process.run('reg', [
+      'add',
+      _appKey,
+      '/v',
+      'RunInBackground',
+      '/t',
+      'REG_DWORD',
+      '/d',
+      value ? '1' : '0',
+      '/f',
+    ]);
+    if (r.exitCode != 0) error = 'Não foi possível salvar a configuração.';
   });
 
   Future<void> setStartWithWindows(bool value) =>
@@ -160,7 +203,7 @@ class LaunchSettings extends ChangeNotifier {
         '/t',
         'REG_SZ',
         '/d',
-        '"$exe"',
+        '"$exe" --hidden',
         '/f',
       ]);
       if (r.exitCode != 0) {
@@ -251,6 +294,7 @@ class LaunchSettings extends ChangeNotifier {
   <Actions Context="Author">
     <Exec>
       <Command>${esc(exe)}</Command>
+      <Arguments>--hidden</Arguments>
       <WorkingDirectory>${esc(dir)}</WorkingDirectory>
     </Exec>
   </Actions>
