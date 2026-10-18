@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:path/path.dart' as p;
 import 'package:webview_windows/webview_windows.dart';
 
+import 'src/diagnostics/frame_profiler.dart';
 import 'src/engine/engine.dart';
 import 'src/paths.dart';
 import 'src/ui/shell.dart';
@@ -29,6 +30,8 @@ Future<void> main(List<String> args) async {
       .map((a) => a.startsWith('--page=') ? int.tryParse(a.substring(7)) : null)
       .nonNulls
       .firstOrNull;
+  FrameProfiler.start();
+  if (kProfile) engine.addListener(() => FrameProfiler.count('engine'));
   runApp(OpenChromaApp(engine: engine, initialPage: page));
   engine.start();
 }

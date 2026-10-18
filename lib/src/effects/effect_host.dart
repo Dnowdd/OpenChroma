@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:path/path.dart' as p;
 import 'package:webview_windows/webview_windows.dart';
 
+import '../diagnostics/frame_profiler.dart';
 import '../engine/engine.dart';
 import 'effect_library.dart';
 
@@ -205,8 +206,12 @@ class _EffectPreviewState extends State<EffectPreview> {
 
   void _onMessage(dynamic msg) {
     if (msg is Map && msg['f'] is String) {
-      widget.engine.onFrame(
-        CanvasFrame(frameWidth, frameHeight, base64Decode(msg['f'])),
+      FrameProfiler.count('effectFrame');
+      FrameProfiler.measure(
+        'effectFrame',
+        () => widget.engine.onFrame(
+          CanvasFrame(frameWidth, frameHeight, base64Decode(msg['f'])),
+        ),
       );
     }
   }

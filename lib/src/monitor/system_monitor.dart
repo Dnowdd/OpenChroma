@@ -5,6 +5,8 @@ import 'dart:ffi';
 import 'package:ffi/ffi.dart';
 import 'package:flutter/foundation.dart';
 
+import '../diagnostics/frame_profiler.dart';
+
 /// How the CPU temperature sensor is doing.
 enum CpuSensorStatus {
   ok,
@@ -303,7 +305,9 @@ class SystemMonitor extends ChangeNotifier {
     }
   }
 
-  void _poll() {
+  void _poll() => FrameProfiler.measure('monitor.poll', _pollNow);
+
+  void _pollNow() {
     final read = _read!;
     var n = read(_buf, _cap);
     if (n == 0) {
