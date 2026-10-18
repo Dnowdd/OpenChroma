@@ -30,146 +30,20 @@
 #include <thread>
 #include <vector>
 
+#include "json_writer.h"
+#include "pawnio.h"
+
 namespace {
 
-// ---------------------------------------------------------------- JSON
-
-class Json {
- public:
-  std::string str;
-
-  Json& Key(const char* k) {
-    if (!first_) str += ',';
-    first_ = false;
-    Quote(k);
-    str += ':';
-    after_key_ = true;
-    return *this;
-  }
-  Json& Str(const std::string& s) {
-    Comma();
-    Quote(s);
-    return *this;
-  }
-  Json& Num(double v) {
-    Comma();
-    if (!std::isfinite(v)) {
-      str += "null";
-    } else {
-      char buf[32];
-      snprintf(buf, sizeof(buf), "%.10g", v);
-      str += buf;
-    }
-    return *this;
-  }
-  // Writes null for a negative value: "no reading".
-  Json& Opt(double v) {
-    if (v >= 0) return Num(v);
-    Comma();
-    str += "null";
-    return *this;
-  }
-  Json& Int(long long v) {
-    Comma();
-    str += std::to_string(v);
-    return *this;
-  }
-  Json& Bool(bool v) {
-    Comma();
-    str += v ? "true" : "false";
-    return *this;
-  }
-  Json& Obj() {
-    Comma();
-    str += '{';
-    first_ = true;
-    return *this;
-  }
-  Json& EndObj() {
-    str += '}';
-    first_ = false;
-    return *this;
-  }
-  Json& Arr() {
-    Comma();
-    str += '[';
-    first_ = true;
-    return *this;
-  }
-  Json& EndArr() {
-    str += ']';
-    first_ = false;
-    return *this;
-  }
-
- private:
-  void Comma() {
-    if (after_key_) {
-      after_key_ = false;
-    } else if (!first_) {
-      str += ',';
-    }
-    first_ = false;
-  }
-  void Quote(const std::string& s) {
-    str += '"';
-    for (unsigned char c : s) {
-      if (c == '"' || c == '\\') {
-        str += '\\';
-        str += static_cast<char>(c);
-      } else if (c < 0x20) {
-        char buf[8];
-        snprintf(buf, sizeof(buf), "\\u%04x", c);
-        str += buf;
-      } else {
-        str += static_cast<char>(c);
-      }
-    }
-    str += '"';
-  }
-  bool first_ = true;
-  bool after_key_ = false;
-};
-
-std::string Utf8(const std::wstring& w) {
-  if (w.empty()) return {};
-  const int n = WideCharToMultiByte(CP_UTF8, 0, w.data(),
-                                    static_cast<int>(w.size()), nullptr, 0,
-                                    nullptr, nullptr);
-  std::string s(n, '\0');
-  WideCharToMultiByte(CP_UTF8, 0, w.data(), static_cast<int>(w.size()),
-                      s.data(), n, nullptr, nullptr);
-  return s;
-}
+using oc::IsElevated;
+using oc::Json;
+using oc::Utf8;
+using oc::PawnIo;
 
 std::string Trim(std::string s) {
   const auto b = s.find_first_not_of(" \t\r\n");
   const auto e = s.find_last_not_of(" \t\r\n");
   return b == std::string::npos ? std::string() : s.substr(b, e - b + 1);
-}
-
-std::wstring ExeDir() {
-  wchar_t path[MAX_PATH];
-  const DWORD n = GetModuleFileNameW(nullptr, path, MAX_PATH);
-  std::wstring s(path, n);
-  return s.substr(0, s.find_last_of(L"\\/"));
-}
-
-bool QueryElevated() {
-  HANDLE token = nullptr;
-  if (!OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &token)) return false;
-  TOKEN_ELEVATION e{};
-  DWORD len = 0;
-  const bool ok =
-      GetTokenInformation(token, TokenElevation, &e, sizeof(e), &len) &&
-      e.TokenIsElevated;
-  CloseHandle(token);
-  return ok;
-}
-
-bool IsElevated() {
-  static const bool elevated = QueryElevated();
-  return elevated;
 }
 
 // ---------------------------------------------------------------- PDH
@@ -210,77 +84,6 @@ class PdhArray {
 
  private:
   PDH_HCOUNTER counter_ = nullptr;
-};
-
-// ---------------------------------------------------------------- PawnIO
-
-class PawnIo {
- public:
-  ~PawnIo() { Close(); }
-
-  // Loads [module] (a file in assets/pawnio). Needs an elevated process.
-  bool Open(const wchar_t* module) {
-    if (handle_) return true;
-    if (!lib_) {
-      wchar_t pf[MAX_PATH];
-      if (!GetEnvironmentVariableW(L"ProgramFiles", pf, MAX_PATH)) return false;
-      lib_ = LoadLibraryW((std::wstring(pf) + L"\\PawnIO\\PawnIOLib.dll").c_str());
-      if (!lib_) return false;
-      open_ = reinterpret_cast<OpenFn>(GetProcAddress(lib_, "pawnio_open"));
-      load_ = reinterpret_cast<LoadFn>(GetProcAddress(lib_, "pawnio_load"));
-      exec_ = reinterpret_cast<ExecFn>(GetProcAddress(lib_, "pawnio_execute"));
-      close_ = reinterpret_cast<CloseFn>(GetProcAddress(lib_, "pawnio_close"));
-    }
-    if (!open_ || !load_ || !exec_ || !close_) return false;
-
-    const std::wstring path =
-        ExeDir() + L"\\data\\flutter_assets\\assets\\pawnio\\" + module;
-    HANDLE f = CreateFileW(path.c_str(), GENERIC_READ, FILE_SHARE_READ, nullptr,
-                           OPEN_EXISTING, 0, nullptr);
-    if (f == INVALID_HANDLE_VALUE) return false;
-    std::vector<UCHAR> blob(GetFileSize(f, nullptr));
-    DWORD read = 0;
-    const bool ok = ReadFile(f, blob.data(), static_cast<DWORD>(blob.size()),
-                             &read, nullptr) &&
-                    read == blob.size();
-    CloseHandle(f);
-    if (!ok) return false;
-
-    HANDLE h = nullptr;
-    if (FAILED(open_(&h)) || !h) return false;
-    if (FAILED(load_(h, blob.data(), blob.size()))) {
-      close_(h);
-      return false;
-    }
-    handle_ = h;
-    return true;
-  }
-
-  bool Execute(const char* fn, const ULONG64* in, SIZE_T in_count, ULONG64* out,
-               SIZE_T out_count) {
-    if (!handle_) return false;
-    SIZE_T ret = 0;
-    return SUCCEEDED(exec_(handle_, fn, in, in_count, out, out_count, &ret));
-  }
-
-  void Close() {
-    if (handle_ && close_) close_(handle_);
-    handle_ = nullptr;
-  }
-
- private:
-  using OpenFn = HRESULT(WINAPI*)(PHANDLE);
-  using LoadFn = HRESULT(WINAPI*)(HANDLE, const UCHAR*, SIZE_T);
-  using ExecFn = HRESULT(WINAPI*)(HANDLE, PCSTR, const ULONG64*, SIZE_T,
-                                  PULONG64, SIZE_T, PSIZE_T);
-  using CloseFn = HRESULT(WINAPI*)(HANDLE);
-
-  HMODULE lib_ = nullptr;
-  HANDLE handle_ = nullptr;
-  OpenFn open_ = nullptr;
-  LoadFn load_ = nullptr;
-  ExecFn exec_ = nullptr;
-  CloseFn close_ = nullptr;
 };
 
 // CPU package temperature, CCD temperatures and package power.
