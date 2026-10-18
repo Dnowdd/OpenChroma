@@ -2,6 +2,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
+import 'decor_clock.dart';
 import 'theme.dart';
 
 /// A PC case fan seen from the front: square frame with screw holes, a
@@ -22,31 +23,29 @@ class FanGlyph extends StatefulWidget {
   State<FanGlyph> createState() => _FanGlyphState();
 }
 
-class _FanGlyphState extends State<FanGlyph>
-    with SingleTickerProviderStateMixin {
-  late final _spin = AnimationController(
-    vsync: this,
-    duration: const Duration(seconds: 1),
-  );
+class _FanGlyphState extends State<FanGlyph> with DecorClockMixin {
+  /// Fastest visible rotation: beyond about a third of a blade gap per frame
+  /// the nine blades alias and seem to turn backwards. The blur still shows
+  /// higher speeds.
+  static const _maxTurns = 1.2;
+
   final _angle = ValueNotifier<double>(0);
+  final _clock = Stopwatch()..start();
   Duration _last = Duration.zero;
 
   @override
-  void initState() {
-    super.initState();
+  void onDecorTick() {
     // Integrate the angle so speed changes don't make the blades jump.
-    _spin.addListener(() {
-      final now = _spin.lastElapsedDuration ?? Duration.zero;
-      final dt = (now - _last).inMicroseconds / 1e6;
-      _last = now;
-      if (dt > 0 && dt < .2) _angle.value += dt * widget.speed;
-    });
-    _spin.repeat();
+    final now = _clock.elapsed;
+    final dt = (now - _last).inMicroseconds / 1e6;
+    _last = now;
+    if (dt > 0 && dt < .2) {
+      _angle.value += dt * math.min(widget.speed, _maxTurns);
+    }
   }
 
   @override
   void dispose() {
-    _spin.dispose();
     _angle.dispose();
     super.dispose();
   }

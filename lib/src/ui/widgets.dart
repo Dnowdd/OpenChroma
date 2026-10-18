@@ -788,3 +788,21 @@ class OcIconTile extends StatelessWidget {
     child: Icon(icon, size: size * .58, color: Colors.white),
   );
 }
+
+/// An [IndexedStack] that also pauses the animations (tickers and the
+/// decor clock) of the children it hides; the plain one keeps them running
+/// and asking for frames.
+class PageStack extends StatelessWidget {
+  const PageStack({super.key, required this.index, required this.children});
+  final int index;
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) => IndexedStack(
+    index: index,
+    children: [
+      for (var i = 0; i < children.length; i++)
+        TickerMode(enabled: i == index, child: children[i]),
+    ],
+  );
+}

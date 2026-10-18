@@ -2,7 +2,6 @@ import 'dart:math' as math;
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/scheduler.dart';
 
 import '../effects/effect_host.dart';
 import '../engine/engine.dart';
@@ -10,6 +9,7 @@ import '../fans/fan_service.dart';
 import '../monitor/system_monitor.dart';
 import '../system/launch_settings.dart';
 import 'accent.dart';
+import 'decor_clock.dart';
 import 'devices_page.dart';
 import 'effects_page.dart';
 import 'fans_page.dart';
@@ -63,11 +63,28 @@ class _ShellState extends State<Shell> {
     (Icons.speed_outlined, Icons.speed_rounded, 'Desempenho'),
   ];
 
+  // Pages only sample the system monitor while someone can see them; in
+  // the tray the fans keep their own subscription.
+  bool _visible = true;
+  late final _lifecycle = AppLifecycleListener(
+    onHide: () => setState(() => _visible = false),
+    onShow: () => setState(() => _visible = true),
+  );
+
+  @override
+  void initState() {
+    super.initState();
+    _lifecycle;
+  }
+
   @override
   void dispose() {
+    _lifecycle.dispose();
     _accent.dispose();
     super.dispose();
   }
+
+  bool _shows(int page) => _visible && _page == page;
 
   void _go(int page) => setState(() => _page = page);
 
@@ -117,51 +134,69 @@ class _ShellState extends State<Shell> {
                                 ),
                                 Expanded(
                                   // Content fades out above the player
-                                  // instead of being cut off.
-                                  child: ShaderMask(
-                                    blendMode: BlendMode.dstIn,
-                                    shaderCallback: (rect) => LinearGradient(
-                                      begin: Alignment.topCenter,
-                                      end: Alignment.bottomCenter,
-                                      stops: [0, 1 - 28 / rect.height, 1],
-                                      colors: const [
-                                        Colors.white,
-                                        Colors.white,
-                                        Colors.transparent,
-                                      ],
-                                    ).createShader(rect),
-                                    child: ListenableBuilder(
-                                      listenable: engine,
-                                      builder: (context, _) => IndexedStack(
-                                        index: _page,
-                                        children: [
-                                          HomePage(
-                                            engine: engine,
-                                            monitor: _monitor,
-                                            fans: widget.fans,
-                                            active: _page == Pages.home,
-                                            onNavigate: _go,
-                                          ),
-                                          _LightingPage(engine: engine),
-                                          DevicesPage(engine: engine),
-                                          FansPage(
-                                            fans: widget.fans,
-                                            active: _page == Pages.fans,
-                                            onRestartAsAdmin: () =>
-                                                restartAsAdmin(
-                                                  page: Pages.fans,
-                                                  shutdown: engine.shutdown,
+                                  // instead of being cut off: a gradient to
+                                  // the background on top, which looks the
+                                  // same as masking the page but does not
+                                  // re-render it offscreen on every frame.
+                                  child: Stack(
+                                    children: [
+                                      Positioned.fill(
+                                        child: ListenableBuilder(
+                                          listenable: engine,
+                                          builder: (context, _) => PageStack(
+                                            index: _page,
+                                            children: [
+                                              HomePage(
+                                                engine: engine,
+                                                monitor: _monitor,
+                                                fans: widget.fans,
+                                                active: _shows(Pages.home),
+                                                onNavigate: _go,
+                                              ),
+                                              _LightingPage(engine: engine),
+                                              DevicesPage(engine: engine),
+                                              FansPage(
+                                                fans: widget.fans,
+                                                active: _shows(Pages.fans),
+                                                onRestartAsAdmin: () =>
+                                                    restartAsAdmin(
+                                                      page: Pages.fans,
+                                                      shutdown: engine.shutdown,
+                                                    ),
+                                              ),
+                                              MonitorPage(
+                                                engine: engine,
+                                                monitor: _monitor,
+                                                active: _shows(
+                                                  Pages.performance,
                                                 ),
+                                              ),
+                                              SettingsPage(engine: engine),
+                                            ],
                                           ),
-                                          MonitorPage(
-                                            engine: engine,
-                                            monitor: _monitor,
-                                            active: _page == Pages.performance,
-                                          ),
-                                          SettingsPage(engine: engine),
-                                        ],
+                                        ),
                                       ),
-                                    ),
+                                      const Positioned(
+                                        left: 0,
+                                        right: 0,
+                                        bottom: 0,
+                                        height: 28,
+                                        child: IgnorePointer(
+                                          child: DecoratedBox(
+                                            decoration: BoxDecoration(
+                                              gradient: LinearGradient(
+                                                begin: Alignment.topCenter,
+                                                end: Alignment.bottomCenter,
+                                                colors: [
+                                                  Color(0x000C0C0E),
+                                                  Oc.bg,
+                                                ],
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ],
                                   ),
                                 ),
                                 NowPlayingBar(
@@ -216,7 +251,7 @@ class _LightingPageState extends State<_LightingPage> {
         ),
       ),
       Expanded(
-        child: IndexedStack(
+        child: PageStack(
           index: _tab,
           children: [
             EffectsPage(engine: widget.engine),
@@ -610,9 +645,9 @@ class NowPlayingBar extends StatelessWidget {
 
 /// A hairline that shows the middle row of the effect canvas, with a soft
 /// glow, so the chrome always carries the current light. Effect frames
-/// arrive at about 30 Hz and unevenly; the strip repaints at the display's
-/// rate and eases its colors toward the latest frame, so it flows instead
-/// of stepping.
+/// arrive at about 30 Hz and unevenly; the strip repaints on the
+/// [DecorClock] and eases its colors toward the latest frame, so it flows
+/// instead of stepping.
 class LightStrip extends StatefulWidget {
   const LightStrip({super.key, required this.engine});
   final Engine engine;
@@ -621,15 +656,14 @@ class LightStrip extends StatefulWidget {
   State<LightStrip> createState() => _LightStripState();
 }
 
-class _LightStripState extends State<LightStrip>
-    with SingleTickerProviderStateMixin {
+class _LightStripState extends State<LightStrip> with DecorClockMixin {
   static const _samples = 64;
 
   // Current (displayed) and target colors, as RGB floats.
   final _current = Float32List(_samples * 3);
   final _target = Float32List(_samples * 3);
   final _repaint = ValueNotifier<int>(0);
-  late final Ticker _ticker;
+  final _clock = Stopwatch()..start();
   Duration _last = Duration.zero;
   bool _hasFrame = false;
 
@@ -637,14 +671,12 @@ class _LightStripState extends State<LightStrip>
   void initState() {
     super.initState();
     widget.engine.frameNotifier.addListener(_onFrame);
-    _ticker = createTicker(_tick)..start();
     _onFrame();
   }
 
   @override
   void dispose() {
     widget.engine.frameNotifier.removeListener(_onFrame);
-    _ticker.dispose();
     _repaint.dispose();
     super.dispose();
   }
@@ -666,7 +698,9 @@ class _LightStripState extends State<LightStrip>
     }
   }
 
-  void _tick(Duration now) {
+  @override
+  void onDecorTick() {
+    final now = _clock.elapsed;
     final dt = (now - _last).inMicroseconds / 1e6;
     _last = now;
     if (!_hasFrame || dt <= 0) return;
