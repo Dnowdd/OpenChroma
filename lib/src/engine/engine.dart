@@ -431,10 +431,26 @@ class Engine extends ChangeNotifier {
   }
 
   // ---------------------------------------------------------------- devices
+  bool _refreshing = false;
+
   Future<void> refreshDevices() async {
-    if (_shuttingDown || plugins.isEmpty) return;
+    if (_shuttingDown || plugins.isEmpty || _refreshing) return;
+    _refreshing = true;
+    try {
+      await _refreshDevices();
+    } finally {
+      _refreshing = false;
+    }
+  }
+
+  Future<void> _refreshDevices() async {
+    // Enumerating opens every HID collection and takes ~150 ms; doing it on
+    // the UI isolate every 5 s made the app hitch.
+    final endpoints = await Isolate.run(hidEnumerate);
+    if (_shuttingDown) return;
+    var changed = false;
     final groups = <String, List<HidEndpointInfo>>{};
-    for (final e in hidEnumerate()) {
+    for (final e in endpoints) {
       final key =
           '${_hex(e.vendorId)}:${_hex(e.productId)}:${e.serial.isEmpty ? '-' : e.serial}';
       (groups[key] ??= []).add(e);
@@ -443,6 +459,7 @@ class Engine extends ChangeNotifier {
     for (final key in devices.keys.toList()) {
       if (!groups.containsKey(key)) {
         _stopDevice(devices.remove(key)!);
+        changed = true;
       }
     }
     for (final entry in groups.entries) {
@@ -455,6 +472,7 @@ class Engine extends ChangeNotifier {
           )
           .toList();
       if (candidates.isEmpty) continue;
+      changed = true;
       if (_deviceSettings(entry.key)['disabled'] == true) {
         final d = DeviceInstance(entry.key, candidates.first, entry.value)
           ..status = 'disabled';
@@ -466,7 +484,8 @@ class Engine extends ChangeNotifier {
       devices[entry.key] = d;
       await _spawn(d);
     }
-    notifyListeners();
+    // Rebuilding every page when nothing was plugged or unplugged is waste.
+    if (changed) notifyListeners();
   }
 
   static const _conflictingProcesses = {
