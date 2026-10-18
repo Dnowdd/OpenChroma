@@ -1,5 +1,6 @@
 #include "tray.h"
 
+#include <dwmapi.h>
 #include <shellapi.h>
 
 #include <cwchar>
@@ -143,7 +144,17 @@ void Attach(HWND window) {
 bool StartHidden() { return HasArg(L"--hidden"); }
 
 void Hide(HWND window) {
+  // Flutter only stops rendering (lifecycle "hidden") for a minimized
+  // window; a merely hidden one counts as visible and keeps drawing. So
+  // minimize first, without the animation, then hide.
+  BOOL disable = TRUE;
+  DwmSetWindowAttribute(window, DWMWA_TRANSITIONS_FORCEDISABLED, &disable,
+                        sizeof(disable));
+  ShowWindow(window, SW_MINIMIZE);
   ShowWindow(window, SW_HIDE);
+  disable = FALSE;
+  DwmSetWindowAttribute(window, DWMWA_TRANSITIONS_FORCEDISABLED, &disable,
+                        sizeof(disable));
   AddIcon();
   ShowHint();
 }

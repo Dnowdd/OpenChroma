@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:path/path.dart' as p;
 import 'package:webview_windows/webview_windows.dart';
 
@@ -171,9 +172,26 @@ class _EffectPreviewState extends State<EffectPreview> {
   String? _loadedKey;
   Map<String, dynamic> _sentProps = {};
 
+  // Every texture frame makes Flutter redraw the window, visible or not,
+  // and effects animate at the display's rate (120-144 Hz here). The LEDs
+  // sample at 30 Hz, so the preview needs no more, and nothing while the
+  // window is hidden. The effect itself keeps its own pace either way.
+  static const _fps = 30;
+  static const _hiddenFps = 1;
+
+  late final _lifecycle = AppLifecycleListener(
+    onHide: () => _limitFps(_hiddenFps),
+    onShow: () => _limitFps(_fps),
+  );
+
+  void _limitFps(int fps) {
+    if (_ready) _controller.setFpsLimit(fps);
+  }
+
   @override
   void initState() {
     super.initState();
+    _lifecycle;
     _init();
     widget.engine.addListener(_sync);
     widget.engine.audioNotifier.addListener(_sendAudio);
@@ -195,6 +213,11 @@ class _EffectPreviewState extends State<EffectPreview> {
       await _controller.initialize();
       await _controller.setBackgroundColor(Colors.black);
       await _controller.setPopupWindowPolicy(WebviewPopupWindowPolicy.deny);
+      final hidden = switch (SchedulerBinding.instance.lifecycleState) {
+        AppLifecycleState.hidden || AppLifecycleState.paused => true,
+        _ => false,
+      };
+      await _controller.setFpsLimit(hidden ? _hiddenFps : _fps);
       _messages = _controller.webMessage.listen(_onMessage);
       if (!mounted) return;
       setState(() => _ready = true);
@@ -264,6 +287,7 @@ class _EffectPreviewState extends State<EffectPreview> {
 
   @override
   void dispose() {
+    _lifecycle.dispose();
     widget.engine.removeListener(_sync);
     widget.engine.audioNotifier.removeListener(_sendAudio);
     _messages?.cancel();
@@ -355,6 +379,8 @@ class _CoverBakerState extends State<CoverBaker> {
       await _controller.initialize();
       await _controller.setBackgroundColor(Colors.black);
       await _controller.setPopupWindowPolicy(WebviewPopupWindowPolicy.deny);
+      // Hidden under the UI and read through scripts, never on screen.
+      await _controller.setFpsLimit(1);
       if (!mounted) return;
       setState(() => _ready = true);
       _kick();
