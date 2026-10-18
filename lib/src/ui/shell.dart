@@ -5,6 +5,7 @@ import '../engine/engine.dart';
 import 'devices_page.dart';
 import 'effects_page.dart';
 import 'layout_page.dart';
+import 'monitor_page.dart';
 import 'settings_page.dart';
 import 'theme.dart';
 import 'widgets.dart';
@@ -25,6 +26,7 @@ class _ShellState extends State<Shell> {
     (Icons.grid_view_rounded, 'Efeitos'),
     (Icons.devices_other_outlined, 'Dispositivos'),
     (Icons.space_dashboard_outlined, 'Layout'),
+    (Icons.monitor_heart_outlined, 'Monitor'),
     (Icons.tune_rounded, 'Configurações'),
   ];
 
@@ -70,6 +72,10 @@ class _ShellState extends State<Shell> {
                                       EffectsPage(engine: engine),
                                       DevicesPage(engine: engine),
                                       LayoutPage(engine: engine),
+                                      MonitorPage(
+                                        engine: engine,
+                                        active: _page == 3,
+                                      ),
                                       SettingsPage(engine: engine),
                                     ],
                                   ),
