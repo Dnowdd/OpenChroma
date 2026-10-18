@@ -120,6 +120,36 @@ Win32Window::~Win32Window() {
   Destroy();
 }
 
+namespace {
+
+// The app draws its own title bar (lib/src/ui/window_frame.dart); these
+// requests come from Dart and are posted to the window's thread, since the
+// mouse capture and modal move/size loops belong to it.
+HWND g_main_window = nullptr;
+constexpr UINT kWindowRequest = WM_APP + 0x0C1;
+
+int FrameThickness(HWND hwnd) {
+  const UINT dpi = GetDpiForWindow(hwnd);
+  return GetSystemMetricsForDpi(SM_CYFRAME, dpi) +
+         GetSystemMetricsForDpi(SM_CXPADDEDBORDER, dpi);
+}
+
+}  // namespace
+
+extern "C" {
+
+// 0 minimize, 1 maximize/restore, 2 close, 3 start moving (mouse is down),
+// 10+HT* start resizing from that edge (e.g. 10 + HTTOP).
+__declspec(dllexport) void OcWindowRequest(int request) {
+  if (g_main_window) PostMessage(g_main_window, kWindowRequest, request, 0);
+}
+
+__declspec(dllexport) int OcWindowIsMaximized() {
+  return g_main_window && IsZoomed(g_main_window) ? 1 : 0;
+}
+
+}  // extern "C"
+
 bool Win32Window::Create(const std::wstring& title,
                          const Point& origin,
                          const Size& size) {
@@ -145,6 +175,19 @@ bool Win32Window::Create(const std::wstring& title,
   }
 
   UpdateTheme(window);
+  g_main_window = window;
+
+  // Windows 11 rounded corners and a border that matches the app's surfaces.
+  const DWORD corners = 2;  // DWMWCP_ROUND
+  DwmSetWindowAttribute(window, 33 /* DWMWA_WINDOW_CORNER_PREFERENCE */,
+                        &corners, sizeof(corners));
+  const COLORREF border = RGB(0x23, 0x23, 0x28);
+  DwmSetWindowAttribute(window, 34 /* DWMWA_BORDER_COLOR */, &border,
+                        sizeof(border));
+  // Recompute the frame now that WM_NCCALCSIZE drops the caption.
+  SetWindowPos(window, nullptr, 0, 0, 0, 0,
+               SWP_FRAMECHANGED | SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER |
+                   SWP_NOACTIVATE);
 
   return OnCreate();
 }
@@ -216,6 +259,44 @@ Win32Window::MessageHandler(HWND hwnd,
     case WM_DWMCOLORIZATIONCOLORCHANGED:
       UpdateTheme(hwnd);
       return 0;
+
+    case WM_NCCALCSIZE:
+      // No caption: keep the default side and bottom resize borders, give
+      // the top to the client area. A maximized window overhangs the screen
+      // by its frame, so keep that much off the top.
+      if (wparam) {
+        auto params = reinterpret_cast<NCCALCSIZE_PARAMS*>(lparam);
+        const LONG top = params->rgrc[0].top;
+        DefWindowProc(hwnd, message, wparam, lparam);
+        params->rgrc[0].top = top + (IsZoomed(hwnd) ? FrameThickness(hwnd) : 0);
+        return 0;
+      }
+      break;
+
+    case kWindowRequest: {
+      const int request = static_cast<int>(wparam);
+      POINT cursor;
+      GetCursorPos(&cursor);
+      switch (request) {
+        case 0:
+          ShowWindow(hwnd, SW_MINIMIZE);
+          break;
+        case 1:
+          ShowWindow(hwnd, IsZoomed(hwnd) ? SW_RESTORE : SW_MAXIMIZE);
+          break;
+        case 2:
+          PostMessage(hwnd, WM_CLOSE, 0, 0);
+          break;
+        default: {
+          const WPARAM hit = request == 3 ? HTCAPTION : request - 10;
+          ReleaseCapture();
+          SendMessage(hwnd, WM_NCLBUTTONDOWN, hit,
+                      MAKELPARAM(cursor.x, cursor.y));
+          break;
+        }
+      }
+      return 0;
+    }
   }
 
   return DefWindowProc(window_handle_, message, wparam, lparam);
