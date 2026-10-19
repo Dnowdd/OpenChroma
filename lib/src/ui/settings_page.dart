@@ -2,9 +2,12 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 
+import '../ai/ai_service.dart';
+import '../alerts/alert_service.dart';
 import '../audio/audio_service.dart';
 import '../engine/engine.dart';
 import '../system/launch_settings.dart';
+import 'ai_settings.dart';
 import 'effects_page.dart';
 import 'shell.dart' show Pages;
 import 'theme.dart';
@@ -23,8 +26,15 @@ abstract final class _Tint {
 }
 
 class SettingsPage extends StatelessWidget {
-  const SettingsPage({super.key, required this.engine});
+  const SettingsPage({
+    super.key,
+    required this.engine,
+    required this.ai,
+    required this.alerts,
+  });
   final Engine engine;
+  final AiService ai;
+  final AlertService alerts;
 
   @override
   Widget build(BuildContext context) {
@@ -131,11 +141,63 @@ class SettingsPage extends StatelessWidget {
                     ],
                   ),
                   const SizedBox(height: 28),
+                  const SectionLabel('Avisos'),
+                  ListenableBuilder(
+                    listenable: alerts,
+                    builder: (context, _) => OcPanel(
+                      children: [
+                        OcRow(
+                          leading: const OcIconTile(
+                            Icons.notifications_active_rounded,
+                            color: _Tint.pink,
+                          ),
+                          title: 'Notificações do Windows',
+                          description:
+                              'Avisa quando algo esquenta demais, a memória ou '
+                              'o disco enchem ou a bomba do water cooler para, '
+                              'mesmo com o app na bandeja.',
+                          trailing: OcSwitch(
+                            value: alerts.notify,
+                            onChanged: alerts.setNotify,
+                          ),
+                        ),
+                        OcRow(
+                          leading: const OcIconTile(
+                            Icons.flash_on_rounded,
+                            color: _Tint.orange,
+                          ),
+                          title: 'Piscar os LEDs em vermelho',
+                          description:
+                              'Os dispositivos piscam por alguns segundos '
+                              'junto com o aviso.',
+                          trailing: OcSwitch(
+                            value: alerts.flashLeds,
+                            onChanged: alerts.setFlashLeds,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 28),
+                  const SectionLabel('Assistente de IA'),
+                  AiSettingsPanel(ai: ai),
+                  const Padding(
+                    padding: EdgeInsets.fromLTRB(4, 10, 4, 0),
+                    child: Text(
+                      'A chave fica só neste PC, criptografada para o seu '
+                      'usuário do Windows, e só é enviada ao provedor escolhido.',
+                      style: OcText.caption,
+                    ),
+                  ),
+                  const SizedBox(height: 28),
                   const SectionLabel('Inicialização e permissões'),
                   _LaunchPanel(engine: engine),
                   const SizedBox(height: 28),
-                  const Center(
-                    child: Text('OpenChroma 0.1', style: OcText.caption),
+                  Center(
+                    child: Text(
+                      'OpenChroma $appVersion',
+                      style: OcText.caption,
+                    ),
                   ),
                 ],
               ),
@@ -146,6 +208,9 @@ class SettingsPage extends StatelessWidget {
     );
   }
 }
+
+/// Shown in Settings; scripts/build-release.ps1 passes the pubspec version.
+const appVersion = String.fromEnvironment('OC_VERSION', defaultValue: 'dev');
 
 class _LaunchPanel extends StatefulWidget {
   const _LaunchPanel({required this.engine});

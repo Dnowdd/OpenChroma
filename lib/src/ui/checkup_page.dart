@@ -2,6 +2,8 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
+import '../ai/ai_service.dart';
+import '../ai/assistant.dart';
 import '../checkup/checkup.dart';
 import '../system/launch_settings.dart';
 import 'accent.dart';
@@ -14,10 +16,12 @@ class CheckupPage extends StatelessWidget {
   const CheckupPage({
     super.key,
     required this.checkup,
+    required this.ai,
     required this.headerActions,
     required this.onRestartAsAdmin,
   });
   final CheckupService checkup;
+  final AiService ai;
   final List<Widget> headerActions;
   final VoidCallback onRestartAsAdmin;
 
@@ -110,7 +114,7 @@ class CheckupPage extends StatelessWidget {
                       adviceCard,
                     ],
                     const SizedBox(height: 16),
-                    const _AiCard(),
+                    _AiCard(ai: ai, report: checkup.running ? null : r),
                   ],
                 );
               },
@@ -1056,41 +1060,132 @@ class _AdviceRow extends StatelessWidget {
   }
 }
 
-class _AiCard extends StatelessWidget {
-  const _AiCard();
+class _AiCard extends StatefulWidget {
+  const _AiCard({required this.ai, required this.report});
+  final AiService ai;
+  final CheckupReport? report;
 
   @override
-  Widget build(BuildContext context) {
-    final accent = LiveAccent.of(context);
-    return OcCard(
-      child: Row(
-        children: [
-          Container(
-            width: 40,
-            height: 40,
-            decoration: BoxDecoration(
-              color: accent.withValues(alpha: .14),
-              shape: BoxShape.circle,
-            ),
-            child: Icon(Icons.auto_awesome_rounded, size: 19, color: accent),
-          ),
-          const SizedBox(width: 14),
-          const Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+  State<_AiCard> createState() => _AiCardState();
+}
+
+class _AiCardState extends State<_AiCard> {
+  String? _answer;
+  String? _error;
+  bool _busy = false;
+  DateTime? _analyzed;
+
+  Future<void> _analyze() async {
+    final r = widget.report;
+    if (r == null) return;
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+    try {
+      final answer = await widget.ai.chat(
+        system:
+            'Você é um técnico de hardware experiente analisando o checkup de '
+            'um PC com Windows feito pelo app OpenChroma. Responda em '
+            'português do Brasil, em texto simples (sem tabelas), com: um '
+            'veredito de uma linha; os problemas reais em ordem de '
+            'importância, cada um com a causa provável e o que fazer; e o que '
+            'está bom. Seja específico com os números do relatório e não '
+            'invente dados que não estão nele. No máximo 250 palavras.',
+        messages: [AiMessage('user', describeCheckup(r))],
+      );
+      if (!mounted) return;
+      setState(() {
+        _answer = answer;
+        _analyzed = r.started;
+      });
+    } catch (e) {
+      if (mounted) setState(() => _error = '$e');
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => ListenableBuilder(
+    listenable: widget.ai,
+    builder: (context, _) {
+      final accent = LiveAccent.of(context);
+      final ready = widget.ai.ready;
+      final r = widget.report;
+      final stale = _answer != null && _analyzed != r?.started;
+      return OcCard(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
               children: [
-                Text('Análise com IA', style: OcText.label),
-                SizedBox(height: 3),
-                Text(
-                  'Explica os resultados e sugere ajustes para o seu PC.',
-                  style: OcText.secondary,
+                Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: accent.withValues(alpha: .14),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    Icons.auto_awesome_rounded,
+                    size: 19,
+                    color: accent,
+                  ),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text('Análise com IA', style: OcText.label),
+                      const SizedBox(height: 3),
+                      Text(
+                        !ready
+                            ? 'Conecte uma IA em Configurações para usar.'
+                            : r == null || !r.finished
+                            ? 'Rode um checkup para analisar os resultados.'
+                            : 'Explica os resultados e sugere ajustes para o '
+                                  'seu PC.',
+                        style: OcText.secondary,
+                      ),
+                    ],
+                  ),
+                ),
+                OcButton(
+                  label: _answer == null || stale
+                      ? 'Analisar'
+                      : 'Analisar de novo',
+                  icon: Icons.auto_awesome,
+                  variant: OcButtonVariant.primary,
+                  onPressed: ready && r != null && r.finished && !_busy
+                      ? _analyze
+                      : null,
                 ),
               ],
             ),
-          ),
-          const OcTag('Em breve'),
-        ],
-      ),
-    );
-  }
+            if (_busy) ...[
+              const SizedBox(height: 18),
+              LinearProgressIndicator(
+                minHeight: 2,
+                color: accent,
+                backgroundColor: Oc.line,
+              ),
+            ],
+            if (_error != null) ...[
+              const SizedBox(height: 16),
+              Text(_error!, style: OcText.secondary.copyWith(color: Oc.danger)),
+            ],
+            if (_answer != null && !_busy) ...[
+              const SizedBox(height: 18),
+              SelectableText(
+                _answer!,
+                style: OcText.body.copyWith(height: 1.55),
+              ),
+            ],
+          ],
+        ),
+      );
+    },
+  );
 }
