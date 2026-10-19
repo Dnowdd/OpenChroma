@@ -494,7 +494,10 @@ class HidHandle {
       final ok = _writeFile(_h, buf, length, nullptr, _writeOv);
       if (ok == 0) {
         if (_waitForSingleObject(_writeEvent, 1000) != _waitObject0) {
+          // The buffer is freed below: wait for the cancelled write to let
+          // go of it first.
           _cancelIo(_h);
+          _getOverlappedResult(_h, _writeOv, _bytes, 1);
           return -1;
         }
       }
@@ -594,7 +597,11 @@ class HidHandle {
   void close() {
     if (_closed) return;
     _closed = true;
-    if (_readPending) _cancelIo(_h);
+    if (_readPending) {
+      // Let the cancelled read finish before its buffer is freed.
+      _cancelIo(_h);
+      _getOverlappedResult(_h, _readOv, _bytes, 1);
+    }
     _closeHandle(_h);
     _closeHandle(_readEvent);
     _closeHandle(_writeEvent);
