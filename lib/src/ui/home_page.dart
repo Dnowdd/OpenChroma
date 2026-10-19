@@ -4,12 +4,14 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
+import '../ai/assistant.dart';
+import '../alerts/alert_service.dart';
 import '../effects/effect_library.dart';
 import '../engine/engine.dart';
 import '../fans/fan_service.dart';
 import '../monitor/system_monitor.dart';
 import 'accent.dart';
-import 'devices_page.dart';
+import 'device_art.dart';
 import 'effects_page.dart' show EffectArtwork;
 import 'fan_glyph.dart';
 import 'fans_page.dart' show fanSpin;
@@ -25,12 +27,14 @@ class HomePage extends StatefulWidget {
     required this.engine,
     required this.monitor,
     required this.fans,
+    required this.assistant,
     required this.active,
     required this.onNavigate,
   });
   final Engine engine;
   final SystemMonitor monitor;
   final FanService fans;
+  final Assistant assistant;
   final bool active;
   final ValueChanged<int> onNavigate;
 
@@ -62,7 +66,7 @@ class _HomePageState extends State<HomePage> {
     listenable: widget.monitor,
     builder: (context, _) {
       final s = widget.monitor.snapshot;
-      final alerts = s == null ? <_Alert>[] : _alerts(s);
+      final alerts = s == null ? <_Alert>[] : _alerts(s, widget.fans);
       return LayoutBuilder(
         builder: (context, c) {
           final wide = c.maxWidth >= 1150;
@@ -88,7 +92,7 @@ class _HomePageState extends State<HomePage> {
       engine: widget.engine,
       onOpen: () => go(Pages.lighting),
     );
-    const profiles = _ProfilesCard();
+    final profiles = _ProfilesCard(engine: widget.engine);
     final vitals = _vitalTiles(s, () => go(Pages.performance));
     final alertsCard = _AlertsCard(
       alerts: alerts,
@@ -96,12 +100,15 @@ class _HomePageState extends State<HomePage> {
       onOpen: () => go(Pages.performance),
     );
     final fans = _FansCard(fans: widget.fans, onOpen: () => go(Pages.fans));
-    final reactive = _ReactiveLightCard(snapshot: s);
+    final reactive = _ReactiveLightCard(engine: widget.engine, snapshot: s);
     final devices = _DevicesCard(
       engine: widget.engine,
       onOpen: () => go(Pages.devices),
     );
-    const assistant = _AssistantCard();
+    final assistant = _AssistantCard(
+      assistant: widget.assistant,
+      onOpenSettings: () => go(Pages.settings),
+    );
 
     const gap = 16.0;
     Widget row(double height, List<(int, Widget)> items) => SizedBox(
@@ -501,31 +508,41 @@ class _Glass extends StatelessWidget {
 
 // ---------------------------------------------------------------- Profiles
 
-class _ProfilesCard extends StatefulWidget {
-  const _ProfilesCard();
+class _ProfilesCard extends StatelessWidget {
+  const _ProfilesCard({required this.engine});
+  final Engine engine;
 
-  @override
-  State<_ProfilesCard> createState() => _ProfilesCardState();
-}
-
-class _ProfilesCardState extends State<_ProfilesCard> {
-  int _selected = 0;
-
-  static const _profiles = [
-    (Icons.sports_esports_outlined, 'Jogo'),
-    (Icons.work_outline_rounded, 'Trabalho'),
-    (Icons.nightlight_outlined, 'Noite'),
-    (Icons.power_settings_new_rounded, 'Desligado'),
-  ];
+  static IconData iconOf(String key) => switch (key) {
+    'game' => Icons.sports_esports_outlined,
+    'work' => Icons.work_outline_rounded,
+    'night' => Icons.nightlight_outlined,
+    'off' => Icons.power_settings_new_rounded,
+    'movie' => Icons.movie_outlined,
+    'music' => Icons.music_note_outlined,
+    _ => Icons.star_outline_rounded,
+  };
 
   @override
   Widget build(BuildContext context) {
     final accent = LiveAccent.of(context);
+    final profiles = engine.profiles.take(4).toList();
     return OcCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const OcCardTitle('Perfis', trailing: OcTag('Em breve')),
+          OcCardTitle(
+            'Perfis',
+            trailing: Tooltip(
+              message:
+                  'Clique com o botão direito num perfil para salvar '
+                  'nele a iluminação atual',
+              child: const Icon(
+                Icons.info_outline_rounded,
+                size: 16,
+                color: Oc.textTertiary,
+              ),
+            ),
+          ),
           const SizedBox(height: 16),
           Expanded(
             child: Column(
@@ -538,7 +555,11 @@ class _ProfilesCardState extends State<_ProfilesCard> {
                       children: [
                         for (var c = 0; c < 2; c++) ...[
                           if (c > 0) const SizedBox(width: 10),
-                          Expanded(child: _tile(r * 2 + c, accent)),
+                          Expanded(
+                            child: r * 2 + c < profiles.length
+                                ? _tile(context, profiles[r * 2 + c], accent)
+                                : const SizedBox.shrink(),
+                          ),
                         ],
                       ],
                     ),
@@ -552,37 +573,109 @@ class _ProfilesCardState extends State<_ProfilesCard> {
     );
   }
 
-  Widget _tile(int i, Color accent) => Hover(
-    onTap: () => setState(() => _selected = i),
-    builder: (context, h) {
-      final on = _selected == i;
-      final fg = on ? onAccent(accent) : Oc.text;
-      return AnimatedContainer(
-        duration: Oc.smooth,
-        curve: Curves.easeOutCubic,
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: on ? accent : (h ? Oc.hover : Oc.raised),
-          borderRadius: Oc.r12,
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Icon(_profiles[i].$1, size: 20, color: fg),
-            const Spacer(),
-            Text(
-              _profiles[i].$2,
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-                color: fg,
+  Widget _tile(BuildContext context, LightProfile p, Color accent) {
+    final on = engine.activeProfile == p.id;
+    final fg = on ? onAccent(accent) : Oc.text;
+    final detail = p.brightness == 0
+        ? 'Luzes apagadas'
+        : '${p.effect ?? 'Efeito atual'} · ${p.brightness}%';
+    return GestureDetector(
+      onSecondaryTapUp: (d) => _menu(context, p, d.globalPosition),
+      onLongPressStart: (d) => _menu(context, p, d.globalPosition),
+      child: Hover(
+        onTap: () => engine.applyProfile(p.id),
+        builder: (context, h) => AnimatedContainer(
+          duration: Oc.smooth,
+          curve: Curves.easeOutCubic,
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: on ? accent : (h ? Oc.hover : Oc.raised),
+            borderRadius: Oc.r12,
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(iconOf(p.icon), size: 20, color: fg),
+              const Spacer(),
+              Text(
+                p.name,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: fg,
+                ),
               ),
-            ),
-          ],
+              const SizedBox(height: 2),
+              Text(
+                detail,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 11,
+                  color: on ? fg.withValues(alpha: .75) : Oc.textTertiary,
+                ),
+              ),
+            ],
+          ),
         ),
-      );
-    },
-  );
+      ),
+    );
+  }
+
+  Future<void> _menu(BuildContext context, LightProfile p, Offset at) async {
+    final choice = await showMenu<String>(
+      context: context,
+      position: RelativeRect.fromLTRB(at.dx, at.dy, at.dx, at.dy),
+      items: const [
+        PopupMenuItem(
+          value: 'save',
+          child: Text('Salvar a iluminação atual aqui'),
+        ),
+        PopupMenuItem(value: 'rename', child: Text('Renomear')),
+        PopupMenuItem(value: 'reset', child: Text('Restaurar perfis padrão')),
+      ],
+    );
+    if (!context.mounted) return;
+    switch (choice) {
+      case 'save':
+        engine.saveProfile(p.id);
+      case 'rename':
+        final name = await _askName(context, p.name);
+        if (name != null) engine.renameProfile(p.id, name);
+      case 'reset':
+        engine.resetProfiles();
+    }
+  }
+
+  static Future<String?> _askName(BuildContext context, String current) {
+    final c = TextEditingController(text: current);
+    return showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Nome do perfil', style: OcText.title),
+        content: SizedBox(
+          width: 320,
+          child: TextField(
+            controller: c,
+            autofocus: true,
+            maxLength: 18,
+            style: OcText.body,
+            onSubmitted: (v) => Navigator.pop(context, v),
+          ),
+        ),
+        actions: [
+          OcButton(label: 'Cancelar', onPressed: () => Navigator.pop(context)),
+          OcButton(
+            label: 'Salvar',
+            variant: OcButtonVariant.primary,
+            onPressed: () => Navigator.pop(context, c.text),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 // ---------------------------------------------------------------- Vitals
@@ -603,9 +696,8 @@ enum _Level {
       : _Level.normal;
 }
 
-_Level _cpuLevel(double t) => _Level.of(t, 75, 88);
-_Level _gpuLevel(double t) => _Level.of(t, 75, 85);
-_Level _ssdLevel(double t) => _Level.of(t, 60, 70);
+_Level _cpuLevel(double t) => _Level.of(t, cpuLimits.$1, cpuLimits.$2);
+_Level _gpuLevel(double t) => _Level.of(t, gpuLimits.$1, gpuLimits.$2);
 
 List<Widget> _vitalTiles(SystemSnapshot? s, VoidCallback onOpen) {
   final cpu = s?.cpu;
@@ -820,50 +912,20 @@ class _Alert {
   final Color color;
 }
 
-List<_Alert> _alerts(SystemSnapshot s) {
-  final out = <_Alert>[];
-  void temp(String what, double? t, _Level Function(double) level) {
-    if (t == null) return;
-    final l = level(t);
-    if (l == _Level.normal) return;
-    out.add(
-      _Alert(
-        Icons.thermostat_rounded,
-        '$what ${l == _Level.hot ? 'muito quente' : 'quente'}',
-        '${_fmt(t, 0)} °C agora',
-        l.color,
-      ),
-    );
-  }
-
-  temp('CPU', s.cpu.temp, _cpuLevel);
-  temp('GPU', s.gpus.firstOrNull?.temp, _gpuLevel);
-  for (final d in s.disks) {
-    temp(d.model.isEmpty ? 'Disco' : d.model, d.temp, _ssdLevel);
-  }
-  if (s.memory.percent >= 90) {
-    out.add(
-      _Alert(
-        Icons.developer_board_outlined,
-        'Memória quase cheia',
-        '${_fmt(s.memory.percent, 0)}% em uso · ${_fmtGb(s.memory.available)} livres',
-        s.memory.percent >= 95 ? Oc.danger : Oc.warning,
-      ),
-    );
-  }
-  for (final v in s.volumes) {
-    if (v.percent < 90) continue;
-    out.add(
-      _Alert(
-        Icons.storage_rounded,
-        'Disco ${v.letter}: quase cheio',
-        '${_fmtGb(v.free)} livres de ${_fmtGb(v.total)}',
-        v.percent >= 95 ? Oc.danger : Oc.warning,
-      ),
-    );
-  }
-  return out;
-}
+List<_Alert> _alerts(SystemSnapshot s, FanService fans) => [
+  for (final a in evaluateAlerts(s, fans: fans))
+    _Alert(
+      switch (a.kind) {
+        'memory' => Icons.developer_board_outlined,
+        'disk' => Icons.storage_rounded,
+        'fan' => Icons.water_drop_outlined,
+        _ => Icons.thermostat_rounded,
+      },
+      a.title,
+      a.detail,
+      a.level == AlertLevel.critical ? Oc.danger : Oc.warning,
+    ),
+];
 
 class _AlertsCard extends StatelessWidget {
   const _AlertsCard({
@@ -1066,53 +1128,50 @@ class _ModeButton extends StatelessWidget {
 
 // ---------------------------------------------------------------- Reactive
 
-class _ReactiveLightCard extends StatefulWidget {
-  const _ReactiveLightCard({required this.snapshot});
+class _ReactiveLightCard extends StatelessWidget {
+  const _ReactiveLightCard({required this.engine, required this.snapshot});
+  final Engine engine;
   final SystemSnapshot? snapshot;
 
-  @override
-  State<_ReactiveLightCard> createState() => _ReactiveLightCardState();
-}
-
-class _ReactiveLightCardState extends State<_ReactiveLightCard> {
-  bool _on = false;
-  bool _gpu = true;
-
-  static const _lo = 30.0;
-  static const _hi = 90.0;
-  static const _scale = [
-    Color(0xFF60A5FA),
-    Color(0xFF34D399),
-    Color(0xFFFBBF24),
-    Color(0xFFF87171),
-  ];
+  static const _lo = Engine.reactiveLow;
+  static const _hi = Engine.reactiveHigh;
 
   @override
   Widget build(BuildContext context) {
-    final s = widget.snapshot;
-    final temp = _gpu ? s?.gpus.firstOrNull?.temp : s?.cpu.temp;
+    final s = snapshot;
+    final gpu = engine.reactiveSource == ReactiveSource.gpu;
+    final temp = gpu
+        ? (s?.gpus.where((g) => !g.integrated).firstOrNull ??
+                  s?.gpus.firstOrNull)
+              ?.temp
+        : s?.cpu.temp;
     final t = temp == null
         ? null
         : ((temp - _lo) / (_hi - _lo)).clamp(0.0, 1.0);
+    final missing = engine.reactive && s != null && temp == null;
     return OcCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           OcCardTitle(
             'Luz reativa',
-            trailing: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const OcTag('Em breve'),
-                const SizedBox(width: 10),
-                OcSwitch(value: _on, onChanged: (v) => setState(() => _on = v)),
-              ],
+            trailing: OcSwitch(
+              value: engine.reactive,
+              onChanged: (v) => engine.setReactive(v),
             ),
           ),
           const SizedBox(height: 6),
-          const Text(
-            'A cor dos LEDs segue a temperatura.',
-            style: OcText.secondary,
+          Text(
+            missing
+                ? (gpu
+                      ? 'Sem leitura da GPU neste PC.'
+                      : 'A temperatura da CPU precisa do modo administrador.')
+                : engine.reactive
+                ? 'Os LEDs mostram a temperatura no lugar do efeito.'
+                : 'A cor dos LEDs segue a temperatura.',
+            style: OcText.secondary.copyWith(
+              color: missing ? Oc.warning : null,
+            ),
           ),
           const Spacer(),
           LayoutBuilder(
@@ -1121,7 +1180,7 @@ class _ReactiveLightCardState extends State<_ReactiveLightCard> {
               child: Stack(
                 clipBehavior: Clip.none,
                 children: [
-                  Positioned(
+                  const Positioned(
                     left: 0,
                     right: 0,
                     top: 11,
@@ -1129,7 +1188,7 @@ class _ReactiveLightCardState extends State<_ReactiveLightCard> {
                     child: DecoratedBox(
                       decoration: BoxDecoration(
                         borderRadius: Oc.pill,
-                        gradient: const LinearGradient(colors: _scale),
+                        gradient: LinearGradient(colors: Engine.reactiveScale),
                       ),
                     ),
                   ),
@@ -1144,7 +1203,9 @@ class _ReactiveLightCardState extends State<_ReactiveLightCard> {
                         height: 30,
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
-                          color: Oc.text,
+                          color: engine.reactive
+                              ? Engine.reactiveColorFor(temp!)
+                              : Oc.text,
                           border: Border.all(color: Oc.panel, width: 4),
                         ),
                       ),
@@ -1160,7 +1221,7 @@ class _ReactiveLightCardState extends State<_ReactiveLightCard> {
               const Spacer(),
               if (temp != null)
                 Text(
-                  '${_gpu ? 'GPU' : 'CPU'} ${_fmt(temp, 0)} °C',
+                  '${gpu ? 'GPU' : 'CPU'} ${_fmt(temp, 0)} °C',
                   style: OcText.caption.copyWith(color: Oc.text),
                 ),
               const Spacer(),
@@ -1170,10 +1231,13 @@ class _ReactiveLightCardState extends State<_ReactiveLightCard> {
           const SizedBox(height: 16),
           Align(
             alignment: Alignment.centerLeft,
-            child: OcSegmented<bool>(
-              value: _gpu,
-              options: const [(false, 'CPU'), (true, 'GPU')],
-              onChanged: (v) => setState(() => _gpu = v),
+            child: OcSegmented<ReactiveSource>(
+              value: engine.reactiveSource,
+              options: const [
+                (ReactiveSource.cpu, 'CPU'),
+                (ReactiveSource.gpu, 'GPU'),
+              ],
+              onChanged: (v) => engine.setReactive(engine.reactive, source: v),
             ),
           ),
         ],
@@ -1227,7 +1291,7 @@ class _DevicesCard extends StatelessWidget {
                       };
                       return Row(
                         children: [
-                          DeviceThumb(url: d.imageUrl, size: 44),
+                          DeviceArt(engine: engine, device: d, size: 44),
                           const SizedBox(width: 12),
                           Expanded(
                             child: Column(
@@ -1264,7 +1328,9 @@ class _DevicesCard extends StatelessWidget {
 // ---------------------------------------------------------------- Assistant
 
 class _AssistantCard extends StatefulWidget {
-  const _AssistantCard();
+  const _AssistantCard({required this.assistant, required this.onOpenSettings});
+  final Assistant assistant;
+  final VoidCallback onOpenSettings;
 
   @override
   State<_AssistantCard> createState() => _AssistantCardState();
@@ -1272,7 +1338,6 @@ class _AssistantCard extends StatefulWidget {
 
 class _AssistantCardState extends State<_AssistantCard> {
   final _input = TextEditingController();
-  String? _asked;
 
   static const _suggestions = [
     'Por que meu PC tá lento?',
@@ -1289,13 +1354,20 @@ class _AssistantCardState extends State<_AssistantCard> {
   void _send([String? text]) {
     final q = (text ?? _input.text).trim();
     if (q.isEmpty) return;
-    setState(() => _asked = q);
     _input.clear();
+    widget.assistant.ask(q);
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) => ListenableBuilder(
+    listenable: Listenable.merge([widget.assistant, widget.assistant.ai]),
+    builder: (context, _) => _build(context),
+  );
+
+  Widget _build(BuildContext context) {
     final accent = LiveAccent.of(context);
+    final a = widget.assistant;
+    final ready = a.ai.ready;
     return OcCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1323,131 +1395,240 @@ class _AssistantCardState extends State<_AssistantCard> {
                 ),
               ),
               const SizedBox(width: 12),
-              const Expanded(
-                child: OcCardTitle('Assistente', trailing: OcTag('Em breve')),
-              ),
-            ],
-          ),
-          const Spacer(),
-          if (_asked == null)
-            Text(
-              'Pergunte qualquer coisa sobre o seu PC.',
-              style: OcText.title.copyWith(
-                fontSize: 22,
-                color: Oc.textSecondary,
-              ),
-            )
-          else ...[
-            Align(
-              alignment: Alignment.centerRight,
-              child: _Bubble(text: _asked!, mine: true, accent: accent),
-            ),
-            const SizedBox(height: 8),
-            Align(
-              alignment: Alignment.centerLeft,
-              child: _Bubble(
-                text:
-                    'Ainda estou aprendendo. Logo vou responder isso por aqui.',
-                mine: false,
-                accent: accent,
-              ),
-            ),
-          ],
-          const SizedBox(height: 16),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              for (final s in _suggestions)
-                Hover(
-                  onTap: () => _send(s),
-                  builder: (context, h) => AnimatedContainer(
-                    duration: Oc.fast,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 14,
-                      vertical: 8,
-                    ),
-                    decoration: BoxDecoration(
-                      color: h ? Oc.hover : Oc.raised,
-                      borderRadius: Oc.pill,
-                    ),
-                    child: Text(
-                      s,
-                      style: const TextStyle(fontSize: 12.5, color: Oc.text),
-                    ),
-                  ),
+              Expanded(
+                child: OcCardTitle(
+                  'Assistente',
+                  trailing: a.turns.isEmpty
+                      ? (ready ? OcTag(a.ai.current.model) : null)
+                      : OcIconButton(
+                          icon: Icons.refresh_rounded,
+                          tooltip: 'Nova conversa',
+                          onPressed: a.clear,
+                        ),
                 ),
+              ),
             ],
           ),
-          const SizedBox(height: 14),
-          Container(
-            height: 48,
-            padding: const EdgeInsets.only(left: 18, right: 5),
-            decoration: BoxDecoration(
-              color: Oc.raised,
-              borderRadius: Oc.pill,
-              border: Border.all(color: Oc.line),
-            ),
-            child: Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _input,
-                    onSubmitted: (_) => _send(),
-                    style: const TextStyle(fontSize: 13.5, color: Oc.text),
-                    decoration: const InputDecoration(
-                      isCollapsed: true,
-                      border: InputBorder.none,
-                      hintText: 'Pergunte algo…',
-                      hintStyle: TextStyle(
-                        fontSize: 13.5,
-                        color: Oc.textTertiary,
+          const SizedBox(height: 12),
+          Expanded(child: _body(a, ready, accent)),
+          if (ready) ...[
+            if (a.turns.isEmpty) ...[
+              const SizedBox(height: 16),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  for (final s in _suggestions)
+                    Hover(
+                      onTap: () => _send(s),
+                      builder: (context, h) => AnimatedContainer(
+                        duration: Oc.fast,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 8,
+                        ),
+                        decoration: BoxDecoration(
+                          color: h ? Oc.hover : Oc.raised,
+                          borderRadius: Oc.pill,
+                        ),
+                        child: Text(
+                          s,
+                          style: const TextStyle(
+                            fontSize: 12.5,
+                            color: Oc.text,
+                          ),
+                        ),
                       ),
                     ),
-                  ),
-                ),
-                Hover(
-                  onTap: _send,
-                  builder: (context, h) => Container(
-                    width: 38,
-                    height: 38,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: h ? Colors.white : accent,
-                    ),
-                    child: Icon(
-                      Icons.arrow_upward_rounded,
-                      size: 19,
-                      color: h ? Oc.bg : onAccent(accent),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
+                ],
+              ),
+            ],
+            const SizedBox(height: 14),
+            _composer(a, accent),
+          ],
         ],
       ),
     );
   }
+
+  Widget _body(Assistant a, bool ready, Color accent) {
+    if (!ready) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.end,
+        children: [
+          Text(
+            'Conecte uma IA para perguntar sobre o seu PC.',
+            style: OcText.title.copyWith(fontSize: 20, color: Oc.textSecondary),
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            'Use sua chave da Anthropic, da OpenAI ou de um serviço '
+            'compatível.',
+            style: OcText.secondary,
+          ),
+          const SizedBox(height: 14),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: OcButton(
+              label: 'Configurar IA',
+              icon: Icons.key_rounded,
+              variant: OcButtonVariant.primary,
+              onPressed: widget.onOpenSettings,
+            ),
+          ),
+        ],
+      );
+    }
+    if (a.turns.isEmpty) {
+      return Align(
+        alignment: Alignment.bottomLeft,
+        child: Text(
+          'Pergunte qualquer coisa sobre o seu PC.',
+          style: OcText.title.copyWith(fontSize: 22, color: Oc.textSecondary),
+        ),
+      );
+    }
+    return ListView(
+      reverse: true,
+      children: [
+        if (a.busy)
+          Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: _Bubble(text: 'Pensando…', mine: false, accent: accent),
+            ),
+          ),
+        for (final t in a.turns.reversed)
+          Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: Align(
+              alignment: t.role == 'user'
+                  ? Alignment.centerRight
+                  : Alignment.centerLeft,
+              child: _Bubble(
+                text: t.text,
+                mine: t.role == 'user',
+                error: t.error,
+                accent: accent,
+                action: t.effect == null
+                    ? null
+                    : OcButton(
+                        label: 'Aplicar efeito',
+                        icon: Icons.auto_awesome,
+                        variant: OcButtonVariant.primary,
+                        onPressed: () => _apply(t.effect!),
+                      ),
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _composer(Assistant a, Color accent) => Container(
+    height: 48,
+    padding: const EdgeInsets.only(left: 18, right: 5),
+    decoration: BoxDecoration(
+      color: Oc.raised,
+      borderRadius: Oc.pill,
+      border: Border.all(color: Oc.line),
+    ),
+    child: Row(
+      children: [
+        Expanded(
+          child: TextField(
+            controller: _input,
+            enabled: !a.busy,
+            onSubmitted: (_) => _send(),
+            style: const TextStyle(fontSize: 13.5, color: Oc.text),
+            decoration: const InputDecoration(
+              isCollapsed: true,
+              border: InputBorder.none,
+              hintText: 'Pergunte algo…',
+              hintStyle: TextStyle(fontSize: 13.5, color: Oc.textTertiary),
+            ),
+          ),
+        ),
+        Hover(
+          onTap: a.busy ? null : _send,
+          builder: (context, h) => Container(
+            width: 38,
+            height: 38,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: h && !a.busy ? Colors.white : accent,
+            ),
+            child: a.busy
+                ? Padding(
+                    padding: const EdgeInsets.all(11),
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: onAccent(accent),
+                    ),
+                  )
+                : Icon(
+                    Icons.arrow_upward_rounded,
+                    size: 19,
+                    color: h ? Oc.bg : onAccent(accent),
+                  ),
+          ),
+        ),
+      ],
+    ),
+  );
+
+  void _apply(Map<String, dynamic> effect) {
+    try {
+      final e = widget.assistant.applyEffect(effect);
+      ScaffoldMessenger.maybeOf(context)
+          ?.showSnackBar(SnackBar(content: Text('"${e.title}" está ligado.')));
+    } on FormatException catch (e) {
+      ScaffoldMessenger.maybeOf(context)
+          ?.showSnackBar(SnackBar(content: Text(e.message)));
+    }
+  }
 }
 
 class _Bubble extends StatelessWidget {
-  const _Bubble({required this.text, required this.mine, required this.accent});
+  const _Bubble({
+    required this.text,
+    required this.mine,
+    required this.accent,
+    this.error = false,
+    this.action,
+  });
   final String text;
   final bool mine;
+  final bool error;
   final Color accent;
+  final Widget? action;
 
   @override
   Widget build(BuildContext context) => Container(
-    constraints: const BoxConstraints(maxWidth: 420),
+    constraints: const BoxConstraints(maxWidth: 520),
     padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
     decoration: BoxDecoration(
-      color: mine ? accent : Oc.raised,
+      color: mine
+          ? accent
+          : (error ? Oc.danger.withValues(alpha: .12) : Oc.raised),
       borderRadius: Oc.r12,
     ),
-    child: Text(
-      text,
-      style: TextStyle(fontSize: 13, color: mine ? onAccent(accent) : Oc.text),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        SelectableText(
+          text,
+          style: TextStyle(
+            fontSize: 13,
+            height: 1.4,
+            color: mine ? onAccent(accent) : (error ? Oc.danger : Oc.text),
+          ),
+        ),
+        if (action != null) ...[const SizedBox(height: 10), action!],
+      ],
     ),
   );
 }

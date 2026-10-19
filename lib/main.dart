@@ -4,7 +4,11 @@ import 'package:flutter/material.dart';
 import 'package:path/path.dart' as p;
 import 'package:webview_windows/webview_windows.dart';
 
+import 'src/ai/ai_service.dart';
+import 'src/ai/assistant.dart';
+import 'src/alerts/alert_service.dart';
 import 'src/diagnostics/frame_profiler.dart';
+import 'src/effects/effect_host.dart';
 import 'src/engine/engine.dart';
 import 'src/fans/fan_service.dart';
 import 'src/monitor/system_monitor.dart';
@@ -30,6 +34,23 @@ Future<void> main(List<String> args) async {
   final monitor = SystemMonitor();
   // Fans run for the whole session, whichever page is open.
   final fans = FanService(monitor)..start();
+  // The reactive light reads the same sensors the monitor shows, and needs
+  // them sampled while it is on, whichever page is open.
+  engine.readTemperature = (source) => switch (source) {
+    ReactiveSource.cpu => monitor.snapshot?.cpu.temp,
+    ReactiveSource.gpu =>
+      monitor.snapshot?.gpus.where((g) => !g.integrated).firstOrNull?.temp ??
+          monitor.snapshot?.gpus.firstOrNull?.temp,
+  };
+  engine.addListener(() => monitor.setActive(engine, engine.reactive));
+  final alerts = AlertService(monitor: monitor, fans: fans, engine: engine);
+  final ai = AiService();
+  final assistant = Assistant(
+    ai: ai,
+    engine: engine,
+    monitor: monitor,
+    fans: fans,
+  );
   // --page=N reopens a page, e.g. after restarting as administrator.
   final page = args
       .map((a) => a.startsWith('--page=') ? int.tryParse(a.substring(7)) : null)
@@ -42,6 +63,9 @@ Future<void> main(List<String> args) async {
       engine: engine,
       monitor: monitor,
       fans: fans,
+      alerts: alerts,
+      ai: ai,
+      assistant: assistant,
       initialPage: page,
     ),
   );
@@ -54,11 +78,17 @@ class OpenChromaApp extends StatefulWidget {
     required this.engine,
     required this.monitor,
     required this.fans,
+    required this.alerts,
+    required this.ai,
+    required this.assistant,
     this.initialPage,
   });
   final Engine engine;
   final SystemMonitor monitor;
   final FanService fans;
+  final AlertService alerts;
+  final AiService ai;
+  final Assistant assistant;
   final int? initialPage;
 
   @override
@@ -77,6 +107,8 @@ class _OpenChromaAppState extends State<OpenChromaApp> {
         // Fans go back to the BIOS / driver before anything else.
         widget.fans.shutdown();
         await widget.engine.shutdown();
+        // Before the embedder tears the engine down (see disposeAllWebviews).
+        await disposeAllWebviews();
         return AppExitResponse.exit;
       },
     );
@@ -102,6 +134,9 @@ class _OpenChromaAppState extends State<OpenChromaApp> {
       engine: widget.engine,
       monitor: widget.monitor,
       fans: widget.fans,
+      alerts: widget.alerts,
+      ai: widget.ai,
+      assistant: widget.assistant,
       initialPage: widget.initialPage,
     ),
   );

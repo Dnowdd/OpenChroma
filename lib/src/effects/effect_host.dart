@@ -141,6 +141,30 @@ class _EffectLoader {
   }
 }
 
+/// Set when WebView2, which renders every effect, cannot start (usually
+/// because the runtime is not installed).
+final webviewProblem = ValueNotifier<String?>(null);
+
+/// Every live WebView, so they can be torn down before the app exits.
+///
+/// The Windows embedder destroys the engine (and its texture registrar)
+/// before plugins; a WebView still registered then unregisters its texture
+/// from freed memory and crashes the exit (the 0x1e8 null read in
+/// crash.log). Disposing them first leaves the plugin nothing to clean up.
+final _liveWebviews = <WebviewController>{};
+
+Future<void> disposeAllWebviews() async {
+  final all = _liveWebviews.toList();
+  _liveWebviews.clear();
+  await Future.wait([
+    for (final c in all)
+      c
+          .dispose()
+          .timeout(const Duration(seconds: 1), onTimeout: () {})
+          .catchError((_) {}),
+  ]);
+}
+
 Map<String, Object> effectPropValues(Engine engine, EffectInfo e) {
   final saved = engine.effectSettings(e);
   return {
@@ -210,6 +234,7 @@ class _EffectPreviewState extends State<EffectPreview> {
 
   Future<void> _init() async {
     try {
+      _liveWebviews.add(_controller);
       await _controller.initialize();
       await _controller.setBackgroundColor(Colors.black);
       await _controller.setPopupWindowPolicy(WebviewPopupWindowPolicy.deny);
@@ -223,6 +248,7 @@ class _EffectPreviewState extends State<EffectPreview> {
       setState(() => _ready = true);
       _sync();
     } catch (e) {
+      webviewProblem.value = '$e';
       if (mounted) setState(() => _error = 'WebView2 unavailable: $e');
     }
   }
@@ -291,7 +317,7 @@ class _EffectPreviewState extends State<EffectPreview> {
     widget.engine.removeListener(_sync);
     widget.engine.audioNotifier.removeListener(_sendAudio);
     _messages?.cancel();
-    _controller.dispose();
+    if (_liveWebviews.remove(_controller)) _controller.dispose();
     super.dispose();
   }
 
@@ -376,6 +402,7 @@ class _CoverBakerState extends State<CoverBaker> {
 
   Future<void> _init() async {
     try {
+      _liveWebviews.add(_controller);
       await _controller.initialize();
       await _controller.setBackgroundColor(Colors.black);
       await _controller.setPopupWindowPolicy(WebviewPopupWindowPolicy.deny);
@@ -435,7 +462,7 @@ class _CoverBakerState extends State<CoverBaker> {
   @override
   void dispose() {
     widget.engine.removeListener(_kick);
-    _controller.dispose();
+    if (_liveWebviews.remove(_controller)) _controller.dispose();
     super.dispose();
   }
 

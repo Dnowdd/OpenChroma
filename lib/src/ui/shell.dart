@@ -1,8 +1,12 @@
+import 'dart:io';
 import 'dart:math' as math;
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 
+import '../ai/ai_service.dart';
+import '../ai/assistant.dart';
+import '../alerts/alert_service.dart';
 import '../effects/effect_host.dart';
 import '../checkup/checkup.dart';
 import '../engine/engine.dart';
@@ -39,11 +43,17 @@ class Shell extends StatefulWidget {
     required this.engine,
     required this.monitor,
     required this.fans,
+    required this.alerts,
+    required this.ai,
+    required this.assistant,
     this.initialPage,
   });
   final Engine engine;
   final SystemMonitor monitor;
   final FanService fans;
+  final AlertService alerts;
+  final AiService ai;
+  final Assistant assistant;
   final int? initialPage;
 
   @override
@@ -139,6 +149,13 @@ class _ShellState extends State<Shell> {
                                           names: engine.conflicts,
                                         ),
                                 ),
+                                ValueListenableBuilder(
+                                  valueListenable: webviewProblem,
+                                  builder: (context, problem, _) =>
+                                      problem == null
+                                      ? const SizedBox.shrink()
+                                      : const _WebviewBanner(),
+                                ),
                                 Expanded(
                                   // Content fades out above the player
                                   // instead of being cut off: a gradient to
@@ -157,6 +174,7 @@ class _ShellState extends State<Shell> {
                                                 engine: engine,
                                                 monitor: _monitor,
                                                 fans: widget.fans,
+                                                assistant: widget.assistant,
                                                 active: _shows(Pages.home),
                                                 onNavigate: _go,
                                               ),
@@ -175,11 +193,16 @@ class _ShellState extends State<Shell> {
                                                 engine: engine,
                                                 monitor: _monitor,
                                                 checkup: _checkup,
+                                                ai: widget.ai,
                                                 active: _shows(
                                                   Pages.performance,
                                                 ),
                                               ),
-                                              SettingsPage(engine: engine),
+                                              SettingsPage(
+                                                engine: engine,
+                                                ai: widget.ai,
+                                                alerts: widget.alerts,
+                                              ),
                                             ],
                                           ),
                                         ),
@@ -277,11 +300,13 @@ class _PerformancePage extends StatefulWidget {
     required this.engine,
     required this.monitor,
     required this.checkup,
+    required this.ai,
     required this.active,
   });
   final Engine engine;
   final SystemMonitor monitor;
   final CheckupService checkup;
+  final AiService ai;
   final bool active;
 
   @override
@@ -311,6 +336,7 @@ class _PerformancePageState extends State<_PerformancePage> {
         ),
         CheckupPage(
           checkup: widget.checkup,
+          ai: widget.ai,
           headerActions: tabs,
           onRestartAsAdmin: () => restartAsAdmin(
             page: Pages.performance,
@@ -555,6 +581,43 @@ class _ConflictBanner extends StatelessWidget {
               ),
               style: const TextStyle(fontSize: 12.5, color: Oc.warning),
             ),
+          ),
+        ],
+      ),
+    ),
+  );
+}
+
+class _WebviewBanner extends StatelessWidget {
+  const _WebviewBanner();
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.fromLTRB(0, 0, 20, 8),
+    child: Container(
+      padding: const EdgeInsets.fromLTRB(18, 8, 8, 8),
+      decoration: BoxDecoration(
+        color: Oc.warning.withValues(alpha: .08),
+        borderRadius: Oc.r12,
+        border: Border.all(color: Oc.warning.withValues(alpha: .22)),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.error_outline_rounded, size: 17, color: Oc.warning),
+          const SizedBox(width: 10),
+          const Expanded(
+            child: Text(
+              'Os efeitos precisam do Microsoft WebView2, que não está '
+              'instalado neste PC.',
+              style: TextStyle(fontSize: 12.5, color: Oc.warning),
+            ),
+          ),
+          OcButton(
+            label: 'Baixar o WebView2',
+            icon: Icons.download_rounded,
+            onPressed: () => Process.run('explorer', [
+              'https://go.microsoft.com/fwlink/p/?LinkId=2124703',
+            ]),
           ),
         ],
       ),
