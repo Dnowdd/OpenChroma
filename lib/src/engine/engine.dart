@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:isolate';
+import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
@@ -81,7 +82,11 @@ class DeviceInstance {
     return n.isNotEmpty ? n : plugin.name;
   }
 
-  String get imageUrl => state['image'] as String? ?? plugin.imageUrl;
+  /// Charge of a wireless device, 0-100, when its plugin reports one.
+  int? get battery => (state['battery'] as num?)?.round();
+
+  /// Charging state code from the plugin (2 means charging).
+  int? get batteryState => (state['batteryState'] as num?)?.toInt();
 
   List<Map<String, dynamic>> get properties =>
       ((state['properties'] as List?) ?? []).cast<Map<String, dynamic>>();
@@ -148,8 +153,75 @@ class DeviceInstance {
   }
 }
 
+/// A saved lighting scene: an effect with its settings and a brightness.
+class LightProfile {
+  LightProfile({
+    required this.id,
+    required this.name,
+    required this.icon,
+    this.effect,
+    Map<String, dynamic>? props,
+    this.brightness = 100,
+  }) : props = props ?? {};
+
+  final String id;
+  String name;
+
+  /// Icon key, see the profiles card.
+  String icon;
+
+  /// Effect title (titles survive reinstalls; paths do not).
+  String? effect;
+  Map<String, dynamic> props;
+  int brightness;
+
+  Map<String, Object?> toJson() => {
+    'id': id,
+    'name': name,
+    'icon': icon,
+    'effect': effect,
+    'props': props,
+    'brightness': brightness,
+  };
+
+  static LightProfile fromJson(Map j) => LightProfile(
+    id: '${j['id']}',
+    name: '${j['name'] ?? ''}',
+    icon: '${j['icon'] ?? 'star'}',
+    effect: j['effect'] as String?,
+    props: ((j['props'] as Map?) ?? {}).cast<String, dynamic>(),
+    brightness: (j['brightness'] as num?)?.toInt() ?? 100,
+  );
+
+  static List<LightProfile> defaults() => [
+    LightProfile(id: 'game', name: 'Jogo', icon: 'game', effect: 'Anéis Neon'),
+    LightProfile(
+      id: 'work',
+      name: 'Trabalho',
+      icon: 'work',
+      effect: 'Oceano',
+      brightness: 60,
+    ),
+    LightProfile(
+      id: 'night',
+      name: 'Noite',
+      icon: 'night',
+      effect: 'Respiração',
+      brightness: 20,
+    ),
+    LightProfile(id: 'off', name: 'Desligado', icon: 'off', brightness: 0),
+  ];
+}
+
+/// Which temperature drives the reactive light.
+enum ReactiveSource { cpu, gpu }
+
 class Engine extends ChangeNotifier {
   Engine();
+
+  /// Reads a temperature for the reactive light (wired to the system
+  /// monitor by main.dart).
+  double? Function(ReactiveSource source)? readTemperature;
 
   final paths = SignalRgbPaths.detect();
   late final String dataDir = openChromaDataDir();
@@ -186,6 +258,11 @@ class Engine extends ChangeNotifier {
     _loadSettings();
     brightness = (_settings['brightness'] as int?) ?? 100;
     audioSource = AudioSource.byName(_settings['audioSource'] as String?);
+    final r = (_settings['reactive'] as Map?) ?? {};
+    reactive = r['on'] == true;
+    reactiveSource = r['source'] == 'cpu'
+        ? ReactiveSource.cpu
+        : ReactiveSource.gpu;
     await _installBundledContent();
     _scanEffects();
     final saved = _settings['effect'] as String?;
@@ -212,6 +289,11 @@ class Engine extends ChangeNotifier {
     });
     _tick = Timer.periodic(const Duration(milliseconds: 33), (_) {
       _pollAudio();
+      if (_alertUntil != null) {
+        _alertFrame();
+      } else if (reactive) {
+        _reactiveFrame();
+      }
       _pushFrames();
     });
   }
@@ -277,7 +359,9 @@ class Engine extends ChangeNotifier {
 
   void _scanEffects() {
     effects = scanEffects(
-      htmlRoots: paths.effectRoots,
+      // Only OpenChroma's own effects and the user's imports; effects that
+      // belong to other apps are not listed.
+      htmlRoots: const [],
       bundledDir: bundledEffectsDir,
       importedDir: importedEffectsDir,
     );
@@ -285,6 +369,7 @@ class Engine extends ChangeNotifier {
 
   void selectEffect(EffectInfo e) {
     currentEffect = e;
+    if (!_applyingProfile) _settings.remove('profile');
     _settings['effect'] = e.path;
     _save();
     notifyListeners();
@@ -292,6 +377,7 @@ class Engine extends ChangeNotifier {
 
   void setEffectProperty(EffectInfo e, String name, Object value) {
     effectSettings(e)[name] = value;
+    if (!_applyingProfile) _settings.remove('profile');
     _save();
     notifyListeners();
   }
@@ -316,6 +402,7 @@ class Engine extends ChangeNotifier {
 
   void setBrightness(int v) {
     brightness = v.clamp(0, 100);
+    if (!_applyingProfile) _settings.remove('profile');
     _settings['brightness'] = brightness;
     _save();
     notifyListeners();
@@ -391,6 +478,185 @@ class Engine extends ChangeNotifier {
   final frameNotifier = ValueNotifier<CanvasFrame?>(null);
 
   void onFrame(CanvasFrame f) {
+    // The reactive light draws its own frames.
+    if (_alertUntil != null || (reactive && _reactiveColor != null)) return;
+    frame = f;
+    frameNotifier.value = f;
+  }
+
+  // ------------------------------------------------------------ profiles
+  bool _applyingProfile = false;
+
+  List<LightProfile> get profiles {
+    final raw = _settings['profiles'];
+    if (raw is List && raw.isNotEmpty) {
+      return [for (final p in raw) LightProfile.fromJson(p as Map)];
+    }
+    return LightProfile.defaults();
+  }
+
+  String? get activeProfile => _settings['profile'] as String?;
+
+  /// Turns on the effect, settings and brightness saved in profile [id].
+  void applyProfile(String id) {
+    final profile = profiles.where((p) => p.id == id).firstOrNull;
+    if (profile == null) return;
+    _applyingProfile = true;
+    try {
+      final effect = profile.effect == null
+          ? null
+          : effects.where((e) => e.title == profile.effect).firstOrNull;
+      if (effect != null) {
+        effectSettings(effect)
+          ..clear()
+          ..addAll(profile.props);
+        selectEffect(effect);
+      }
+      setBrightness(profile.brightness);
+      _settings['profile'] = id;
+      _save();
+      notifyListeners();
+    } finally {
+      _applyingProfile = false;
+    }
+  }
+
+  /// Saves what is on now (effect, its settings, brightness) into [id].
+  void saveProfile(String id, {String? name}) {
+    final list = profiles;
+    final p = list.where((p) => p.id == id).firstOrNull;
+    if (p == null) return;
+    final e = currentEffect;
+    p
+      ..effect = e?.title
+      ..props = e == null ? {} : Map.of(effectSettings(e))
+      ..brightness = brightness;
+    if (name != null && name.trim().isNotEmpty) p.name = name.trim();
+    _settings['profiles'] = [for (final p in list) p.toJson()];
+    _settings['profile'] = id;
+    _save();
+    notifyListeners();
+  }
+
+  void renameProfile(String id, String name) {
+    if (name.trim().isEmpty) return;
+    final list = profiles;
+    for (final p in list) {
+      if (p.id == id) p.name = name.trim();
+    }
+    _settings['profiles'] = [for (final p in list) p.toJson()];
+    _save();
+    notifyListeners();
+  }
+
+  void resetProfiles() {
+    _settings.remove('profiles');
+    _settings.remove('profile');
+    _save();
+    notifyListeners();
+  }
+
+  // ---------------------------------------------------------- alert flash
+  DateTime? _alertUntil;
+  int _alertTick = 0;
+
+  /// Pulses every LED red for a few seconds, then the effect resumes.
+  void flashAlert() {
+    _alertUntil = DateTime.now().add(const Duration(seconds: 4));
+    _alertTick = 0;
+  }
+
+  void _alertFrame() {
+    if (DateTime.now().isAfter(_alertUntil!)) {
+      _alertUntil = null;
+      return;
+    }
+    final on = (_alertTick++ ~/ 8).isEven;
+    const w = 160, h = 100;
+    final rgb = Uint8List(w * h * 3);
+    if (on) {
+      for (var i = 0; i < rgb.length; i += 3) {
+        rgb[i] = 255;
+      }
+    }
+    final f = CanvasFrame(w, h, rgb);
+    frame = f;
+    frameNotifier.value = f;
+  }
+
+  // ------------------------------------------------------- reactive light
+  /// The LEDs follow a temperature instead of the effect: blue when cool,
+  /// through green and amber, to red when hot.
+  bool reactive = false;
+  ReactiveSource reactiveSource = ReactiveSource.gpu;
+  static const reactiveLow = 30.0;
+  static const reactiveHigh = 90.0;
+  static const reactiveScale = [
+    Color(0xFF3B82F6),
+    Color(0xFF10B981),
+    Color(0xFFF59E0B),
+    Color(0xFFEF4444),
+  ];
+
+  double? _smoothTemp;
+  Color? _reactiveColor;
+  int _reactiveTick = 0;
+
+  /// The smoothed temperature the reactive light shows, if any.
+  double? get reactiveTemperature => _smoothTemp;
+
+  void setReactive(bool on, {ReactiveSource? source}) {
+    reactive = on;
+    if (source != null && source != reactiveSource) {
+      reactiveSource = source;
+      _smoothTemp = null;
+    }
+    if (!on) _reactiveColor = null;
+    _settings['reactive'] = {'on': on, 'source': reactiveSource.name};
+    _save();
+    notifyListeners();
+  }
+
+  static Color reactiveColorFor(double t) {
+    final k = ((t - reactiveLow) / (reactiveHigh - reactiveLow)).clamp(
+      0.0,
+      1.0,
+    );
+    final x = k * (reactiveScale.length - 1);
+    final i = x.floor().clamp(0, reactiveScale.length - 2);
+    return Color.lerp(reactiveScale[i], reactiveScale[i + 1], x - i)!;
+  }
+
+  void _reactiveFrame() {
+    final t = readTemperature?.call(reactiveSource);
+    if (t == null) {
+      // No sensor yet: keep showing the effect.
+      _reactiveColor = null;
+      return;
+    }
+    final smooth = _smoothTemp == null
+        ? t
+        : _smoothTemp! + (t - _smoothTemp!) * .05;
+    _smoothTemp = smooth;
+    final c = reactiveColorFor(smooth);
+    _reactiveColor = c;
+    // A slow breath keeps it alive; it quickens when hot.
+    final hot = smooth >= 85;
+    final phase = _reactiveTick++ * .033 * (hot ? 1.6 : .25) * 2 * math.pi;
+    final level = hot
+        ? .55 + .45 * (.5 + .5 * math.sin(phase))
+        : .85 + .15 * math.sin(phase);
+    const w = 160, h = 100;
+    final rgb = Uint8List(w * h * 3);
+    final r = (c.r * 255 * level).round(),
+        g = (c.g * 255 * level).round(),
+        b = (c.b * 255 * level).round();
+    for (var i = 0; i < rgb.length; i += 3) {
+      rgb[i] = r;
+      rgb[i + 1] = g;
+      rgb[i + 2] = b;
+    }
+    final f = CanvasFrame(w, h, rgb);
     frame = f;
     frameNotifier.value = f;
   }
@@ -705,7 +971,8 @@ class Engine extends ChangeNotifier {
   List<int> _sampleZone(LedZone zone, LayoutItem item, CanvasFrame f) {
     final out = List<int>.filled(zone.width * zone.height * 3, 0);
     final sx = f.width / canvasWidth, sy = f.height / canvasHeight;
-    final b = brightness / 100.0;
+    // An alert flash must show even with the lights dimmed or off.
+    final b = _alertUntil != null ? 1.0 : brightness / 100.0;
     // Average the frame pixels covered by the LED's cell (at most 4x4
     // samples) so a LED reflects its area, not one noisy pixel.
     void cell(int x, int y) {
@@ -747,6 +1014,30 @@ class Engine extends ChangeNotifier {
       }
     }
     return out;
+  }
+
+  /// [n] colors across the device's main zone as it is lit right now,
+  /// left to right, for the device artwork. Empty when it is not lit.
+  List<Color> previewColors(DeviceInstance d, int n) {
+    final f = frame;
+    if (f == null || d.status != 'running' || brightness == 0) return const [];
+    final zone = d.zones.first;
+    final item = layoutOf(d, zone.key);
+    final w = zone.width * item.scale, h = zone.height * item.scale;
+    // The hue, not the dimmed level: a thumbnail at 20% would just be grey.
+    final sx = f.width / canvasWidth, sy = f.height / canvasHeight;
+    final py = ((item.y + h / 2) * sy).floor().clamp(0, f.height - 1);
+    return [
+      for (var i = 0; i < n; i++)
+        () {
+          final px = ((item.x + w * (i + .5) / n) * sx).floor().clamp(
+            0,
+            f.width - 1,
+          );
+          final o = (py * f.width + px) * 3;
+          return Color.fromARGB(255, f.rgb[o], f.rgb[o + 1], f.rgb[o + 2]);
+        }(),
+    ];
   }
 
   void _pushFrames() {
