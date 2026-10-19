@@ -124,7 +124,7 @@ bool SignalRunningInstance() {
   if (!running) return false;
   // The other instance may still be creating its window.
   for (int i = 0; i < 20; i++) {
-    if (HWND other = FindWindowW(L"FLUTTER_RUNNER_WIN32_WINDOW", L"openchroma")) {
+    if (HWND other = FindWindowW(L"FLUTTER_RUNNER_WIN32_WINDOW", L"OpenChroma")) {
       AllowSetForegroundWindow(ASFW_ANY);
       PostMessage(other, g_show_message, 0, 0);
       return true;
@@ -195,6 +195,20 @@ bool HandleMessage(HWND window, UINT message, WPARAM, LPARAM lparam,
   return false;
 }
 
+void Notify(const wchar_t* title, const wchar_t* body) {
+  AddIcon();
+  if (!g_icon_added) return;
+  NOTIFYICONDATAW n{};
+  n.cbSize = sizeof(n);
+  n.hWnd = g_window;
+  n.uID = kIconId;
+  n.uFlags = NIF_INFO;
+  wcsncpy_s(n.szInfoTitle, title, _TRUNCATE);
+  wcsncpy_s(n.szInfo, body, _TRUNCATE);
+  n.dwInfoFlags = NIIF_WARNING;
+  Shell_NotifyIconW(NIM_MODIFY, &n);
+}
+
 void RemoveIcon() {
   if (!g_icon_added) return;
   NOTIFYICONDATAW n{};
@@ -211,5 +225,12 @@ extern "C" {
 
 // For exits that skip the window's destruction (exit() from Dart).
 __declspec(dllexport) void OcTrayRemoveIcon() { tray::RemoveIcon(); }
+
+// A Windows notification from the tray icon (smart alerts). Windows shows
+// balloons as toasts; the icon is added first if the window is open.
+__declspec(dllexport) void OcTrayNotify(const wchar_t* title,
+                                        const wchar_t* body) {
+  tray::Notify(title, body);
+}
 
 }  // extern "C"

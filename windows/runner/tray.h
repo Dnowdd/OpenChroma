@@ -26,6 +26,9 @@ void Hide(HWND window);
 bool HandleMessage(HWND window, UINT message, WPARAM wparam, LPARAM lparam,
                    LRESULT* result);
 
+// Shows a notification from the tray icon, adding the icon if needed.
+void Notify(const wchar_t* title, const wchar_t* body);
+
 void RemoveIcon();
 
 }  // namespace tray
