@@ -142,11 +142,10 @@ EffectInfo? parseHtmlEffect(
   final original = (rawTitle == null || rawTitle.isEmpty)
       ? p.basenameWithoutExtension(path)
       : rawTitle;
-  final key = original.toLowerCase();
   return EffectInfo(
     path: path,
-    title: effectTitles[key] ?? original,
-    description: effectDescriptions[key] ?? _firstSentence(description),
+    title: original,
+    description: _firstSentence(description),
     author: author,
     properties: props,
     thumbnail: thumb,

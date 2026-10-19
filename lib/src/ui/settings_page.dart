@@ -38,9 +38,6 @@ class SettingsPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final supported = engine.plugins
-        .where((p) => p.error == null && p.isHid)
-        .length;
     return ListView(
       children: [
         Center(
@@ -108,7 +105,9 @@ class SettingsPage extends StatelessWidget {
                           color: _Tint.blue,
                         ),
                         title: 'Dispositivos',
-                        description: '$supported modelos compatíveis',
+                        description: engine.devices.length == 1
+                            ? '1 conectado'
+                            : '${engine.devices.length} conectados',
                         trailing: OcButton(
                           label: 'Procurar',
                           onPressed: engine.refreshDevices,

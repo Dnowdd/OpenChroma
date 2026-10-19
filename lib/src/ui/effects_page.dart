@@ -477,10 +477,7 @@ class _Inspector extends StatelessWidget {
                 ],
                 if (effect.description.isNotEmpty) ...[
                   const SizedBox(height: 10),
-                  Text(
-                    displayText(effect.description),
-                    style: OcText.secondary,
-                  ),
+                  Text(effect.description, style: OcText.secondary),
                 ],
                 const SizedBox(height: 28),
                 if (effect.properties.isNotEmpty) ...[

@@ -15,12 +15,6 @@ Color? parseHexColor(Object? v) {
 String toHex(Color c) =>
     '#${(c.toARGB32() & 0xFFFFFF).toRadixString(16).padLeft(6, '0')}';
 
-/// Third-party plugin/effect text can name the app it was written for; show
-/// ours instead.
-String displayText(String s) => s
-    .replaceAll(RegExp('signal ?rgb', caseSensitive: false), 'OpenChroma')
-    .replaceAll(RegExp('whirlwind ?fx', caseSensitive: false), 'OpenChroma');
-
 bool _truthy(Object? v) => v == true || v == 'true' || v == '1' || v == 1;
 
 /// One effect `<meta>` / plugin parameter, rendered as a settings row.
@@ -50,8 +44,8 @@ class PropertyControl extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final description = tooltip.isEmpty ? null : displayText(tr(tooltip));
-    final label = displayText(tr(this.label));
+    final description = tooltip.isEmpty ? null : tr(tooltip);
+    final label = tr(this.label);
     switch (type) {
       case 'boolean':
         return OcRow(

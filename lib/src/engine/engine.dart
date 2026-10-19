@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
-import 'dart:isolate';
 import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
@@ -11,12 +10,10 @@ import 'package:path/path.dart' as p;
 import '../audio/audio_service.dart';
 import '../effects/effect_library.dart';
 import '../effects/ocfx_runtime.dart';
-import '../hid/hid_ffi.dart';
+import '../drivers/native_drivers.dart';
 import '../paths.dart';
-import '../plugins/plugin_scanner.dart';
-import 'device_worker.dart';
 
-/// Canvas size SignalRGB effects draw on; layout coordinates use this space.
+/// Canvas size effects draw on; layout coordinates use this space.
 const canvasWidth = 320.0;
 const canvasHeight = 200.0;
 
@@ -43,8 +40,10 @@ class LayoutItem {
   );
 }
 
-/// Something with LEDs drawn on the canvas: the device itself, a subdevice
-/// or an ARGB channel. [positions] are in the zone's own LED grid.
+/// One group of LEDs placed on the canvas as a unit (a keyboard's key
+/// matrix, a fan header, a strip). [positions] are cells of the zone's own
+/// [width] x [height] grid; [leds] holds, for each position, the device LED
+/// it lights.
 class LedZone {
   LedZone({
     required this.key,
@@ -52,102 +51,87 @@ class LedZone {
     required this.width,
     required this.height,
     required this.positions,
-    required this.names,
+    required this.leds,
   });
   final String key;
   final String label;
   final int width;
   final int height;
   final List<List<int>> positions;
-  final List<String> names;
+  final List<int> leds;
 }
 
+/// A device the drivers found.
 class DeviceInstance {
-  DeviceInstance(this.key, this.plugin, this.endpoints);
+  DeviceInstance(this.key, this.device);
 
   final String key;
-  PluginInfo plugin;
-  final List<HidEndpointInfo> endpoints;
-  Isolate? isolate;
-  SendPort? port;
-  ReceivePort? inbox;
-  String status = 'starting';
-  String? error;
-  Map<String, dynamic> state = {};
-  final List<String> logs = [];
-  final List<PluginInfo> remainingCandidates = [];
+  DriverDevice device;
 
-  String get name {
-    final n = state['name'] as String? ?? '';
-    return n.isNotEmpty ? n : plugin.name;
-  }
+  /// running or disabled.
+  String status = 'running';
 
-  /// Charge of a wireless device, 0-100, when its plugin reports one.
-  int? get battery => (state['battery'] as num?)?.round();
+  String get name => device.name;
+  String get type => device.type;
 
-  /// Charging state code from the plugin (2 means charging).
-  int? get batteryState => (state['batteryState'] as num?)?.toInt();
-
-  List<Map<String, dynamic>> get properties =>
-      ((state['properties'] as List?) ?? []).cast<Map<String, dynamic>>();
-
-  List<String> get channelNames =>
-      ((state['channelOrder'] as List?) ?? []).cast<String>();
-
-  Map<String, dynamic> channel(String name) =>
-      ((state['channels'] as Map?)?[name] as Map?)?.cast<String, dynamic>() ??
-      {};
-
-  static List<List<int>> _positions(Object? v) => [
-    for (final e in (v as List? ?? []))
-      if (e is List && e.length >= 2)
-        [(e[0] as num).toInt(), (e[1] as num).toInt()],
+  /// Zones the user sizes (ARGB headers), with their index on the device.
+  List<(int, DriverZone)> get resizableZones => [
+    for (var i = 0; i < device.zones.length; i++)
+      if (device.zones[i].resizable) (i, device.zones[i]),
   ];
 
-  /// Every LED zone this device currently exposes.
-  List<LedZone> get zones {
+  late List<LedZone> zones = _buildZones();
+
+  void update(DriverDevice d) {
+    device = d;
+    zones = _buildZones();
+  }
+
+  List<LedZone> _buildZones() {
     final out = <LedZone>[];
-    final size = (state['size'] as List?) ?? plugin.size;
-    out.add(
-      LedZone(
-        key: 'main',
-        label: name,
-        width: (size[0] as num).toInt().clamp(1, 512),
-        height: (size[1] as num).toInt().clamp(1, 512),
-        positions: _positions(state['ledPositions']),
-        names: ((state['ledNames'] as List?) ?? []).map((e) => '$e').toList(),
-      ),
-    );
-    final subs = (state['subdevices'] as Map?) ?? {};
-    subs.forEach((id, v) {
-      final s = v as Map;
-      final sz = s['size'] as List? ?? [1, 1];
-      out.add(
-        LedZone(
-          key: 'sub:$id',
-          label: '${s['name'] ?? id}',
-          width: (sz[0] as num).toInt().clamp(1, 512),
-          height: (sz[1] as num).toInt().clamp(1, 512),
-          positions: _positions(s['ledPositions']),
-          names: ((s['ledNames'] as List?) ?? []).map((e) => '$e').toList(),
-        ),
-      );
-    });
-    for (final ch in channelNames) {
-      final count = (channel(ch)['count'] as num?)?.toInt() ?? 0;
-      if (count <= 0) continue;
-      out.add(
-        LedZone(
-          key: 'ch:$ch',
-          label: '$name - $ch',
-          width: count,
-          height: 1,
-          positions: [
-            for (var i = 0; i < count; i++) [i, 0],
-          ],
-          names: [for (var i = 0; i < count; i++) '$ch ${i + 1}'],
-        ),
-      );
+    final used = <String>{};
+    for (var i = 0; i < device.zones.length; i++) {
+      final z = device.zones[i];
+      if (z.count <= 0) continue;
+      var key = 'zone:${z.name}';
+      if (!used.add(key)) key = 'zone:${z.name}#$i';
+      final label = device.zones.length == 1 || z.name.isEmpty
+          ? name
+          : '$name · ${z.name}';
+      if (z.isMatrix) {
+        final positions = <List<int>>[], leds = <int>[];
+        for (var y = 0; y < z.height; y++) {
+          for (var x = 0; x < z.width; x++) {
+            final led = z.map[y * z.width + x];
+            if (led == DriverZone.noLed || led >= z.count) continue;
+            positions.add([x, y]);
+            leds.add(z.start + led);
+          }
+        }
+        out.add(
+          LedZone(
+            key: key,
+            label: label,
+            width: z.width,
+            height: z.height,
+            positions: positions,
+            leds: leds,
+          ),
+        );
+      } else {
+        out.add(
+          LedZone(
+            key: key,
+            label: label,
+            width: z.count,
+            height: 1,
+            positions: [
+              for (var x = 0; x < z.count; x++) [x, 0],
+            ],
+            leds: [for (var x = 0; x < z.count; x++) z.start + x],
+          ),
+        );
+      }
     }
     return out;
   }
@@ -223,11 +207,8 @@ class Engine extends ChangeNotifier {
   /// monitor by main.dart).
   double? Function(ReactiveSource source)? readTemperature;
 
-  final paths = SignalRgbPaths.detect();
   late final String dataDir = openChromaDataDir();
-  late final Map<String, Map<String, String>> systemInfo = readSystemInfo();
 
-  List<PluginInfo> plugins = [];
   List<EffectInfo> effects = [];
   final Map<String, DeviceInstance> devices = {};
   EffectInfo? currentEffect;
@@ -242,7 +223,7 @@ class Engine extends ChangeNotifier {
   final audioNotifier = ValueNotifier<AudioFrame>(AudioFrame.silent);
   bool scanning = false;
 
-  /// Running RGB apps that also drive the devices (e.g. SignalRGB); writing
+  /// Other RGB apps that are running and also drive the devices; writing
   /// from two programs at once makes the LEDs flicker.
   List<String> conflicts = [];
   bool _shuttingDown = false;
@@ -250,6 +231,7 @@ class Engine extends ChangeNotifier {
   Map<String, dynamic> _settings = {};
   Timer? _tick;
   Timer? _rescan;
+  Timer? _devicePoll;
   Timer? _saveDebounce;
 
   String get _settingsFile => p.join(dataDir, 'settings.json');
@@ -272,21 +254,23 @@ class Engine extends ChangeNotifier {
         effects.firstOrNull;
     notifyListeners();
 
-    scanning = true;
-    notifyListeners();
-    plugins = await scanPlugins(
-      paths.pluginRoots,
-      p.join(dataDir, 'plugin_cache.json'),
-    );
-    scanning = false;
-    notifyListeners();
+    // Left behind by versions that read third-party plugins.
+    try {
+      File(p.join(dataDir, 'plugin_cache.json')).deleteSync();
+    } catch (_) {}
 
-    await refreshDevices();
+    // Detection runs on the drivers' threads; poll the result.
+    scanning = drivers.available;
+    drivers.start(p.join(dataDir, 'drivers'));
+    _devicePoll = Timer.periodic(
+      const Duration(milliseconds: 700),
+      (_) => _pollDevices(),
+    );
     _checkConflicts();
-    _rescan = Timer.periodic(const Duration(seconds: 5), (_) {
-      _checkConflicts();
-      refreshDevices();
-    });
+    _rescan = Timer.periodic(
+      const Duration(seconds: 5),
+      (_) => _checkConflicts(),
+    );
     _tick = Timer.periodic(const Duration(milliseconds: 33), (_) {
       _pollAudio();
       if (_alertUntil != null) {
@@ -697,60 +681,60 @@ class Engine extends ChangeNotifier {
   }
 
   // ---------------------------------------------------------------- devices
-  bool _refreshing = false;
+  /// The device drivers (oc_drivers.dll).
+  final drivers = NativeDrivers();
 
+  /// What detection is doing, for the devices page.
+  String detectionStep = '';
+  int detectionPercent = 0;
+
+  /// Looks for devices again (plugged in or out).
   Future<void> refreshDevices() async {
-    if (_shuttingDown || plugins.isEmpty || _refreshing) return;
-    _refreshing = true;
-    try {
-      await _refreshDevices();
-    } finally {
-      _refreshing = false;
-    }
+    if (_shuttingDown) return;
+    drivers.rescan();
   }
 
-  Future<void> _refreshDevices() async {
-    // Enumerating opens every HID collection and takes ~150 ms; doing it on
-    // the UI isolate every 5 s made the app hitch.
-    final endpoints = await Isolate.run(hidEnumerate);
+  void _pollDevices() {
     if (_shuttingDown) return;
-    var changed = false;
-    final groups = <String, List<HidEndpointInfo>>{};
-    for (final e in endpoints) {
-      final key =
-          '${_hex(e.vendorId)}:${_hex(e.productId)}:${e.serial.isEmpty ? '-' : e.serial}';
-      (groups[key] ??= []).add(e);
-    }
-    // Unplugged devices.
-    for (final key in devices.keys.toList()) {
-      if (!groups.containsKey(key)) {
-        _stopDevice(devices.remove(key)!);
+    final s = drivers.poll();
+    var changed =
+        scanning != (!s.ready || s.detecting) ||
+        detectionPercent != s.percent ||
+        detectionStep != s.step;
+    scanning = drivers.available && (!s.ready || s.detecting);
+    detectionPercent = s.percent;
+    detectionStep = s.step;
+    final seen = <String>{};
+    for (final dev in s.devices) {
+      // Two identical devices without a serial get distinct keys.
+      var key = dev.key;
+      for (var n = 2; seen.contains(key); n++) {
+        key = '${dev.key}#$n';
+      }
+      seen.add(key);
+      final existing = devices[key];
+      if (existing == null) {
+        final d = DeviceInstance(key, dev);
+        if (_deviceSettings(key)['disabled'] == true) d.status = 'disabled';
+        devices[key] = d;
+        _applyZoneSizes(d);
+        _ensureLayout(d);
         changed = true;
+      } else if (existing.device.id != dev.id ||
+          existing.device.ledCount != dev.ledCount ||
+          existing.device.zones.length != dev.zones.length) {
+        existing.update(dev);
+        _ensureLayout(existing);
+        changed = true;
+      } else {
+        existing.device = dev;
       }
     }
-    for (final entry in groups.entries) {
-      if (devices.containsKey(entry.key)) continue;
-      final first = entry.value.first;
-      final candidates = plugins
-          .where(
-            (pl) =>
-                pl.error == null && pl.matches(first.vendorId, first.productId),
-          )
-          .toList();
-      if (candidates.isEmpty) continue;
+    final gone = devices.keys.where((k) => !seen.contains(k)).toList();
+    if (gone.isNotEmpty) {
+      gone.forEach(devices.remove);
       changed = true;
-      if (_deviceSettings(entry.key)['disabled'] == true) {
-        final d = DeviceInstance(entry.key, candidates.first, entry.value)
-          ..status = 'disabled';
-        devices[entry.key] = d;
-        continue;
-      }
-      final d = DeviceInstance(entry.key, candidates.first, entry.value)
-        ..remainingCandidates.addAll(candidates.skip(1));
-      devices[entry.key] = d;
-      await _spawn(d);
     }
-    // Rebuilding every page when nothing was plugged or unplugged is waste.
     if (changed) notifyListeners();
   }
 
@@ -781,122 +765,36 @@ class Engine extends ChangeNotifier {
     } catch (_) {}
   }
 
-  static String _hex(int v) => v.toRadixString(16).padLeft(4, '0');
-
-  Future<void> _spawn(DeviceInstance d) async {
-    final ds = _deviceSettings(d.key);
-    final inbox = ReceivePort();
-    d.inbox = inbox;
-    d.status = 'starting';
-    d.error = null;
-    inbox.listen((msg) => _onWorkerMessage(d, msg as Map));
-    d.isolate = await Isolate.spawn(
-      deviceWorkerMain,
-      DeviceWorkerArgs(
-        sendPort: inbox.sendPort,
-        pluginPath: d.plugin.path,
-        endpoints: d.endpoints.map((e) => e.toJson()).toList(),
-        userProps: ((ds['props'] as Map?) ?? {}).cast<String, Object?>(),
-        channelCounts: ((ds['channels'] as Map?) ?? {}).cast<String, int>(),
-        systemInfo: systemInfo,
-      ),
-      debugName: 'device ${d.key}',
-    );
+  /// Sets how many LEDs hang off a resizable zone (an ARGB header).
+  void setZoneLedCount(DeviceInstance d, int zoneIndex, int count) {
+    final z = d.device.zones[zoneIndex];
+    final c = count.clamp(z.min, z.max);
+    final sizes =
+        (_deviceSettings(d.key)['zoneSizes'] ??= <String, dynamic>{}) as Map;
+    sizes[z.name] = c;
+    _save();
+    drivers.resizeZone(d.device.id, zoneIndex, c);
   }
 
-  void _onWorkerMessage(DeviceInstance d, Map m) {
-    switch (m['t']) {
-      case 'port':
-        d.port = m['port'] as SendPort;
-      case 'log':
-        d.logs.add(m['msg'] as String);
-        if (kDebugMode) debugPrint('[${d.plugin.name}] ${m['msg']}');
-        if (d.logs.length > 300) d.logs.removeRange(0, d.logs.length - 300);
-      case 'state':
-        d.state = jsonDecode(m['state'] as String) as Map<String, dynamic>;
-        _ensureLayout(d);
-        notifyListeners();
-      case 'ready':
-        d.status = 'running';
-        notifyListeners();
-      case 'rejected':
-        d.inbox?.close();
-        if (d.remainingCandidates.isNotEmpty) {
-          d.plugin = d.remainingCandidates.removeAt(0);
-          _spawn(d);
-        } else {
-          d.status = 'unsupported';
-          notifyListeners();
-        }
-      case 'error':
-        d.status = 'error';
-        d.error = m['msg'] as String;
-        d.logs.add('ERROR: ${d.error}');
-        if (kDebugMode) debugPrint('[${d.plugin.name}] ERROR ${d.error}');
-        notifyListeners();
-      case 'user_prop':
-        final props =
-            (_deviceSettings(d.key)['props'] ??= <String, dynamic>{}) as Map;
-        props[m['name']] = m['value'];
-        _save();
-      case 'stopped':
-        d.inbox?.close();
-        d.port = null;
-        if (d.status == 'running' || d.status == 'starting') {
-          d.status = 'stopped';
-        }
-        notifyListeners();
+  /// Re-applies the user's LED counts after the device is detected.
+  void _applyZoneSizes(DeviceInstance d) {
+    final sizes = (_deviceSettings(d.key)['zoneSizes'] as Map?) ?? {};
+    for (final (i, z) in d.resizableZones) {
+      final want = (sizes[z.name] as num?)?.toInt();
+      if (want != null && want != z.count) {
+        drivers.resizeZone(d.device.id, i, want.clamp(z.min, z.max));
+      }
     }
   }
-
-  void _stopDevice(DeviceInstance d) {
-    d.port?.send({'t': 'stop'});
-  }
-
-  void setDeviceProperty(DeviceInstance d, String name, Object? value) {
-    final props =
-        (_deviceSettings(d.key)['props'] ??= <String, dynamic>{}) as Map;
-    props[name] = value;
-    _save();
-    d.port?.send({'t': 'prop', 'name': name, 'value': value});
-  }
-
-  void setChannelLedCount(DeviceInstance d, String channel, int count) {
-    final ch = d.channel(channel);
-    final limit = (ch['limit'] as num?)?.toInt() ?? 0;
-    final c = limit > 0 ? count.clamp(0, limit) : count.clamp(0, 1000);
-    final counts =
-        (_deviceSettings(d.key)['channels'] ??= <String, dynamic>{}) as Map;
-    counts[channel] = c;
-    _save();
-    d.port?.send({
-      't': 'channels',
-      'counts': {channel: c},
-    });
-  }
-
-  int channelLedCount(DeviceInstance d, String channel) =>
-      (((_deviceSettings(d.key)['channels'] as Map?) ?? {})[channel] as int?) ??
-      0;
 
   Future<void> setDeviceEnabled(DeviceInstance d, bool enabled) async {
     _deviceSettings(d.key)['disabled'] = !enabled;
     _save();
-    if (enabled && d.status == 'disabled') {
-      await _spawn(d);
-    } else if (!enabled) {
-      _stopDevice(d);
-      d.status = 'disabled';
+    d.status = enabled ? 'running' : 'disabled';
+    // A disabled device is left dark rather than frozen on the last frame.
+    if (!enabled) {
+      drivers.setLeds(d.device.id, Uint8List(d.device.ledCount * 3));
     }
-    notifyListeners();
-  }
-
-  Future<void> restartDevice(DeviceInstance d) async {
-    _stopDevice(d);
-    await Future<void>.delayed(const Duration(milliseconds: 300));
-    d.state = {};
-    d.logs.clear();
-    await _spawn(d);
     notifyListeners();
   }
 
@@ -923,8 +821,8 @@ class Engine extends ChangeNotifier {
   LayoutItem _defaultLayout(DeviceInstance d, String zoneKey) {
     final zone = d.zones.where((z) => z.key == zoneKey).firstOrNull;
     final w = zone?.width ?? 1, h = zone?.height ?? 1;
-    if (zoneKey == 'main') {
-      var scale = d.plugin.defaultScale > 0 ? d.plugin.defaultScale : 8.0;
+    if (zoneKey == d.zones.firstOrNull?.key) {
+      var scale = 8.0;
       // Fit large devices on the canvas.
       final fit = [
         canvasWidth / w,
@@ -934,12 +832,11 @@ class Engine extends ChangeNotifier {
       // Tiny single-zone devices (1x1 at scale 1) would be an invisible dot.
       final longest = w > h ? w : h;
       if (longest * scale < 24) scale = 24 / longest;
-      var x = d.plugin.defaultPosition[0], y = d.plugin.defaultPosition[1];
-      if (x + w * scale > canvasWidth || y + h * scale > canvasHeight) {
-        x = (canvasWidth - w * scale) / 2;
-        y = (canvasHeight - h * scale) / 2;
-      }
-      return LayoutItem(x: x, y: y, scale: scale);
+      return LayoutItem(
+        x: (canvasWidth - w * scale) / 2,
+        y: (canvasHeight - h * scale) / 2,
+        scale: scale,
+      );
     }
     // Extra zones go in a grid of 24px-tall cells along the left edge, so
     // none overlap; channels (one row of LEDs) span most of the width.
@@ -967,21 +864,26 @@ class Engine extends ChangeNotifier {
   }
 
   // ---------------------------------------------------------------- frames
-  /// Samples the canvas for every LED cell of [zone] placed at [item].
-  List<int> _sampleZone(LedZone zone, LayoutItem item, CanvasFrame f) {
-    final out = List<int>.filled(zone.width * zone.height * 3, 0);
+  /// Writes into [out] (RGB per device LED) the canvas color under each LED
+  /// of [zone] placed at [item].
+  void _sampleZone(
+    LedZone zone,
+    LayoutItem item,
+    CanvasFrame f,
+    double b,
+    Uint8List out,
+  ) {
     final sx = f.width / canvasWidth, sy = f.height / canvasHeight;
-    // An alert flash must show even with the lights dimmed or off.
-    final b = _alertUntil != null ? 1.0 : brightness / 100.0;
+    final cw = item.scale * sx, ch = item.scale * sy;
     // Average the frame pixels covered by the LED's cell (at most 4x4
     // samples) so a LED reflects its area, not one noisy pixel.
-    void cell(int x, int y) {
-      final i = (y * zone.width + x) * 3;
-      if (i + 2 >= out.length) return;
-      final x0 = (item.x + x * item.scale) * sx,
-          y0 = (item.y + y * item.scale) * sy;
-      final cw = item.scale * sx, ch = item.scale * sy;
-      final nx = cw.ceil().clamp(1, 4), ny = ch.ceil().clamp(1, 4);
+    final nx = cw.ceil().clamp(1, 4), ny = ch.ceil().clamp(1, 4);
+    for (var i = 0; i < zone.positions.length; i++) {
+      final o = zone.leds[i] * 3;
+      if (o + 2 >= out.length) continue;
+      final pos = zone.positions[i];
+      final x0 = (item.x + pos[0] * item.scale) * sx,
+          y0 = (item.y + pos[1] * item.scale) * sy;
       var r = 0, g = 0, bl = 0, n = 0;
       for (var j = 0; j < ny; j++) {
         final py = (y0 + (j + 0.5) * ch / ny).floor();
@@ -996,32 +898,20 @@ class Engine extends ChangeNotifier {
           n++;
         }
       }
-      if (n == 0) return;
-      out[i] = (r / n * b).round();
-      out[i + 1] = (g / n * b).round();
-      out[i + 2] = (bl / n * b).round();
+      if (n == 0) continue;
+      out[o] = (r / n * b).round();
+      out[o + 1] = (g / n * b).round();
+      out[o + 2] = (bl / n * b).round();
     }
-
-    if (zone.width * zone.height <= 4096 || zone.positions.isEmpty) {
-      for (var y = 0; y < zone.height; y++) {
-        for (var x = 0; x < zone.width; x++) {
-          cell(x, y);
-        }
-      }
-    } else {
-      for (final pos in zone.positions) {
-        cell(pos[0], pos[1]);
-      }
-    }
-    return out;
   }
 
-  /// [n] colors across the device's main zone as it is lit right now,
+  /// [n] colors across the device's first zone as it is lit right now,
   /// left to right, for the device artwork. Empty when it is not lit.
   List<Color> previewColors(DeviceInstance d, int n) {
     final f = frame;
     if (f == null || d.status != 'running' || brightness == 0) return const [];
-    final zone = d.zones.first;
+    final zone = d.zones.firstOrNull;
+    if (zone == null) return const [];
     final item = layoutOf(d, zone.key);
     final w = zone.width * item.scale, h = zone.height * item.scale;
     // The hue, not the dimmed level: a thumbnail at 20% would just be grey.
@@ -1043,33 +933,24 @@ class Engine extends ChangeNotifier {
   void _pushFrames() {
     final f = frame;
     if (f == null) return;
+    // An alert flash must show even with the lights dimmed or off.
+    final b = _alertUntil != null ? 1.0 : brightness / 100.0;
     for (final d in devices.values) {
-      final port = d.port;
-      if (port == null || d.status != 'running') continue;
-      final payload = <String, Object>{
-        'm': <int>[],
-        's': <String, Object>{},
-        'c': <String, Object>{},
-      };
+      if (d.status != 'running' || d.device.ledCount == 0) continue;
+      final out = Uint8List(d.device.ledCount * 3);
       for (final z in d.zones) {
-        final colors = _sampleZone(z, layoutOf(d, z.key), f);
-        if (z.key == 'main') {
-          payload['m'] = colors;
-        } else if (z.key.startsWith('sub:')) {
-          (payload['s'] as Map)[z.key.substring(4)] = colors;
-        } else if (z.key.startsWith('ch:')) {
-          (payload['c'] as Map)[z.key.substring(3)] = colors;
-        }
+        _sampleZone(z, layoutOf(d, z.key), f, b, out);
       }
-      port.send({'t': 'frame', 'frame': payload, 'brightness': brightness});
+      drivers.setLeds(d.device.id, out);
     }
   }
 
-  /// Stops every worker so plugins can run Shutdown() (their shutdown color).
+  /// Saves settings and leaves the LEDs dark before the app exits.
   Future<void> shutdown() async {
     _shuttingDown = true;
     _tick?.cancel();
     _rescan?.cancel();
+    _devicePoll?.cancel();
     audio.setSource(AudioSource.off);
     _saveDebounce?.cancel();
     try {
@@ -1077,14 +958,6 @@ class Engine extends ChangeNotifier {
         const JsonEncoder.withIndent('  ').convert(_settings),
       );
     } catch (_) {}
-    final running = devices.values.where((d) => d.port != null).toList();
-    for (final d in running) {
-      _stopDevice(d);
-    }
-    final deadline = DateTime.now().add(const Duration(seconds: 2));
-    while (running.any((d) => d.port != null) &&
-        DateTime.now().isBefore(deadline)) {
-      await Future<void>.delayed(const Duration(milliseconds: 50));
-    }
+    drivers.shutdown();
   }
 }

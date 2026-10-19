@@ -44,7 +44,9 @@ DeviceKind deviceKindOf(String type, String name) {
     'gpu' => DeviceKind.gpu,
     'ram' => DeviceKind.ram,
     'fan' || 'fans' => DeviceKind.fan,
-    'aio' => DeviceKind.cooler,
+    'aio' || 'cooler' => DeviceKind.cooler,
+    'ledstrip' || 'light' => DeviceKind.strip,
+    'gamepad' => DeviceKind.gamepad,
     'lightingcontroller' => DeviceKind.controller,
     'speakers' => DeviceKind.speakers,
     'microphone' => DeviceKind.microphone,
@@ -134,7 +136,7 @@ class _DeviceArtState extends State<DeviceArt> {
   @override
   Widget build(BuildContext context) {
     final d = widget.device;
-    final kind = deviceKindOf(d.plugin.deviceType, d.name);
+    final kind = deviceKindOf(d.type, d.name);
     final s = widget.size;
     final art = CustomPaint(
       size: Size.square(s),
