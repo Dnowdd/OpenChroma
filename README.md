@@ -1,52 +1,183 @@
 # OpenChroma
 
-Open-source clone of SignalRGB for Windows, written in Flutter. It reuses the
-plugins, effects and components of the existing SignalRGB installation
-(`%LOCALAPPDATA%\VortxEngine\app-*\Signal-x64`) without modifying them.
+Controle o PC inteiro de um lugar só: a iluminação RGB de todos os
+dispositivos, as ventoinhas, a temperatura e a saúde do sistema. Gratuito,
+open source e feito para Windows.
 
-## How it works
+![Início](docs/screenshots/home.png)
 
-| SignalRGB (original)                      | OpenChroma                                                   |
-|-------------------------------------------|--------------------------------------------------------------|
-| HTML effects rendered in Ultralight       | WebView2 (`webview_windows`), canvas captured at 30 fps       |
-| JS plugins (ES modules) in a JS engine    | QuickJS (`flutter_js`), one isolate per device               |
-| `device.*` API in C++                     | JS shim in `lib/src/plugins/prelude.dart`                    |
-| hidapi (`hid_write`, `hid_read_timeout`…) | Direct FFI to `hid.dll`/`setupapi`, same semantics           |
-| WMI `Win32_BaseBoard`                     | Registry `HKLM\HARDWARE\DESCRIPTION\System\BIOS`             |
+## O que ele faz
 
-Flow: the effect draws onto a 320×200 canvas, which the page sends to Dart. The
-engine samples the color at each LED position using the layout (position and
-scale), sends it to the device isolate, and the plugin's `Render()` calls
-`device.color(x, y)` and writes the HID packets.
+**Iluminação**
+- 25 efeitos próprios: Aurora, Plasma, Lava, Fogueira, Chuva Digital, Céu
+  Estrelado, Arco-íris, Cor Sólida, Batimento, Sirene e mais. Cada um tem
+  ajustes de cor e velocidade.
+- Efeitos que reagem ao som do PC ou do microfone (Espectro, Equalizador
+  Neon, Batida, Onda Sonora…).
+- Layout: posicione cada dispositivo numa tela e o efeito "passa" por eles
+  como se fossem um painel só.
+- Perfis (Jogo, Trabalho, Noite, Desligado) que trocam efeito e brilho com um
+  clique. Clique com o botão direito num perfil para salvar a iluminação atual
+  nele.
+- Luz reativa: os LEDs mostram a temperatura da CPU ou da GPU, do azul
+  (frio) ao vermelho (quente).
+- Importe efeitos `.ocfx` (veja abaixo) ou páginas HTML com canvas.
+
+**Ventoinhas**
+- Lê e controla as ventoinhas da placa-mãe (chips ITE) e da placa de vídeo
+  NVIDIA, com perfis Silencioso, Equilibrado e Turbo ou uma curva sua.
+- Marca qual ventoinha é a bomba do water cooler, para ela nunca parar.
+
+**Desempenho**
+- Monitor em tempo real: uso e temperatura de CPU e GPU, memória, discos,
+  rede e os processos que mais pesam.
+- Diagnóstico: testes de estresse de CPU, memória, GPU e disco que conferem
+  os resultados (não só esquentam o PC), inventário de hardware, histórico de
+  telas azuis e recomendações.
+
+**Avisos**
+- Notificação do Windows quando algo esquenta demais, a memória ou o disco
+  enchem, ou a bomba do water cooler para. Funciona com o app na bandeja.
+- Opcional: os LEDs piscam em vermelho junto com o aviso.
+
+**Assistente de IA**
+- Pergunte sobre o seu PC ("por que tá lento?", "o que esquenta a GPU?"): o
+  assistente responde com as leituras reais da máquina.
+- Peça um efeito ("cria um efeito azul calmo") e aplique com um clique.
+- Explica o resultado do diagnóstico e sugere o que fazer.
+- Funciona com a sua chave da Anthropic (Claude), da OpenAI (GPT) ou de
+  qualquer serviço compatível com a API da OpenAI (OpenRouter, Groq, Ollama,
+  LM Studio…). A lista de modelos é buscada no provedor e se atualiza
+  sozinha.
+
+**No dia a dia**
+- Fecha para a bandeja e continua cuidando das luzes e ventoinhas.
+- Pode abrir junto com o Windows, inclusive como administrador sem pedir UAC
+  toda vez.
+
+| Efeitos | Dispositivos |
+|---|---|
+| ![Efeitos](docs/screenshots/effects.png) | ![Dispositivos](docs/screenshots/devices.png) |
+
+## Instalação
+
+Baixe a versão mais recente em
+[Releases](https://github.com/Dnowdd/OpenChroma/releases):
+
+- **`OpenChroma-x.y.z-setup.exe`**: o instalador. Não pede administrador
+  (instala para o seu usuário) e instala o Microsoft WebView2 se faltar.
+- **`OpenChroma-x.y.z-portable.zip`**: extraia numa pasta e abra
+  `openchroma.exe`. Não instala nada.
+
+Requisitos:
+
+- Windows 10 (1809 ou mais novo) ou Windows 11, 64 bits.
+- [Microsoft WebView2](https://developer.microsoft.com/microsoft-edge/webview2/)
+  para os efeitos. Já vem no Windows 11; o instalador cuida disso no
+  Windows 10.
+- Opcional: o driver [PawnIO](https://pawnio.eu) para ler a temperatura da
+  CPU e controlar as ventoinhas da placa-mãe. Essas duas funções também
+  precisam do modo administrador (tem um botão para isso no app).
+
+Feche outros programas de RGB (iCUE, G HUB, RGB Fusion, OpenRGB…) antes de
+usar: dois programas escrevendo nos mesmos LEDs fazem as cores piscarem. O
+OpenChroma avisa quando encontra um deles aberto.
+
+## Dispositivos compatíveis
+
+O OpenChroma fala com teclados, mouses, headsets, mousepads, placas-mãe,
+controladoras ARGB e outros dispositivos USB HID através de drivers em
+JavaScript. Hoje ele usa os drivers do SignalRGB instalados no PC (cerca de
+400 modelos); eles não vêm junto com o OpenChroma. Sem eles, efeitos,
+ventoinhas, monitor, diagnóstico e assistente funcionam normalmente, mas os
+LEDs dos dispositivos não acendem.
+
+Ainda não são suportados: memórias RAM e placas de vídeo controladas por
+SMBus, dispositivos de rede e serial, e telas LCD.
+
+## Efeitos `.ocfx`
+
+Um efeito é um arquivo JSON com camadas desenhadas de baixo para cima:
+
+```json
+{
+  "openchroma": 1,
+  "name": "Oceano Calmo",
+  "description": "Azuis indo e vindo devagar.",
+  "background": "#000814",
+  "params": {
+    "speed": { "label": "Velocidade", "type": "number", "min": 0, "max": 100, "default": 25 },
+    "color": { "label": "Cor", "type": "color", "default": "#38BDF8" }
+  },
+  "layers": [
+    { "type": "gradient", "colors": ["#001D3D", "#003566", "#000814"], "angle": 20, "speed": "$speed" },
+    { "type": "wave", "color": "$color", "amplitude": 0.2, "thickness": 0.25, "speed": "$speed", "blend": "screen" }
+  ]
+}
+```
+
+Camadas: `solid`, `gradient`, `spectrum`, `pulse`, `wave`, `sweep`, `rings`,
+`sparkle`, `plasma`, `noise`, `fire`, `rain`, `stars`, `heartbeat`, `strobe`
+e, para áudio, `bars`, `meter`, `ripple` e `flash`. Um valor `"$nome"` usa o
+parâmetro `nome`; `"@bass"`, `"@mid"`, `"@treble"`, `"@level"` e `"@beat"`
+usam o som em tempo real. Os efeitos que vêm com o app estão em
+[`assets/effects`](assets/effects) e servem de exemplo.
+
+## Privacidade
+
+- Nada é enviado a lugar nenhum por padrão. Não há telemetria.
+- A chave de API do assistente fica só neste PC, criptografada para o seu
+  usuário do Windows (DPAPI), e só vai para o provedor que você escolheu,
+  junto com as leituras do PC usadas para responder.
+- Configurações ficam em `%APPDATA%\OpenChroma`.
+
+## Para desenvolvedores
+
+Precisa do [Flutter](https://docs.flutter.dev/get-started/install/windows)
+3.47 ou mais novo e do Visual Studio 2022 (ou mais novo) com a carga
+"Desenvolvimento para desktop com C++".
+
+```powershell
+flutter pub get
+flutter run -d windows        # rodar em modo debug
+flutter test                  # testes
+```
+
+Para gerar uma versão para publicar (o `.zip` portátil, o instalador e os
+checksums, em `dist\`):
+
+```powershell
+winget install JRSoftware.InnoSetup   # uma vez, para o instalador
+powershell -ExecutionPolicy Bypass -File scripts\build-release.ps1
+```
+
+A versão vem do campo `version:` do `pubspec.yaml` (ou use `-Version 1.2.3`).
+
+### Como funciona
 
 ```
 lib/src/
-  hid/hid_ffi.dart            enumeration and hidapi-style I/O
-  plugins/js_transform.dart   ES module -> global script (imports, exports)
-  plugins/prelude.dart        device/bus/systeminfo/Errors API for the plugins
-  plugins/plugin_scanner.dart plugin metadata (cached in %APPDATA%\OpenChroma)
-  engine/device_worker.dart   isolate: Validate -> Initialize -> Render loop -> Shutdown
-  engine/engine.dart          discovery/hotplug, layout, sampling, persistence
-  effects/                    reading <meta> tags and the WebView2 host
-  ui/                         Effects, Devices, Layout, Settings
+  engine/        motor: descobre dispositivos (hotplug), layout, amostra o
+                 efeito em cada LED e manda para os drivers; perfis, luz
+                 reativa e o piscar dos avisos
+  effects/       biblioteca de efeitos, o renderizador .ocfx e o WebView2
+                 que desenha o efeito num canvas de 320x200
+  plugins/       roda os drivers JavaScript em QuickJS, um isolate por
+                 dispositivo, com a API `device.*` que eles esperam
+  hid/           acesso USB HID direto pelo Windows (setupapi/hid.dll)
+  fans/          curvas e controle das ventoinhas
+  monitor/       leituras do sistema (lado nativo em windows/runner)
+  checkup/       diagnóstico e análise de telas azuis
+  alerts/        avisos e notificações
+  ai/            assistente: provedores, chaves (DPAPI) e contexto do PC
+  ui/            as telas
+windows/runner/  código nativo: monitor, ventoinhas (PawnIO/NvAPI), testes
+                 de estresse, captura de áudio, bandeja e elevação
 ```
 
-## Running
+O efeito roda numa página (WebView2) que desenha num canvas; a cada ~33 ms o
+quadro volta para o app, que calcula a cor de cada LED pela posição do
+dispositivo no layout e envia para o driver daquele dispositivo.
 
-```
-flutter run -d windows
-```
-
-Close SignalRGB first, because both apps fight over the same devices. Settings
-are saved to `%APPDATA%\OpenChroma\settings.json`.
-
-## Current limits
-
-- USB HID devices only. SMBus (RAM/GPU), raw USB, serial and network
-  plugins are recognized but not run.
-- No fan control, LCD screens, screen capture (Screen Ambience) or audio
-  (the `engine.audio`/`engine.zone` objects are zero-filled stubs).
-- ARGB channels take a manual LED count, not SignalRGB's component library.
-- Layout has position and scale only, no rotation.
-- `collection` matching in `set_endpoint` uses the `&colNN` number from the
-  path. SignalRGB's exact numbering has not been confirmed.
+Os módulos PawnIO em `assets/pawnio` são distribuídos sob a LGPL 2.1 (veja
+`assets/pawnio/COPYING.txt`).
