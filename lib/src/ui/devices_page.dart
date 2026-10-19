@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:path/path.dart' as p;
 
 import '../engine/engine.dart';
+import 'device_art.dart';
 import 'property_controls.dart';
 import 'theme.dart';
 import 'widgets.dart';
@@ -17,21 +18,8 @@ String _hex4(int v) => v.toRadixString(16).padLeft(4, '0').toUpperCase();
   _ => (Oc.textTertiary, 'Parado'),
 };
 
-String deviceKind(String type) => switch (type.toLowerCase()) {
-  'keyboard' => 'Teclado',
-  'mouse' => 'Mouse',
-  'mousepad' => 'Mousepad',
-  'headset' => 'Headset',
-  'motherboard' => 'Placa-mãe',
-  'gpu' => 'Placa de vídeo',
-  'ram' => 'Memória',
-  'fan' || 'fans' => 'Ventoinhas',
-  'lightingcontroller' => 'Controladora',
-  'speakers' => 'Caixas de som',
-  'microphone' => 'Microfone',
-  'aio' => 'Water cooler',
-  _ => 'Dispositivo',
-};
+String deviceKind(DeviceInstance d) =>
+    deviceKindOf(d.plugin.deviceType, d.name).label;
 
 class DevicesPage extends StatefulWidget {
   const DevicesPage({super.key, required this.engine});
@@ -92,6 +80,7 @@ class _DevicesPageState extends State<DevicesPage> {
                           children: [
                             for (final d in devices)
                               _DeviceTile(
+                                engine: engine,
                                 device: d,
                                 selected: d.key == sel?.key,
                                 onTap: () => setState(() => _selected = d.key),
@@ -119,9 +108,15 @@ class _DevicesPageState extends State<DevicesPage> {
                                 icon: Icons.usb_rounded,
                                 title: engine.scanning
                                     ? 'Carregando plugins'
+                                    : engine.plugins.isEmpty
+                                    ? 'Nenhum driver de dispositivo'
                                     : 'Nenhum dispositivo',
                                 message: engine.scanning
                                     ? 'Preparando a compatibilidade com seus dispositivos.'
+                                    : engine.plugins.isEmpty
+                                    ? 'Não há drivers de iluminação neste PC ainda. '
+                                          'Efeitos, ventoinhas e o monitor funcionam '
+                                          'normalmente.'
                                     : 'Conecte um dispositivo compatível. Se outro programa de RGB '
                                           'estiver aberto, feche-o antes.',
                                 action: engine.scanning
@@ -145,48 +140,14 @@ class _DevicesPageState extends State<DevicesPage> {
   }
 }
 
-class DeviceThumb extends StatelessWidget {
-  const DeviceThumb({super.key, required this.url, this.size = 40});
-  final String url;
-  final double size;
-
-  @override
-  Widget build(BuildContext context) {
-    final fallback = Icon(
-      Icons.memory_rounded,
-      color: Oc.textTertiary,
-      size: size * .45,
-    );
-    return Container(
-      width: size,
-      height: size,
-      padding: EdgeInsets.all(size * .12),
-      decoration: BoxDecoration(
-        color: Oc.raised,
-        borderRadius: BorderRadius.circular(size * .28),
-      ),
-      child: url.startsWith('http')
-          ? Image.network(
-              url,
-              fit: BoxFit.contain,
-              errorBuilder: (_, _, _) => fallback,
-              frameBuilder: (_, child, frame, sync) => AnimatedOpacity(
-                opacity: frame == null && !sync ? 0 : 1,
-                duration: const Duration(milliseconds: 200),
-                child: child,
-              ),
-            )
-          : fallback,
-    );
-  }
-}
-
 class _DeviceTile extends StatelessWidget {
   const _DeviceTile({
+    required this.engine,
     required this.device,
     required this.selected,
     required this.onTap,
   });
+  final Engine engine;
   final DeviceInstance device;
   final bool selected;
   final VoidCallback onTap;
@@ -207,7 +168,7 @@ class _DeviceTile extends StatelessWidget {
           ),
           child: Row(
             children: [
-              DeviceThumb(url: device.imageUrl, size: 46),
+              DeviceArt(engine: engine, device: device, size: 46),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
@@ -226,7 +187,7 @@ class _DeviceTile extends StatelessWidget {
                         const SizedBox(width: 6),
                         Flexible(
                           child: Text(
-                            '${deviceKind(device.plugin.deviceType)} · $label',
+                            '${deviceKind(device)} · $label${device.battery == null ? '' : ' · ${device.battery}%'}',
                             overflow: TextOverflow.ellipsis,
                             style: OcText.caption,
                           ),
@@ -276,7 +237,7 @@ class _DeviceDetailState extends State<_DeviceDetail> {
               children: [
                 Row(
                   children: [
-                    DeviceThumb(url: d.imageUrl, size: 84),
+                    DeviceArt(engine: engine, device: d, size: 84),
                     const SizedBox(width: 20),
                     Expanded(
                       child: Column(
@@ -292,7 +253,15 @@ class _DeviceDetailState extends State<_DeviceDetail> {
                             runSpacing: 6,
                             children: [
                               OcBadge(label, dot: color, color: Oc.text),
-                              OcBadge(deviceKind(d.plugin.deviceType)),
+                              OcBadge(deviceKind(d)),
+                              if (d.battery != null)
+                                OcBadge(
+                                  '${d.batteryState == 2 ? 'Carregando · ' : ''}Bateria ${d.battery}%',
+                                  dot: d.battery! <= 15
+                                      ? Oc.danger
+                                      : Oc.success,
+                                  color: Oc.text,
+                                ),
                               OcBadge(
                                 '${_hex4(d.endpoints.first.vendorId)}:${_hex4(d.endpoints.first.productId)}',
                               ),
