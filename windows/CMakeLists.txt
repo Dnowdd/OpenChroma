@@ -55,6 +55,10 @@ add_subdirectory(${FLUTTER_MANAGED_DIR})
 # Application build; see runner/CMakeLists.txt.
 add_subdirectory("runner")
 
+# Device drivers (OpenRGB-based), loaded by Dart through FFI.
+add_subdirectory("drivers")
+add_dependencies(${BINARY_NAME} oc_drivers)
+
 
 # Generated plugin build rules, which manage building the plugins and adding
 # them to the application.
@@ -89,6 +93,15 @@ if(PLUGIN_BUNDLED_LIBRARIES)
     DESTINATION "${INSTALL_BUNDLE_LIB_DIR}"
     COMPONENT Runtime)
 endif()
+
+# The drivers DLL, the libraries it loads and the PawnIO modules its SMBus
+# drivers read from the exe's folder.
+install(TARGETS oc_drivers RUNTIME DESTINATION "${INSTALL_BUNDLE_LIB_DIR}"
+  COMPONENT Runtime)
+install(FILES ${OC_DRIVERS_RUNTIME} DESTINATION "${INSTALL_BUNDLE_LIB_DIR}"
+  COMPONENT Runtime)
+install(DIRECTORY "${OC_DRIVERS_PAWNIO_MODULES}/" DESTINATION "${INSTALL_BUNDLE_LIB_DIR}"
+  COMPONENT Runtime FILES_MATCHING PATTERN "*.bin")
 
 # Ship the Visual C++ runtime next to the exe (app-local), so the app runs
 # on PCs that never installed the VC++ Redistributable.
