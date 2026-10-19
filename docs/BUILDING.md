@@ -22,6 +22,25 @@ flutter pub get
 flutter run -d windows
 ```
 
+O primeiro build demora (10 a 20 minutos), porque compila os ~900 arquivos
+dos drivers em `third_party/openrgb` (a `oc_drivers.dll`). Os builds seguintes
+só recompilam o que mudou.
+
+## Atualizar os drivers do OpenRGB
+
+Os drivers são uma cópia do código do OpenRGB em `third_party/openrgb`. Para
+trazer uma versão mais nova:
+
+```powershell
+git clone https://gitlab.com/CalcProgrammer1/OpenRGB.git $env:TEMP\OpenRGB
+python scripts\update-openrgb.py $env:TEMP\OpenRGB (git -C $env:TEMP\OpenRGB rev-parse HEAD)
+```
+
+O script copia só o que o OpenChroma compila e reaplica as nossas mudanças
+(lista `PATCHES` no script). Se um patch não se aplicar mais, ele avisa. Depois
+compile, teste com os dispositivos que tiver e confira se algum arquivo novo
+mudou de licença (veja [THIRD_PARTY.md](../THIRD_PARTY.md)).
+
 ## Gerar o .exe (a versão para publicar)
 
 1. Escolha o número da versão no `pubspec.yaml`, na linha `version:`. O

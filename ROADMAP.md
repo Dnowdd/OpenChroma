@@ -3,45 +3,36 @@
 Lista do que ainda não existe ou está incompleto, mais ou menos em ordem de
 prioridade. Atualize quando algo for feito.
 
-## 1. Drivers de dispositivo próprios (prioridade máxima)
+## 1. Drivers
 
-Hoje os LEDs dos dispositivos só acendem num PC que tem o SignalRGB
-instalado, porque o OpenChroma usa os drivers JavaScript dele. Isso vai sair:
-o OpenChroma não deve depender nem conversar com o SignalRGB (código sem
-licença, de uma empresa privada) nem precisar do OpenRGB instalado.
+Os drivers vêm do OpenRGB, compilados dentro do app (`windows/drivers` e
+`third_party/openrgb`). O OpenChroma não depende nem conversa com o SignalRGB
+ou com o OpenRGB instalado.
 
-O plano:
-
-- [ ] **Formato de driver próprio do OpenChroma**, com uma API nossa (não a
-      `device.*` do SignalRGB): como o driver se identifica (VID/PID, tipo,
-      zonas e LEDs), como inicia, como recebe as cores e como desliga.
-- [ ] **Base de drivers vinda do OpenRGB.** O OpenRGB é open source sob a
-      GPL-2.0-or-later (15 arquivos são GPL-2.0-only, incluindo o da placa
-      Gigabyte Fusion2), então podemos usar e melhorar o código dele desde que
-      o OpenChroma também seja GPL e continue com o código aberto. São cerca
-      de 200 famílias de controladores e mais de mil dispositivos HID, além de
-      RAM e placas de vídeo por SMBus.
-- [ ] Começar pelos dispositivos do PC de desenvolvimento, que já existem no
-      OpenRGB: Gigabyte B650M (ITE 048D:5702), teclado Royuan (3151:4015),
-      Logitech G403 Hero (046D:C08F) e DualShock 4 (054C:09CC).
-- [ ] Remover o carregamento dos plugins do SignalRGB e tudo que aponta para
-      ele (`SignalRgbPaths`, o shim `prelude.dart`, traduções de textos dos
-      plugins dele).
-- [ ] Escolher e adicionar a licença do projeto (`LICENSE`), compatível com a
-      GPL-2.0 por causa do código do OpenRGB.
-- [ ] Teste automático que roda todos os drivers contra um dispositivo falso
-      (como o `test/plugin_compat_test.dart` faz hoje com os plugins antigos).
+- [x] Núcleo nativo com os drivers do OpenRGB e uma API nossa
+      (`oc_drivers.dll`).
+- [x] Remover tudo do SignalRGB (plugins, shim da API, traduções, efeitos,
+      imagens).
+- [x] Licença GPL-2.0-or-later.
+- [ ] **Formato de plugin próprio em JavaScript**, para drivers novos ou
+      melhorados sem recompilar: como o driver se identifica (VID/PID, tipo,
+      zonas e LEDs), inicia, recebe as cores e desliga. O motor já trata os
+      dispositivos de forma genérica; falta o runtime (QuickJS) e a API.
+- [ ] Migrar aos poucos os drivers mais usados para o formato próprio,
+      melhorando o que der (por exemplo, posição real de cada LED do teclado).
+- [ ] Mostrar a bateria de mouses e headsets sem fio.
+- [ ] Deixar escolher um modo do próprio hardware (os efeitos que o
+      dispositivo faz sozinho) em vez de só o modo controlado pelo app.
+- [ ] Rotina para atualizar o `third_party/openrgb` com a versão nova do
+      OpenRGB (`scripts/update-openrgb.py`) e testar.
 
 ## 2. Dispositivos que ainda não funcionam
 
-- [ ] **Memória RAM e placas de vídeo com RGB** (SMBus/I2C). Precisa do driver
-      PawnIO, que o app já usa para as ventoinhas.
-- [ ] **Receptores sem fio** (Logitech Lightspeed, Corsair Slipstream, Razer
-      HyperSpeed): um receptor pode ter vários dispositivos atrás dele.
-- [ ] Dispositivos USB "crus" (não HID), seriais e de rede (fitas Wi-Fi,
-      Philips Hue, Nanoleaf).
+- [ ] Drivers de rede que ficaram de fora: Philips Hue, Nanoleaf (precisam de
+      TLS/mDNS) e E1.31 (a `libe131` é Apache-2.0, incompatível com a GPL-2.0).
+      Dá para reescrever o E1.31, que é um protocolo simples.
+- [ ] Teclados QMK/VIA (o driver do OpenRGB depende do Qt).
 - [ ] Telas LCD de water coolers e gabinetes.
-- [ ] Dois dispositivos idênticos sem número de série hoje viram um só.
 
 ## 3. Iluminação
 
@@ -49,7 +40,7 @@ O plano:
 - [ ] Editor visual de efeitos `.ocfx`, sem precisar escrever JSON.
 - [ ] Rotação no layout (hoje só posição e tamanho).
 - [ ] Biblioteca de componentes ARGB: escolher "fan de 120 mm com 16 LEDs"
-      em vez de digitar a quantidade de LEDs de cada canal.
+      em vez de digitar a quantidade de LEDs.
 - [ ] Trocar de perfil sozinho quando um jogo ou programa abre.
 - [ ] Mais efeitos próprios (todos os efeitos do OpenChroma são exclusivos;
       nunca copiar efeitos de outros apps).

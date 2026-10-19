@@ -85,12 +85,18 @@ OpenChroma avisa quando encontra um deles aberto.
 
 ## Dispositivos compatíveis
 
-O OpenChroma fala com teclados, mouses, headsets, mousepads, placas-mãe,
-controladoras ARGB e outros dispositivos USB HID através de drivers. Os
-drivers estão sendo reescritos num formato próprio, com base no código aberto
-do OpenRGB, para que o app não dependa de nenhum outro programa. Enquanto isso,
-efeitos, ventoinhas, monitor, diagnóstico e assistente funcionam normalmente.
-Veja o andamento no [ROADMAP](ROADMAP.md).
+Os drivers do OpenChroma vêm do código aberto do
+[OpenRGB](https://gitlab.com/CalcProgrammer1/OpenRGB), compilado dentro do
+próprio app: mais de mil teclados, mouses, headsets, mousepads, placas-mãe,
+controladoras ARGB, water coolers, memórias RAM e placas de vídeo de dezenas
+de marcas (ASUS, Corsair, Logitech, Razer, SteelSeries, HyperX, Gigabyte, MSI,
+NZXT, Lian Li, Cooler Master…). Não é preciso instalar o OpenRGB nem nenhum
+outro programa.
+
+- Memórias RAM e placas de vídeo com RGB usam o SMBus, que precisa do modo
+  administrador e do driver [PawnIO](https://pawnio.eu).
+- Conectores ARGB da placa-mãe: informe quantos LEDs estão ligados em cada um
+  na tela Dispositivos.
 
 ## Efeitos `.ocfx`
 
@@ -120,6 +126,12 @@ parâmetro `nome`; `"@bass"`, `"@mid"`, `"@treble"`, `"@level"` e `"@beat"`
 usam o som em tempo real. Os efeitos que vêm com o app estão em
 [`assets/effects`](assets/effects) e servem de exemplo.
 
+## Licença
+
+O OpenChroma é software livre sob a GPL-2.0-or-later ([LICENSE](LICENSE)).
+Os drivers vêm do OpenRGB; o código de terceiros incluído e suas licenças
+estão em [THIRD_PARTY.md](THIRD_PARTY.md).
+
 ## Privacidade
 
 - Nada é enviado a lugar nenhum por padrão. Não há telemetria.
@@ -148,14 +160,11 @@ Para gerar o `.exe`, o instalador e publicar uma versão no GitHub, veja
 
 ```
 lib/src/
-  engine/        motor: descobre dispositivos (hotplug), layout, amostra o
-                 efeito em cada LED e manda para os drivers; perfis, luz
-                 reativa e o piscar dos avisos
+  engine/        motor: layout, amostra o efeito em cada LED e manda para os
+                 drivers; perfis, luz reativa e o piscar dos avisos
+  drivers/       ponte com os drivers nativos (oc_drivers.dll)
   effects/       biblioteca de efeitos, o renderizador .ocfx e o WebView2
                  que desenha o efeito num canvas de 320x200
-  plugins/       roda os drivers JavaScript em QuickJS, um isolate por
-                 dispositivo, com a API `device.*` que eles esperam
-  hid/           acesso USB HID direto pelo Windows (setupapi/hid.dll)
   fans/          curvas e controle das ventoinhas
   monitor/       leituras do sistema (lado nativo em windows/runner)
   checkup/       diagnóstico e análise de telas azuis
@@ -164,11 +173,15 @@ lib/src/
   ui/            as telas
 windows/runner/  código nativo: monitor, ventoinhas (PawnIO/NvAPI), testes
                  de estresse, captura de áudio, bandeja e elevação
+windows/drivers/ oc_drivers.dll: os drivers do OpenRGB com a API C do
+                 OpenChroma (oc_drivers.cpp)
+third_party/openrgb/  cópia do código do OpenRGB usada pelos drivers
 ```
 
 O efeito roda numa página (WebView2) que desenha num canvas; a cada ~33 ms o
 quadro volta para o app, que calcula a cor de cada LED pela posição do
-dispositivo no layout e envia para o driver daquele dispositivo.
+dispositivo no layout e entrega para o driver, que escreve no hardware na
+sua própria thread.
 
 Os módulos PawnIO em `assets/pawnio` são distribuídos sob a LGPL 2.1 (veja
 `assets/pawnio/COPYING.txt`).
