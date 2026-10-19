@@ -1,0 +1,28 @@
+{
+  "openchroma": 1,
+  "name": "Batimento",
+  "description": "Duas batidas rápidas e uma pausa, como um coração.",
+  "author": "OpenChroma",
+  "background": "#000000",
+  "params": {
+    "color": {
+      "label": "Cor",
+      "type": "color",
+      "default": "#EF4444"
+    },
+    "speed": {
+      "label": "Ritmo",
+      "type": "number",
+      "min": 1,
+      "max": 100,
+      "default": 30
+    }
+  },
+  "layers": [
+    {
+      "type": "heartbeat",
+      "color": "$color",
+      "speed": "$speed"
+    }
+  ]
+}

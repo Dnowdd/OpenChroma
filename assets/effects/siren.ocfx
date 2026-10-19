@@ -1,0 +1,42 @@
+{
+  "openchroma": 1,
+  "name": "Sirene",
+  "description": "Vermelho e azul alternando, metade de cada lado.",
+  "author": "OpenChroma",
+  "background": "#000000",
+  "params": {
+    "speed": {
+      "label": "Velocidade",
+      "type": "number",
+      "min": 0,
+      "max": 100,
+      "default": 35
+    },
+    "first": {
+      "label": "Cor 1",
+      "type": "color",
+      "default": "#EF4444"
+    },
+    "second": {
+      "label": "Cor 2",
+      "type": "color",
+      "default": "#2563EB"
+    },
+    "split": {
+      "label": "Lados separados",
+      "type": "boolean",
+      "default": true
+    }
+  },
+  "layers": [
+    {
+      "type": "strobe",
+      "colors": [
+        "$first",
+        "$second"
+      ],
+      "split": "$split",
+      "speed": "$speed"
+    }
+  ]
+}

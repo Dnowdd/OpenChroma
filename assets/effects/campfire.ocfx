@@ -1,0 +1,30 @@
+{
+  "openchroma": 1,
+  "name": "Fogueira",
+  "description": "Chamas subindo de baixo, com o topo escuro.",
+  "author": "OpenChroma",
+  "background": "#000000",
+  "params": {
+    "speed": {
+      "label": "Velocidade",
+      "type": "number",
+      "min": 0,
+      "max": 100,
+      "default": 45
+    },
+    "height": {
+      "label": "Altura das chamas",
+      "type": "number",
+      "min": 10,
+      "max": 100,
+      "default": 70
+    }
+  },
+  "layers": [
+    {
+      "type": "fire",
+      "height": "$height",
+      "speed": "$speed"
+    }
+  ]
+}

@@ -171,6 +171,13 @@ const ocfxLayerTypes = {
   'sweep',
   'rings',
   'sparkle',
+  'plasma',
+  'noise',
+  'fire',
+  'rain',
+  'stars',
+  'heartbeat',
+  'strobe',
   // Audio-reactive
   'bars',
   'meter',

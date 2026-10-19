@@ -57,12 +57,6 @@ class SignalRgbPaths {
     p.join(userDir, 'Plugins'),
   ];
 
-  List<String> get effectRoots => [
-    if (installDir != null) p.join(installDir!, 'Effects'),
-    p.join(userDir, 'Effects'),
-    effectCacheDir,
-  ];
-
   static int _compareVersions(String a, String b) {
     final pa = a.split('.').map((e) => int.tryParse(e) ?? 0).toList();
     final pb = b.split('.').map((e) => int.tryParse(e) ?? 0).toList();

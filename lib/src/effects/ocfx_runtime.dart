@@ -45,6 +45,7 @@ const ocfxRuntimeHtml = r'''<!doctype html>
   }
   // 0..100 speed -> cycles per second (0 stops, 50 ~ calm, 100 fast)
   function rate(l) { return num(l.speed, 40) / 100 * 0.6; }
+  var SELF_ALPHA = { rings: 1, sparkle: 1, ripple: 1, stars: 1, heartbeat: 1 };
   var BLEND = { normal: 'source-over', screen: 'screen', add: 'lighter', multiply: 'multiply', overlay: 'overlay' };
 
   // Seeded random so sparkles are stable per layer.
@@ -86,7 +87,136 @@ const ocfxRuntimeHtml = r'''<!doctype html>
   }
   var ripples = {};
 
+  // ---- Helpers for the pixel layers.
+  function rgbOf(hex) {
+    var m = /^#?([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})/i.exec(String(hex)) || [0, 'ff', 'ff', 'ff'];
+    return [parseInt(m[1], 16), parseInt(m[2], 16), parseInt(m[3], 16)];
+  }
+  // Smooth color at t (0..1) along a list of [r, g, b].
+  function rampRgb(cols, t) {
+    var n = cols.length;
+    if (n === 1) return cols[0];
+    var x = Math.min(0.9999, Math.max(0, t)) * (n - 1), i = Math.floor(x), f = x - i;
+    var a = cols[i], b = cols[i + 1];
+    return [a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f, a[2] + (b[2] - a[2]) * f];
+  }
+  // Fills a small buffer from fn(u, v) -> [r, g, b] (u, v in 0..1) and
+  // draws it over the whole canvas.
+  var PW = 80, PH = 50, pbuf = null, pctx = null, pimg = null;
+  function pixels(fn) {
+    if (!pbuf) {
+      pbuf = document.createElement('canvas'); pbuf.width = PW; pbuf.height = PH;
+      pctx = pbuf.getContext('2d'); pimg = pctx.createImageData(PW, PH);
+    }
+    var d = pimg.data;
+    for (var y = 0, o = 0; y < PH; y++) {
+      for (var x = 0; x < PW; x++, o += 4) {
+        var c = fn(x / (PW - 1), y / (PH - 1));
+        d[o] = c[0]; d[o + 1] = c[1]; d[o + 2] = c[2]; d[o + 3] = 255;
+      }
+    }
+    pctx.putImageData(pimg, 0, 0);
+    ctx.imageSmoothingEnabled = true;
+    ctx.drawImage(pbuf, 0, 0, W, H);
+  }
+  // Value noise with a few octaves, 0..1.
+  function hash(x, y, z) {
+    var h = Math.sin(x * 127.1 + y * 311.7 + z * 74.7) * 43758.5453;
+    return h - Math.floor(h);
+  }
+  function smooth(t) { return t * t * (3 - 2 * t); }
+  function vnoise(x, y, z) {
+    var xi = Math.floor(x), yi = Math.floor(y), zi = Math.floor(z);
+    var xf = smooth(x - xi), yf = smooth(y - yi), zf = smooth(z - zi);
+    function c(dx, dy, dz) { return hash(xi + dx, yi + dy, zi + dz); }
+    function lerp(a, b, t) { return a + (b - a) * t; }
+    return lerp(
+      lerp(lerp(c(0, 0, 0), c(1, 0, 0), xf), lerp(c(0, 1, 0), c(1, 1, 0), xf), yf),
+      lerp(lerp(c(0, 0, 1), c(1, 0, 1), xf), lerp(c(0, 1, 1), c(1, 1, 1), xf), yf),
+      zf);
+  }
+  function fbm(x, y, z) {
+    return vnoise(x, y, z) * 0.55 + vnoise(x * 2.1, y * 2.1, z * 1.3) * 0.3 + vnoise(x * 4.3, y * 4.3, z * 1.7) * 0.15;
+  }
+
   var draw = {
+    // ---- Pixel layers: drawn on a small buffer and scaled up smoothly,
+    // which is cheap and reads well on LEDs.
+    plasma: function (l, t) {
+      var cols = (val(l.colors) || ['#FF0080', '#7928CA', '#0070F3', '#00DFD8']).map(rgbOf);
+      var sc = Math.max(0.2, num(l.scale, 1)), sp = t * rate(l) * 4;
+      pixels(function (x, y) {
+        var u = x * 3 / sc, v = y * 3 / sc;
+        var k = Math.sin(u + sp) + Math.sin(v * 1.3 - sp * 0.7) +
+                Math.sin((u + v) * 0.7 + sp * 0.5) + Math.sin(Math.sqrt(u * u + v * v) * 1.2 - sp);
+        return rampRgb(cols, (k + 4) / 8);
+      });
+    },
+    noise: function (l, t) {
+      var cols = (val(l.colors) || ['#1A0000', '#C2410C', '#FACC15']).map(rgbOf);
+      var sc = Math.max(0.2, num(l.scale, 1)), z = t * rate(l) * 1.5;
+      pixels(function (x, y) {
+        var n = fbm(x * 4 / sc, y * 2.5 / sc, z);
+        return rampRgb(cols, Math.min(1, Math.max(0, n * 1.4 - 0.2)));
+      });
+    },
+    fire: function (l, t) {
+      var cols = (val(l.colors) || ['#000000', '#7F1D1D', '#EA580C', '#FACC15', '#FEF9C3']).map(rgbOf);
+      var hgt = frac(l.height, 0.7), z = t * rate(l) * 3;
+      pixels(function (x, y) {
+        // y = 0 at the top; flames rise from the bottom.
+        var up = 1 - y;
+        var n = fbm(x * 5, y * 4 + z * 2, z * 0.5);
+        var k = (1 - up / Math.max(0.05, hgt)) + (n - 0.5) * 0.9;
+        return rampRgb(cols, Math.min(1, Math.max(0, k)));
+      });
+    },
+    rain: function (l, t, idx) {
+      var col = val(l.color) || '#22C55E', n = Math.round(num(l.density, 30));
+      var len = frac(l.length, 0.35) * H, rand = rng(4321 + idx * 31);
+      var sp = 0.4 + rate(l) * 3;
+      for (var i = 0; i < n; i++) {
+        var x = Math.floor(rand() * W / 6) * 6 + 3, off = rand(), v = 0.6 + rand() * 0.8;
+        var y = ((t * sp * v + off) % 1) * (H + len) - len;
+        var g = ctx.createLinearGradient(0, y, 0, y + len);
+        g.addColorStop(0, hexA(col, 0)); g.addColorStop(0.85, hexA(col, 0.9)); g.addColorStop(1, '#ffffff');
+        ctx.fillStyle = g;
+        ctx.fillRect(x - 2, y, 4, len);
+      }
+    },
+    stars: function (l, t, idx) {
+      var col = val(l.color) || '#ffffff', n = Math.round(num(l.density, 60)), rand = rng(777 + idx * 13);
+      var sp = rate(l) * 40;
+      for (var i = 0; i < n; i++) {
+        var depth = 0.3 + rand() * 0.7, y = rand() * H, x0 = rand() * W;
+        var x = ((x0 - t * sp * depth) % W + W) % W;
+        var tw = 0.6 + 0.4 * Math.sin(t * 3 * depth + i);
+        ctx.globalAlpha = depth * tw * frac(l.opacity, 1);
+        ctx.fillStyle = col;
+        var s = 1 + depth * 2.5;
+        ctx.fillRect(x, y, s, s);
+      }
+    },
+    heartbeat: function (l, t) {
+      // Two quick beats, then a rest, like a pulse.
+      var p = (t * Math.max(0.2, rate(l) * 2.5)) % 1;
+      var k = Math.exp(-Math.pow((p - 0.1) / 0.04, 2)) + 0.7 * Math.exp(-Math.pow((p - 0.28) / 0.05, 2));
+      ctx.fillStyle = hexA(val(l.color) || '#EF4444', Math.min(1, k) * frac(l.opacity, 1));
+      ctx.fillRect(0, 0, W, H);
+    },
+    strobe: function (l, t) {
+      var cols = val(l.colors) || ['#EF4444', '#3B82F6'];
+      var hz = 0.5 + rate(l) * 10, phase = t * hz, i = Math.floor(phase) % cols.length;
+      // Light only in the first part of each step, so the colors flash.
+      if (phase % 1 > 0.55) return;
+      if (val(l.split)) {
+        ctx.fillStyle = cols[i];
+        ctx.fillRect(i % 2 ? W / 2 : 0, 0, W / 2, H);
+      } else {
+        ctx.fillStyle = cols[i];
+        ctx.fillRect(0, 0, W, H);
+      }
+    },
     bars: function (l) {
       var mirror = !!val(l.mirror), center = val(l.from) === 'center';
       var count = Math.max(4, Math.round(num(l.count, 32)));
@@ -206,7 +336,8 @@ const ocfxRuntimeHtml = r'''<!doctype html>
       if (!fn || val(l.enabled) === false) continue;
       ctx.save();
       ctx.globalCompositeOperation = BLEND[l.blend] || 'source-over';
-      ctx.globalAlpha = l.type === 'rings' || l.type === 'sparkle' || l.type === 'ripple' ? 1 : frac(l.opacity, 1);
+      // These layers apply their own opacity.
+      ctx.globalAlpha = SELF_ALPHA[l.type] ? 1 : frac(l.opacity, 1);
       try { fn(l, t, i); } catch (e) { console.error(e); }
       ctx.restore();
     }

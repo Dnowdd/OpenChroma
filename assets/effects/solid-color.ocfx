@@ -1,0 +1,20 @@
+{
+  "openchroma": 1,
+  "name": "Cor Sólida",
+  "description": "Uma cor fixa em todos os dispositivos.",
+  "author": "OpenChroma",
+  "background": "#000000",
+  "params": {
+    "color": {
+      "label": "Cor",
+      "type": "color",
+      "default": "#7C5CFF"
+    }
+  },
+  "layers": [
+    {
+      "type": "solid",
+      "color": "$color"
+    }
+  ]
+}

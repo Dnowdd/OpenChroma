@@ -1,0 +1,29 @@
+{
+  "openchroma": 1,
+  "name": "Lava",
+  "description": "Rocha derretida borbulhando em vermelho e laranja.",
+  "author": "OpenChroma",
+  "background": "#000000",
+  "params": {
+    "speed": {
+      "label": "Velocidade",
+      "type": "number",
+      "min": 0,
+      "max": 100,
+      "default": 25
+    }
+  },
+  "layers": [
+    {
+      "type": "noise",
+      "colors": [
+        "#140000",
+        "#7F1D1D",
+        "#EA580C",
+        "#FDBA74"
+      ],
+      "scale": 1.1,
+      "speed": "$speed"
+    }
+  ]
+}

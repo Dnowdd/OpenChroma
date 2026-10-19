@@ -1,0 +1,36 @@
+{
+  "openchroma": 1,
+  "name": "Tempestade",
+  "description": "Nuvens escuras se movendo com relâmpagos de vez em quando.",
+  "author": "OpenChroma",
+  "background": "#000000",
+  "params": {
+    "speed": {
+      "label": "Velocidade",
+      "type": "number",
+      "min": 0,
+      "max": 100,
+      "default": 30
+    }
+  },
+  "layers": [
+    {
+      "type": "noise",
+      "colors": [
+        "#020617",
+        "#1E293B",
+        "#334155"
+      ],
+      "scale": 1.4,
+      "speed": "$speed"
+    },
+    {
+      "type": "sparkle",
+      "color": "#E0F2FE",
+      "density": 3,
+      "size": 160,
+      "speed": 12,
+      "blend": "add"
+    }
+  ]
+}

@@ -1,0 +1,43 @@
+{
+  "openchroma": 1,
+  "name": "Céu Estrelado",
+  "description": "Estrelas piscando sobre um azul noturno que passa devagar.",
+  "author": "OpenChroma",
+  "background": "#02030A",
+  "params": {
+    "speed": {
+      "label": "Velocidade",
+      "type": "number",
+      "min": 0,
+      "max": 100,
+      "default": 15
+    },
+    "stars": {
+      "label": "Estrelas",
+      "type": "number",
+      "min": 10,
+      "max": 160,
+      "default": 70
+    }
+  },
+  "layers": [
+    {
+      "type": "gradient",
+      "colors": [
+        "#020617",
+        "#1E1B4B",
+        "#0C1A3A"
+      ],
+      "angle": 90,
+      "scale": 1.5,
+      "speed": 8
+    },
+    {
+      "type": "stars",
+      "color": "#E0E7FF",
+      "density": "$stars",
+      "speed": "$speed",
+      "blend": "add"
+    }
+  ]
+}

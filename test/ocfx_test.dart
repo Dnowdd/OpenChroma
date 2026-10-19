@@ -19,14 +19,27 @@ void main() {
       expect(e.description, isNotEmpty);
       final params = e.properties.map((p) => p.name).toSet();
       // Every "$name" reference must point at a declared parameter.
-      final refs = RegExp(r'"\$(\w+)"').allMatches(f.readAsStringSync()).map((m) => m.group(1));
+      final refs = RegExp(r'"\$(\w+)"')
+          .allMatches(f.readAsStringSync())
+          .map((m) => m.group(1));
       expect(refs.where((r) => !params.contains(r)), isEmpty);
     });
   }
 
   test('audio effects are detected as audio-reactive', () {
-    for (final name in ['spectrum', 'neon-equalizer', 'bass-pulse', 'beat', 'sound-wave', 'volume-meter']) {
-      expect(parseOcfx('assets/effects/$name.ocfx').usesAudio, isTrue, reason: name);
+    for (final name in [
+      'spectrum',
+      'neon-equalizer',
+      'bass-pulse',
+      'beat',
+      'sound-wave',
+      'volume-meter',
+    ]) {
+      expect(
+        parseOcfx('assets/effects/$name.ocfx').usesAudio,
+        isTrue,
+        reason: name,
+      );
     }
     expect(parseOcfx('assets/effects/aurora.ocfx').usesAudio, isFalse);
   });

@@ -1,0 +1,38 @@
+{
+  "openchroma": 1,
+  "name": "Pôr do Sol",
+  "description": "Laranja, rosa e roxo se misturando bem devagar.",
+  "author": "OpenChroma",
+  "background": "#000000",
+  "params": {
+    "speed": {
+      "label": "Velocidade",
+      "type": "number",
+      "min": 0,
+      "max": 100,
+      "default": 15
+    }
+  },
+  "layers": [
+    {
+      "type": "gradient",
+      "colors": [
+        "#F97316",
+        "#DB2777",
+        "#7C3AED",
+        "#F59E0B"
+      ],
+      "angle": 100,
+      "scale": 1.6,
+      "speed": "$speed"
+    },
+    {
+      "type": "pulse",
+      "color": "#FDE68A",
+      "min": 0,
+      "max": 0.15,
+      "speed": 10,
+      "blend": "screen"
+    }
+  ]
+}

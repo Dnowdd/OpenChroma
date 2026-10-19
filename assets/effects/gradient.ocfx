@@ -1,0 +1,45 @@
+{
+  "openchroma": 1,
+  "name": "Degradê",
+  "description": "Duas cores à sua escolha deslizando uma na outra.",
+  "author": "OpenChroma",
+  "background": "#000000",
+  "params": {
+    "first": {
+      "label": "Cor 1",
+      "type": "color",
+      "default": "#00E5FF"
+    },
+    "second": {
+      "label": "Cor 2",
+      "type": "color",
+      "default": "#FF00C8"
+    },
+    "speed": {
+      "label": "Velocidade",
+      "type": "number",
+      "min": 0,
+      "max": 100,
+      "default": 25
+    },
+    "angle": {
+      "label": "Direção",
+      "type": "number",
+      "min": 0,
+      "max": 360,
+      "default": 0
+    }
+  },
+  "layers": [
+    {
+      "type": "gradient",
+      "colors": [
+        "$first",
+        "$second"
+      ],
+      "angle": "$angle",
+      "scale": 1.2,
+      "speed": "$speed"
+    }
+  ]
+}

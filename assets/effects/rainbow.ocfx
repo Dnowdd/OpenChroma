@@ -1,0 +1,31 @@
+{
+  "openchroma": 1,
+  "name": "Arco-íris",
+  "description": "Todas as cores passando em faixas largas.",
+  "author": "OpenChroma",
+  "background": "#000000",
+  "params": {
+    "speed": {
+      "label": "Velocidade",
+      "type": "number",
+      "min": 0,
+      "max": 100,
+      "default": 35
+    },
+    "angle": {
+      "label": "Direção",
+      "type": "number",
+      "min": 0,
+      "max": 360,
+      "default": 0
+    }
+  },
+  "layers": [
+    {
+      "type": "spectrum",
+      "angle": "$angle",
+      "scale": 1.4,
+      "speed": "$speed"
+    }
+  ]
+}

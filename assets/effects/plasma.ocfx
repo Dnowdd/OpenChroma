@@ -1,0 +1,44 @@
+{
+  "openchroma": 1,
+  "name": "Plasma",
+  "description": "Manchas de cor que se misturam como tinta em movimento.",
+  "author": "OpenChroma",
+  "background": "#000000",
+  "params": {
+    "speed": {
+      "label": "Velocidade",
+      "type": "number",
+      "min": 0,
+      "max": 100,
+      "default": 30
+    },
+    "first": {
+      "label": "Cor 1",
+      "type": "color",
+      "default": "#FF2D95"
+    },
+    "second": {
+      "label": "Cor 2",
+      "type": "color",
+      "default": "#5B21B6"
+    },
+    "third": {
+      "label": "Cor 3",
+      "type": "color",
+      "default": "#06B6D4"
+    }
+  },
+  "layers": [
+    {
+      "type": "plasma",
+      "colors": [
+        "$first",
+        "$second",
+        "$third",
+        "$second"
+      ],
+      "scale": 1.2,
+      "speed": "$speed"
+    }
+  ]
+}
