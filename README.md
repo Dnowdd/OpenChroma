@@ -86,14 +86,11 @@ OpenChroma avisa quando encontra um deles aberto.
 ## Dispositivos compatíveis
 
 O OpenChroma fala com teclados, mouses, headsets, mousepads, placas-mãe,
-controladoras ARGB e outros dispositivos USB HID através de drivers em
-JavaScript. Hoje ele usa os drivers do SignalRGB instalados no PC (cerca de
-400 modelos); eles não vêm junto com o OpenChroma. Sem eles, efeitos,
-ventoinhas, monitor, diagnóstico e assistente funcionam normalmente, mas os
-LEDs dos dispositivos não acendem.
-
-Ainda não são suportados: memórias RAM e placas de vídeo controladas por
-SMBus, dispositivos de rede e serial, e telas LCD.
+controladoras ARGB e outros dispositivos USB HID através de drivers. Os
+drivers estão sendo reescritos num formato próprio, com base no código aberto
+do OpenRGB, para que o app não dependa de nenhum outro programa. Enquanto isso,
+efeitos, ventoinhas, monitor, diagnóstico e assistente funcionam normalmente.
+Veja o andamento no [ROADMAP](ROADMAP.md).
 
 ## Efeitos `.ocfx`
 
@@ -143,15 +140,9 @@ flutter run -d windows        # rodar em modo debug
 flutter test                  # testes
 ```
 
-Para gerar uma versão para publicar (o `.zip` portátil, o instalador e os
-checksums, em `dist\`):
-
-```powershell
-winget install JRSoftware.InnoSetup   # uma vez, para o instalador
-powershell -ExecutionPolicy Bypass -File scripts\build-release.ps1
-```
-
-A versão vem do campo `version:` do `pubspec.yaml` (ou use `-Version 1.2.3`).
+Para gerar o `.exe`, o instalador e publicar uma versão no GitHub, veja
+[docs/BUILDING.md](docs/BUILDING.md). O que ainda falta fazer está no
+[ROADMAP](ROADMAP.md).
 
 ### Como funciona
 
