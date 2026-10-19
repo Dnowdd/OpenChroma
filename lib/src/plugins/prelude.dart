@@ -11,7 +11,7 @@ var __oc = (function () {
   var state = {
     name: '', size: [1, 1], ledNames: [], ledPositions: [], image: '',
     subdevices: {}, channels: {}, channelOrder: [], properties: [], features: [],
-    ledLimit: 0, frameRate: 0, messages: []
+    ledLimit: 0, frameRate: 0, messages: [], battery: null, batteryState: null
   };
   var dirty = true;
   var frame = { m: [], s: {}, c: {} };
@@ -134,7 +134,7 @@ var __oc = (function () {
     addProperty: function (p) {
       device.removeProperty(p.property, true);
       state.properties.push(p);
-      if (!(p.property in globalThis)) {
+      if (globalThis[p.property] === undefined) {
         var v = p.property in userProps ? userProps[p.property] : __oc.coerce(p, p['default']);
         globalThis[p.property] = v;
       }
@@ -142,7 +142,8 @@ var __oc = (function () {
     },
     removeProperty: function (name, keepValue) {
       state.properties = state.properties.filter(function (p) { return p.property !== name; });
-      if (!keepValue) { try { delete globalThis[name]; } catch (e) {} }
+      // Reading a removed property must not throw a ReferenceError.
+      if (!keepValue) globalThis[name] = undefined;
       touch();
     },
     getProperty: function (name) {
@@ -209,6 +210,19 @@ var __oc = (function () {
     get: function (t, k) { return k in t ? t[k] : function () { return -1; }; }
   });
   var inputStub = { sendEvent: noop, sendHid: noop, sendKey: noop };
+  // Wireless devices report their charge; the app shows it.
+  var battery = {
+    lowBatteryWarningLevel: 15,
+    setBatteryLevel: function (v) { var n = Number(v); if (!isNaN(n) && n !== state.battery) { state.battery = Math.max(0, Math.min(100, n)); touch(); } },
+    setBatteryState: function (v) { if (v !== state.batteryState) { state.batteryState = v; touch(); } },
+    getBatteryLevel: function () { return state.battery == null ? 0 : state.battery; },
+    getBatteryState: function () { return state.batteryState; }
+  };
+  // LCD screens need raw USB, which is not supported: give them an empty
+  // frame so the device's LEDs keep working instead of the plugin crashing.
+  var lcd = new Proxy({ initialize: noop, getFrame: function () { return []; } }, {
+    get: function (t, k) { return k in t ? t[k] : noop; }
+  });
 
   var Assert = {
     isOk: function (v, msg) { if (!v) throw new Error('Assert.isOk: ' + (msg || '')); return true; },
@@ -234,13 +248,14 @@ var __oc = (function () {
     '@signalrgb/devicediscovery': { foundVirtualDevice: noop, lostVirtualDevice: noop },
     '@signalrgb/permissions': new Proxy({}, { get: function () { return function () { return true; }; } }),
     '@signalrgb/serial': new Proxy({}, { get: function () { return noop; } }),
-    '@signalrgb/lcd': new Proxy({}, { get: function () { return noop; } })
+    '@signalrgb/lcd': lcd
   };
 
   globalThis.device = device;
   globalThis.bus = bus;
   globalThis.mouse = inputStub;
   globalThis.keyboard = inputStub;
+  globalThis.battery = battery;
   globalThis.require = function () { return {}; };
 
   return {
@@ -273,7 +288,7 @@ var __oc = (function () {
         name: state.name, size: state.size, ledNames: state.ledNames, ledPositions: state.ledPositions,
         image: state.image, subdevices: state.subdevices, channels: state.channels,
         channelOrder: state.channelOrder, properties: props, features: state.features,
-        frameRate: state.frameRate
+        frameRate: state.frameRate, battery: state.battery, batteryState: state.batteryState
       });
     },
     touch: touch

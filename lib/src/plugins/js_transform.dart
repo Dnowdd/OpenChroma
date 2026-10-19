@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:path/path.dart' as p;
@@ -45,7 +46,26 @@ String transformPlugin(String filePath) {
   final deps = StringBuffer();
   final ids = <String, String>{};
   final m = _transform(p.normalize(p.absolute(filePath)), deps, ids);
-  return '$deps\n${m.body}';
+  return '$deps\n${m.body}\n${_declareGlobals(m.body)}';
+}
+
+final _globalComment = RegExp(r'/\*\s*global\s+([^*]*)\*/');
+final _identifier = RegExp(r'^[A-Za-z_$][\w$]*');
+
+/// Plugins list the properties they read as globals in a `/* global */`
+/// lint comment, and some add a property only for certain models (e.g. DPI
+/// settings on mice) yet read it everywhere. Declaring the listed names
+/// keeps those reads from throwing a ReferenceError on the other models.
+String _declareGlobals(String body) {
+  final names = <String>{
+    for (final m in _globalComment.allMatches(body))
+      for (final part in m.group(1)!.split(RegExp(r'[\s,]+')))
+        ?_identifier.firstMatch(part)?.group(0),
+  };
+  if (names.isEmpty) return '';
+  // The leading semicolon ends whatever statement the plugin left open.
+  return ';${jsonEncode(names.toList())}.forEach(function (n) '
+      '{ if (!(n in globalThis)) globalThis[n] = undefined; });';
 }
 
 _Module _transform(String abs, StringBuffer deps, Map<String, String> ids) {

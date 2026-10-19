@@ -1,23 +1,32 @@
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:openchroma/src/paths.dart';
 import 'package:openchroma/src/plugins/plugin_scanner.dart';
 
+/// Scans every installed SignalRGB plugin. It needs QuickJS, which only
+/// loads next to a Windows build, so it runs when OC_PLUGIN_TEST=1.
 void main() {
-  final root = '${Platform.environment['LOCALAPPDATA']}/VortxEngine/app-2.5.80/Signal-x64/Plugins';
+  final install = SignalRgbPaths.detect().installDir;
+  final enabled = Platform.environment['OC_PLUGIN_TEST'] == '1';
 
-  test('scans SignalRGB plugins', () {
-    final files = Directory(root).listSync(recursive: true).whereType<File>().where((f) => f.path.endsWith('.js') && !f.path.endsWith('.test.js')).toList();
-    final infos = files.map((f) => scanPluginFile(f.path)).toList();
-    final errors = infos.where((i) => i.error != null).toList();
-    final hid = infos.where((i) => i.error == null && i.isHid && i.vendorId != null).toList();
-    print('total=${infos.length} errors=${errors.length} hid=${hid.length}');
-    final types = <String, int>{};
-    for (final i in infos) { types[i.type] = (types[i.type] ?? 0) + 1; }
-    print(types);
-    for (final e in errors.take(25)) { print('ERR ${e.path.substring(root.length)}: ${e.error!.split('\n').first}'); }
-    for (final pair in [[0x048d, 0x5702], [0x3151, 0x4015], [0x046d, 0xc08f], [0x054c, 0x09cc]]) {
-      print('${pair[0].toRadixString(16)}:${pair[1].toRadixString(16)} -> ${hid.where((i) => i.matches(pair[0], pair[1])).map((i) => i.name).toList()}');
-    }
-  });
+  test(
+    'scans installed plugins without errors',
+    () {
+      final root = '$install${Platform.pathSeparator}Plugins';
+      final files = Directory(root)
+          .listSync(recursive: true)
+          .whereType<File>()
+          .where((f) => f.path.endsWith('.js') && !f.path.endsWith('.test.js'))
+          .toList();
+      final infos = files.map((f) => scanPluginFile(f.path)).toList();
+      final errors = infos.where((i) => i.error != null).toList();
+      expect(errors, isEmpty, reason: errors.map((e) => e.path).join('\n'));
+    },
+    skip: !enabled
+        ? 'set OC_PLUGIN_TEST=1 (needs the QuickJS DLL)'
+        : install == null
+        ? 'SignalRGB is not installed'
+        : false,
+  );
 }
