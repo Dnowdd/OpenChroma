@@ -55,6 +55,9 @@ if (-not $SkipBuild) {
   if ($LASTEXITCODE -ne 0) { throw 'Tests failed.' }
 
   Step 'Building the app (release)'
+  # Start the bundle from scratch so DLLs of removed plugins do not linger
+  # (the drivers DLL is rebuilt in its own folder and copied back).
+  if (Test-Path $release) { Remove-Item $release -Recurse -Force }
   flutter build windows --release --build-name=$Version "--dart-define=OC_VERSION=$Version"
   if ($LASTEXITCODE -ne 0) { throw 'flutter build failed.' }
 }
@@ -73,7 +76,7 @@ foreach ($dll in 'msvcp140.dll', 'vcruntime140.dll', 'vcruntime140_1.dll') {
     throw "$dll is missing from the build; see windows/CMakeLists.txt."
   }
 }
-Copy-Item (Join-Path $root 'LICENSE') $app -ErrorAction SilentlyContinue
+Copy-Item (Join-Path $root 'LICENSE'), (Join-Path $root 'THIRD_PARTY.md') $app
 Copy-Item (Join-Path $root 'assets\pawnio\COPYING.txt') (Join-Path $app 'PawnIO-modules-COPYING.txt')
 
 Step 'Creating the portable .zip'
