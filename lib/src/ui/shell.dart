@@ -4,11 +4,13 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 
 import '../effects/effect_host.dart';
+import '../checkup/checkup.dart';
 import '../engine/engine.dart';
 import '../fans/fan_service.dart';
 import '../monitor/system_monitor.dart';
 import '../system/launch_settings.dart';
 import 'accent.dart';
+import 'checkup_page.dart';
 import 'decor_clock.dart';
 import 'devices_page.dart';
 import 'effects_page.dart';
@@ -54,6 +56,10 @@ class _ShellState extends State<Shell> {
       .clamp(0, Pages.settings);
   late final _accent = AccentController(widget.engine);
   SystemMonitor get _monitor => widget.monitor;
+  late final _checkup = CheckupService(
+    monitor: widget.monitor,
+    fans: widget.fans,
+  );
 
   static const _nav = [
     (Icons.home_outlined, Icons.home_rounded, 'Início'),
@@ -80,6 +86,7 @@ class _ShellState extends State<Shell> {
   @override
   void dispose() {
     _lifecycle.dispose();
+    _checkup.dispose();
     _accent.dispose();
     super.dispose();
   }
@@ -164,9 +171,10 @@ class _ShellState extends State<Shell> {
                                                       shutdown: engine.shutdown,
                                                     ),
                                               ),
-                                              MonitorPage(
+                                              _PerformancePage(
                                                 engine: engine,
                                                 monitor: _monitor,
+                                                checkup: _checkup,
                                                 active: _shows(
                                                   Pages.performance,
                                                 ),
@@ -261,6 +269,57 @@ class _LightingPageState extends State<_LightingPage> {
       ),
     ],
   );
+}
+
+/// Live monitor and checkup, under one destination.
+class _PerformancePage extends StatefulWidget {
+  const _PerformancePage({
+    required this.engine,
+    required this.monitor,
+    required this.checkup,
+    required this.active,
+  });
+  final Engine engine;
+  final SystemMonitor monitor;
+  final CheckupService checkup;
+  final bool active;
+
+  @override
+  State<_PerformancePage> createState() => _PerformancePageState();
+}
+
+class _PerformancePageState extends State<_PerformancePage> {
+  int _tab = 0;
+
+  @override
+  Widget build(BuildContext context) {
+    final tabs = [
+      OcSegmented<int>(
+        value: _tab,
+        options: const [(0, 'Monitor'), (1, 'Diagnóstico')],
+        onChanged: (v) => setState(() => _tab = v),
+      ),
+    ];
+    return PageStack(
+      index: _tab,
+      children: [
+        MonitorPage(
+          engine: widget.engine,
+          monitor: widget.monitor,
+          active: widget.active && _tab == 0,
+          headerActions: tabs,
+        ),
+        CheckupPage(
+          checkup: widget.checkup,
+          headerActions: tabs,
+          onRestartAsAdmin: () => restartAsAdmin(
+            page: Pages.performance,
+            shutdown: widget.engine.shutdown,
+          ),
+        ),
+      ],
+    );
+  }
 }
 
 /// Navigation: a column of round icon buttons, the selected one lit with

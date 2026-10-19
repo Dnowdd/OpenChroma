@@ -17,9 +17,13 @@ class MonitorPage extends StatefulWidget {
     required this.engine,
     required this.monitor,
     required this.active,
+    this.headerActions = const [],
   });
   final Engine engine;
   final SystemMonitor monitor;
+
+  /// Controls on the right of the page title (the page's tabs).
+  final List<Widget> headerActions;
 
   /// Whether the page is on screen; sampling only runs while it is.
   final bool active;
@@ -73,6 +77,7 @@ class _MonitorPageState extends State<MonitorPage> {
               subtitle: s == null
                   ? 'Lendo os sensores…'
                   : 'Atualizado a cada segundo · PC ligado há ${_fmtUptime(s.uptime)}',
+              actions: widget.headerActions,
             ),
             if (s == null && _monitor.stalled)
               const Padding(
