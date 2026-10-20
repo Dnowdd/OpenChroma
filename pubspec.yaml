@@ -35,6 +35,7 @@ dependencies:
   # Use with the CupertinoIcons class for iOS style icons.
   cupertino_icons: ^1.0.8
   ffi: ^2.2.0
+  flutter_js: ^0.8.7
   webview_windows: ^0.4.0
   path: ^1.9.1
   path_provider: ^2.1.6
@@ -63,6 +64,7 @@ flutter:
 
   assets:
     - assets/effects/
+    - assets/plugins/
     - assets/pawnio/
 
   # To add assets to your application, add an assets section, like this:

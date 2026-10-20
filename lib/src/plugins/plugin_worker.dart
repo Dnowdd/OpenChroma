@@ -1,0 +1,200 @@
+import 'dart:async';
+import 'dart:convert';
+import 'dart:io';
+import 'dart:isolate';
+import 'dart:typed_data';
+
+import 'package:path/path.dart' as p;
+
+import '../hid/hid_ffi.dart';
+import 'js_runtime.dart';
+
+/// Arguments for [pluginWorkerMain].
+class PluginWorkerArgs {
+  PluginWorkerArgs({
+    required this.sendPort,
+    required this.pluginPath,
+    required this.endpoints,
+    required this.settings,
+    required this.deviceName,
+  });
+
+  final SendPort sendPort;
+  final String pluginPath;
+  final List<Map<String, Object>> endpoints;
+  final Map<String, Object?> settings;
+  final String deviceName;
+}
+
+/// Runs one plugin for one physical device, in its own isolate.
+///
+/// To the app: `port`, `layout` {zones, modes}, `battery`, `log`, `error`,
+/// `rejected`, `stopped`. From the app: `frame` (RGB bytes per LED),
+/// `mode` (hardware mode id, or null for the app's colors), `setting`,
+/// `stop`.
+Future<void> pluginWorkerMain(PluginWorkerArgs args) async {
+  final inbox = ReceivePort();
+  final out = args.sendPort;
+  out.send({'t': 'port', 'port': inbox.sendPort});
+
+  final endpoints = [
+    for (final e in args.endpoints) HidEndpointInfo.fromJson(e),
+  ];
+  final handles = <String, HidHandle>{};
+  HidEndpointInfo? current;
+
+  void log(String msg) => out.send({'t': 'log', 'msg': msg});
+
+  HidHandle handle() {
+    final ep = current ?? (throw PluginError('nenhuma interface escolhida'));
+    return handles[ep.path] ??=
+        HidHandle.open(ep) ??
+        (throw PluginError('não foi possível abrir ${ep.path}'));
+  }
+
+  Object? host(String method, List<dynamic> a) {
+    int n(Object? v) => v is num ? v.toInt() : 0;
+    List<int> bytes(Object? v) => v is List ? v.map(n).toList() : <int>[];
+    switch (method) {
+      case 'write':
+        return handle().write(bytes(a[0]));
+      case 'read':
+        return handle().read(n(a[0]), n(a[1])).toList();
+      case 'sendFeature':
+        return handle().sendFeature(bytes(a[0]));
+      case 'getFeature':
+        return handle().getFeature([n(a[0])], n(a[1])).toList();
+      case 'getInputReport':
+        return handle().getInputReport([n(a[0])], n(a[1])).toList();
+      case 'clearInput':
+        handle().clearReadBuffer();
+        return null;
+      case 'endpoints':
+        return [for (final e in endpoints) e.toPluginEndpoint()];
+      case 'useEndpoint':
+        final m = (a[0] as Map?) ?? {};
+        for (final e in endpoints) {
+          final pe = e.toPluginEndpoint();
+          if (m.entries.every((kv) => pe[kv.key] == kv.value)) {
+            current = e;
+            return true;
+          }
+        }
+        return false;
+      case 'sleep':
+        final ms = n(a[0]);
+        if (ms > 0) sleep(Duration(milliseconds: ms));
+        return null;
+      case 'log':
+        log('${a[0]}');
+        return null;
+      case 'battery':
+        out.send({
+          't': 'battery',
+          'level': a[0] == null ? null : n(a[0]),
+          'charging': a[1] == true,
+        });
+        return null;
+    }
+    return null;
+  }
+
+  final rt = JsRuntime(host);
+  var running = true;
+  Uint8List? pendingFrame;
+  String? hardwareMode;
+  var modeChanged = false;
+  final pendingSettings = <MapEntry<String, Object?>>[];
+  final stop = Completer<void>();
+
+  inbox.listen((msg) {
+    final m = msg as Map;
+    switch (m['t']) {
+      case 'frame':
+        pendingFrame = m['rgb'] as Uint8List;
+      case 'mode':
+        hardwareMode = m['id'] as String?;
+        modeChanged = true;
+      case 'setting':
+        pendingSettings.add(MapEntry(m['name'] as String, m['value']));
+      case 'stop':
+        running = false;
+        if (!stop.isCompleted) stop.complete();
+    }
+  });
+
+  try {
+    rt.eval(
+      File(args.pluginPath).readAsStringSync(),
+      name: p.basename(args.pluginPath),
+    );
+    final first = endpoints.first;
+    rt.eval(
+      '__oc.setInfo(${jsonEncode({'vid': first.vendorId, 'pid': first.productId, 'serial': first.serial, 'product': first.product, 'manufacturer': first.manufacturer, 'name': args.deviceName})})',
+    );
+    rt.eval('__oc.setSettings(${jsonEncode(args.settings)})');
+    final pick = rt.evalJson(
+      '__oc.pickEndpoint(${jsonEncode([for (final e in endpoints) e.toPluginEndpoint()])})',
+    );
+    final index = pick is num ? pick.toInt() : -1;
+    if (index < 0 || index >= endpoints.length) {
+      out.send({'t': 'rejected'});
+      return;
+    }
+    current = endpoints[index];
+    if (rt.eval('__oc.start()') != true) {
+      out.send({'t': 'rejected'});
+      return;
+    }
+    out.send({'t': 'layout', 'layout': rt.eval('__oc.layout()')});
+
+    final fps = ((rt.eval('__oc.fps()') as num?) ?? 30).clamp(1, 60).toInt();
+    final pollMs = ((rt.eval('__oc.pollMs()') as num?) ?? 1000).toInt();
+    final clock = Stopwatch()..start();
+    var lastPoll = -pollMs;
+    while (running) {
+      final frameStart = clock.elapsedMilliseconds;
+      // Let queued messages (frames, settings, stop) arrive.
+      await Future<void>.delayed(Duration.zero);
+      if (!running) break;
+      for (final s in pendingSettings) {
+        rt.eval(
+          '__oc.setSetting(${jsonEncode(s.key)}, ${jsonEncode(s.value)})',
+        );
+      }
+      pendingSettings.clear();
+      if (modeChanged) {
+        modeChanged = false;
+        rt.eval('__oc.mode(${jsonEncode(hardwareMode)})');
+      }
+      final f = pendingFrame;
+      if (f != null && hardwareMode == null) {
+        pendingFrame = null;
+        rt.eval('__oc.render(${jsonEncode(f)})');
+      }
+      if (clock.elapsedMilliseconds - lastPoll >= pollMs) {
+        lastPoll = clock.elapsedMilliseconds;
+        rt.eval('__oc.poll()');
+      }
+      final wait = 1000 ~/ fps - (clock.elapsedMilliseconds - frameStart);
+      await Future.any([
+        Future<void>.delayed(Duration(milliseconds: wait > 1 ? wait : 1)),
+        stop.future,
+      ]);
+    }
+    try {
+      rt.eval('__oc.stop()');
+    } catch (e) {
+      log('stop: $e');
+    }
+  } catch (e) {
+    out.send({'t': 'error', 'msg': '$e'});
+  } finally {
+    for (final h in handles.values) {
+      h.close();
+    }
+    rt.dispose();
+    inbox.close();
+    out.send({'t': 'stopped'});
+  }
+}
