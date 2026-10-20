@@ -90,6 +90,31 @@ void main() {
     expect(fake.features, hasLength(1));
   }, skip: skip);
 
+  test('ROYUAN keyboard switches to its own effect and back', () {
+    final fake = _FakeDevice(
+      'assets/plugins/royuan-keyboard.js',
+      endpoints: [_endpoint(interface: 2, featureLength: 65)],
+    );
+    fake.start();
+    // Mode ids are numbers: 0x02 is breathing, sent with rainbow colors.
+    fake.mode(2);
+    expect(fake.features.last.sublist(1, 9), [
+      0x07,
+      0x02,
+      4,
+      4,
+      0x08,
+      255,
+      255,
+      255,
+    ]);
+    // Back to the app: the next frame is sent even if the color is the
+    // same as before the effect.
+    fake.mode(null);
+    fake.render([1, 2, 3]);
+    expect(fake.features.last.sublist(1, 9), [0x07, 0x01, 4, 4, 0x07, 1, 2, 3]);
+  }, skip: skip);
+
   test('G403 HERO turns off saving and sets both zones', () {
     final fake = _FakeDevice(
       'assets/plugins/logitech-g403-hero.js',
@@ -215,4 +240,5 @@ class _FakeDevice {
 
   void render(List<int> rgb) => _rt.eval('__oc.render(${jsonEncode(rgb)})');
   void poll() => _rt.eval('__oc.poll()');
+  void mode(Object? id) => _rt.eval('__oc.mode(${jsonEncode(id)})');
 }

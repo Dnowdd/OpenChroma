@@ -102,18 +102,20 @@ Future<void> pluginWorkerMain(PluginWorkerArgs args) async {
   final rt = JsRuntime(host);
   var running = true;
   Uint8List? pendingFrame;
-  String? hardwareMode;
+  // A mode id is whatever the plugin declared (a number or a string).
+  Object? hardwareMode;
   var modeChanged = false;
   final pendingSettings = <MapEntry<String, Object?>>[];
   final stop = Completer<void>();
 
   inbox.listen((msg) {
-    final m = msg as Map;
+    if (msg is! Map) return;
+    final m = msg;
     switch (m['t']) {
       case 'frame':
         pendingFrame = m['rgb'] as Uint8List;
       case 'mode':
-        hardwareMode = m['id'] as String?;
+        hardwareMode = m['id'];
         modeChanged = true;
       case 'setting':
         pendingSettings.add(MapEntry(m['name'] as String, m['value']));
@@ -152,29 +154,38 @@ Future<void> pluginWorkerMain(PluginWorkerArgs args) async {
     final pollMs = ((rt.eval('__oc.pollMs()') as num?) ?? 1000).toInt();
     final clock = Stopwatch()..start();
     var lastPoll = -pollMs;
+    // A callback that throws is logged (a few times) and the plugin keeps
+    // running; one bad frame should not leave the device frozen.
+    var failures = 0;
+    void safe(String code) {
+      try {
+        rt.eval(code);
+      } on PluginError catch (e) {
+        if (failures++ < 5) log('erro: $e');
+      }
+    }
+
     while (running) {
       final frameStart = clock.elapsedMilliseconds;
       // Let queued messages (frames, settings, stop) arrive.
       await Future<void>.delayed(Duration.zero);
       if (!running) break;
       for (final s in pendingSettings) {
-        rt.eval(
-          '__oc.setSetting(${jsonEncode(s.key)}, ${jsonEncode(s.value)})',
-        );
+        safe('__oc.setSetting(${jsonEncode(s.key)}, ${jsonEncode(s.value)})');
       }
       pendingSettings.clear();
       if (modeChanged) {
         modeChanged = false;
-        rt.eval('__oc.mode(${jsonEncode(hardwareMode)})');
+        safe('__oc.mode(${jsonEncode(hardwareMode)})');
       }
       final f = pendingFrame;
       if (f != null && hardwareMode == null) {
         pendingFrame = null;
-        rt.eval('__oc.render(${jsonEncode(f)})');
+        safe('__oc.render(${jsonEncode(f)})');
       }
       if (clock.elapsedMilliseconds - lastPoll >= pollMs) {
         lastPoll = clock.elapsedMilliseconds;
-        rt.eval('__oc.poll()');
+        safe('__oc.poll()');
       }
       final wait = 1000 ~/ fps - (clock.elapsedMilliseconds - frameStart);
       await Future.any([

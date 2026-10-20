@@ -831,7 +831,16 @@ class Engine extends ChangeNotifier {
   ) async {
     final inbox = ReceivePort();
     d.inbox = inbox;
-    inbox.listen((msg) => _onPluginMessage(d, msg as Map));
+    inbox.listen((msg) {
+      if (msg is Map) {
+        _onPluginMessage(d, msg);
+      } else if (msg is List) {
+        // An uncaught error in the plugin's isolate (it is about to exit).
+        d.error = 'O plugin parou: ${msg.first}';
+      } else if (msg == null) {
+        _onPluginExit(d);
+      }
+    });
     final ds = _deviceSettings(d.key);
     final values = <String, Object?>{
       for (final e in d.plugin!.settings.entries) e.key: e.value['default'],
@@ -847,6 +856,8 @@ class Engine extends ChangeNotifier {
         deviceName: d.device.name,
       ),
       debugName: 'plugin ${d.key}',
+      onError: inbox.sendPort,
+      onExit: inbox.sendPort,
     );
   }
 
@@ -938,6 +949,19 @@ class Engine extends ChangeNotifier {
           d.status = 'stopped';
           notifyListeners();
         }
+    }
+  }
+
+  /// The plugin's isolate ended. When that was not asked for (a crash), the
+  /// device is dropped so the next scan starts the plugin again.
+  void _onPluginExit(DeviceInstance d) {
+    d.inbox?.close();
+    d.port = null;
+    if (_shuttingDown || devices[d.key] != d) return;
+    if (d.status == 'running' || d.status == 'starting') {
+      if (kDebugMode) debugPrint('[${d.name}] plugin exited: ${d.error}');
+      devices.remove(d.key);
+      notifyListeners();
     }
   }
 
