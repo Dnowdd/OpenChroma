@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:isolate';
 import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
@@ -11,6 +12,9 @@ import '../audio/audio_service.dart';
 import '../effects/effect_library.dart';
 import '../effects/ocfx_runtime.dart';
 import '../drivers/native_drivers.dart';
+import '../hid/hid_ffi.dart';
+import '../plugins/plugin_library.dart';
+import '../plugins/plugin_worker.dart';
 import '../paths.dart';
 
 /// Canvas size effects draw on; layout coordinates use this space.
@@ -61,15 +65,52 @@ class LedZone {
   final List<int> leds;
 }
 
-/// A device the drivers found.
+/// Where a device's driver lives.
+enum DeviceSource {
+  /// The built-in drivers (oc_drivers.dll).
+  native,
+
+  /// An OpenChroma JavaScript plugin.
+  plugin,
+}
+
+/// A device the drivers or a plugin found.
 class DeviceInstance {
-  DeviceInstance(this.key, this.device);
+  DeviceInstance(
+    this.key,
+    this.device, {
+    this.source = DeviceSource.native,
+    this.plugin,
+  });
 
   final String key;
   DriverDevice device;
+  final DeviceSource source;
 
-  /// running or disabled.
+  /// The plugin driving it, for [DeviceSource.plugin].
+  final PluginInfo? plugin;
+
+  /// starting, running, disabled, error, unsupported or stopped.
   String status = 'running';
+  String? error;
+  final List<String> logs = [];
+
+  /// The device's own lighting effects, as (id, name).
+  List<(Object?, String)> modes = [];
+
+  /// The hardware effect running instead of the app's colors, if any.
+  String? activeMode;
+
+  /// Charge of a wireless device (0-100) and whether it is charging.
+  int? battery;
+  bool charging = false;
+
+  /// Plugin isolate link.
+  SendPort? port;
+  ReceivePort? inbox;
+
+  /// Last colors sent, to skip identical frames.
+  Uint8List? lastSent;
 
   String get name => device.name;
   String get type => device.type;
@@ -258,6 +299,14 @@ class Engine extends ChangeNotifier {
     try {
       File(p.join(dataDir, 'plugin_cache.json')).deleteSync();
     } catch (_) {}
+
+    // Plugins claim their devices before the native drivers look.
+    await _loadPlugins();
+    _scanPluginDevices();
+    _pluginScan = Timer.periodic(
+      const Duration(seconds: 3),
+      (_) => _scanPluginDevices(),
+    );
 
     // Detection runs on the drivers' threads; poll the result.
     scanning = drivers.available;
@@ -680,6 +729,263 @@ class Engine extends ChangeNotifier {
     notifyListeners();
   }
 
+  // ---------------------------------------------------------------- plugins
+  /// OpenChroma plugins (assets/plugins and the user's plugins folder).
+  List<PluginInfo> plugins = [];
+  late final String pluginsDir = p.join(dataDir, 'plugins');
+  late final String _bundledPluginsDir = p.join(pluginsDir, 'bundled');
+  final Map<int, (PluginInfo, PluginDevice)> _pluginModels = {};
+  Timer? _pluginScan;
+  bool _scanningPlugins = false;
+  int _nextPluginId = -1;
+
+  /// Copies the bundled plugins out of the assets and reads every plugin.
+  /// Their devices are claimed before the native drivers start.
+  Future<void> _loadPlugins() async {
+    final dir = Directory(_bundledPluginsDir);
+    if (dir.existsSync()) dir.deleteSync(recursive: true);
+    dir.createSync(recursive: true);
+    final manifest = await AssetManifest.loadFromAssetBundle(rootBundle);
+    for (final asset in manifest.listAssets()) {
+      if (!asset.startsWith('assets/plugins/')) continue;
+      File(p.join(_bundledPluginsDir, p.basename(asset)))
+          .writeAsStringSync(await rootBundle.loadString(asset));
+    }
+    plugins = await loadPlugins(
+      bundledDir: _bundledPluginsDir,
+      userDir: pluginsDir,
+    );
+    for (final pl in plugins) {
+      for (final model in pl.devices) {
+        _pluginModels[model.key] = (pl, model);
+        drivers.claimHid(model.vid, model.pid);
+      }
+    }
+  }
+
+  /// Starts a plugin for every claimed device that is plugged in, and stops
+  /// those that were unplugged.
+  Future<void> _scanPluginDevices() async {
+    if (_shuttingDown || _pluginModels.isEmpty || _scanningPlugins) return;
+    _scanningPlugins = true;
+    try {
+      // Enumerating opens every HID collection; keep it off the UI isolate.
+      final endpoints = await Isolate.run(hidEnumerate);
+      if (_shuttingDown) return;
+      final groups = <String, List<HidEndpointInfo>>{};
+      for (final e in endpoints) {
+        if (!_pluginModels.containsKey(e.vendorId << 16 | e.productId)) {
+          continue;
+        }
+        final key =
+            'plugin|${e.vendorId.toRadixString(16)}:'
+            '${e.productId.toRadixString(16)}|${e.serial}';
+        (groups[key] ??= []).add(e);
+      }
+      var changed = false;
+      for (final d in devices.values.toList()) {
+        if (d.source == DeviceSource.plugin && !groups.containsKey(d.key)) {
+          d.port?.send({'t': 'stop'});
+          devices.remove(d.key);
+          changed = true;
+        }
+      }
+      for (final entry in groups.entries) {
+        if (devices.containsKey(entry.key)) continue;
+        final first = entry.value.first;
+        final (plugin, model) =
+            _pluginModels[first.vendorId << 16 | first.productId]!;
+        final d = DeviceInstance(
+          entry.key,
+          DriverDevice.fromJson({
+            'id': _nextPluginId--,
+            'name': model.name,
+            'vendor': plugin.vendor,
+            'type': plugin.type,
+            'serial': first.serial,
+            'location':
+                'HID ${first.vendorId.toRadixString(16).padLeft(4, '0')}:'
+                '${first.productId.toRadixString(16).padLeft(4, '0')}',
+          }),
+          source: DeviceSource.plugin,
+          plugin: plugin,
+        )..status = 'starting';
+        devices[d.key] = d;
+        changed = true;
+        await _spawnPlugin(d, entry.value);
+      }
+      if (changed) notifyListeners();
+    } finally {
+      _scanningPlugins = false;
+    }
+  }
+
+  Future<void> _spawnPlugin(
+    DeviceInstance d,
+    List<HidEndpointInfo> endpoints,
+  ) async {
+    final inbox = ReceivePort();
+    d.inbox = inbox;
+    inbox.listen((msg) => _onPluginMessage(d, msg as Map));
+    final ds = _deviceSettings(d.key);
+    final values = <String, Object?>{
+      for (final e in d.plugin!.settings.entries) e.key: e.value['default'],
+      ...((ds['props'] as Map?) ?? {}).cast<String, Object?>(),
+    };
+    await Isolate.spawn(
+      pluginWorkerMain,
+      PluginWorkerArgs(
+        sendPort: inbox.sendPort,
+        pluginPath: d.plugin!.path,
+        endpoints: [for (final e in endpoints) e.toJson()],
+        settings: values,
+        deviceName: d.device.name,
+      ),
+      debugName: 'plugin ${d.key}',
+    );
+  }
+
+  /// Turns a plugin's zone list into the drivers' device description.
+  static Map<String, Object?> _pluginLayout(DriverDevice base, List zones) {
+    final out = <Map<String, Object?>>[];
+    var leds = 0;
+    for (final z in zones.cast<Map>()) {
+      if (z['map'] is List) {
+        final map = [
+          for (final v in z['map'] as List)
+            (v is num && v >= 0) ? v.toInt() : DriverZone.noLed,
+        ];
+        final count = map
+            .where((v) => v != DriverZone.noLed)
+            .fold<int>(0, (m, v) => v + 1 > m ? v + 1 : m);
+        out.add({
+          'name': '${z['name'] ?? ''}',
+          'type': ZoneType.matrix,
+          'count': count,
+          'width': (z['width'] as num?)?.toInt() ?? 0,
+          'height': (z['height'] as num?)?.toInt() ?? 0,
+          'map': map,
+        });
+        leds += count;
+      } else {
+        final count = (z['leds'] as num?)?.toInt() ?? 1;
+        out.add({
+          'name': '${z['name'] ?? ''}',
+          'type': count == 1 ? ZoneType.single : ZoneType.linear,
+          'count': count,
+        });
+        leds += count;
+      }
+    }
+    return {
+      'id': base.id,
+      'name': base.name,
+      'vendor': base.vendor,
+      'type': base.type,
+      'serial': base.serial,
+      'location': base.location,
+      'leds': leds,
+      'zones': out,
+    };
+  }
+
+  void _onPluginMessage(DeviceInstance d, Map m) {
+    switch (m['t']) {
+      case 'port':
+        d.port = m['port'] as SendPort;
+      case 'layout':
+        final j = jsonDecode(m['layout'] as String) as Map;
+        d.update(
+          DriverDevice.fromJson(
+            _pluginLayout(d.device, j['zones'] as List? ?? []),
+          ),
+        );
+        d.modes = [
+          for (final mode in j['modes'] as List? ?? [])
+            if (mode is Map) (mode['id'], '${mode['name'] ?? mode['id']}'),
+        ];
+        d.status = _deviceSettings(d.key)['disabled'] == true
+            ? 'disabled'
+            : 'running';
+        _ensureLayout(d);
+        _applySavedMode(d);
+        notifyListeners();
+      case 'battery':
+        d.battery = m['level'] as int?;
+        d.charging = m['charging'] == true;
+        notifyListeners();
+      case 'log':
+        d.logs.add(m['msg'] as String);
+        if (d.logs.length > 200) d.logs.removeAt(0);
+        if (kDebugMode) debugPrint('[${d.name}] ${m['msg']}');
+      case 'error':
+        d.status = 'error';
+        d.error = m['msg'] as String;
+        notifyListeners();
+      case 'rejected':
+        d.status = 'unsupported';
+        d.error = 'O plugin não reconheceu este dispositivo.';
+        notifyListeners();
+      case 'stopped':
+        d.inbox?.close();
+        d.port = null;
+        if (d.status == 'running' || d.status == 'starting') {
+          d.status = 'stopped';
+          notifyListeners();
+        }
+    }
+  }
+
+  /// Changes one of a plugin's settings for device [d].
+  void setPluginSetting(DeviceInstance d, String name, Object? value) {
+    final props =
+        (_deviceSettings(d.key)['props'] ??= <String, dynamic>{}) as Map;
+    props[name] = value;
+    _save();
+    d.port?.send({'t': 'setting', 'name': name, 'value': value});
+    notifyListeners();
+  }
+
+  /// Current value of a plugin setting for [d].
+  Object? pluginSetting(DeviceInstance d, String name) =>
+      ((_deviceSettings(d.key)['props'] as Map?) ?? {})[name] ??
+      d.plugin?.settings[name]?['default'];
+
+  // ---------------------------------------------------------- hardware modes
+  /// Lets the device run one of its own effects ([name] from
+  /// [DeviceInstance.modes]) instead of the app's; null goes back to the app.
+  void setDeviceMode(DeviceInstance d, String? name) {
+    final ds = _deviceSettings(d.key);
+    if (name == null) {
+      ds.remove('hwMode');
+    } else {
+      ds['hwMode'] = name;
+    }
+    _save();
+    _sendMode(d, name);
+    notifyListeners();
+  }
+
+  void _sendMode(DeviceInstance d, String? name) {
+    final mode = name == null
+        ? null
+        : d.modes.where((m) => m.$2 == name).firstOrNull;
+    d.activeMode = mode?.$2;
+    d.lastSent = null;
+    if (d.source == DeviceSource.plugin) {
+      d.port?.send({'t': 'mode', 'id': mode?.$1});
+    } else {
+      drivers.setMode(d.device.id, mode == null ? -1 : mode.$1 as int);
+    }
+  }
+
+  void _applySavedMode(DeviceInstance d) {
+    final saved = _deviceSettings(d.key)['hwMode'] as String?;
+    if (saved != null && d.modes.any((m) => m.$2 == saved)) {
+      _sendMode(d, saved);
+    }
+  }
+
   // ---------------------------------------------------------------- devices
   /// The device drivers (oc_drivers.dll).
   final drivers = NativeDrivers();
@@ -716,27 +1022,41 @@ class Engine extends ChangeNotifier {
       if (existing == null) {
         final d = DeviceInstance(key, dev);
         if (_deviceSettings(key)['disabled'] == true) d.status = 'disabled';
+        d.modes = _nativeModes(dev);
         devices[key] = d;
         _applyZoneSizes(d);
         _ensureLayout(d);
+        _applySavedMode(d);
         changed = true;
       } else if (existing.device.id != dev.id ||
           existing.device.ledCount != dev.ledCount ||
           existing.device.zones.length != dev.zones.length) {
         existing.update(dev);
+        existing.modes = _nativeModes(dev);
         _ensureLayout(existing);
         changed = true;
       } else {
         existing.device = dev;
       }
     }
-    final gone = devices.keys.where((k) => !seen.contains(k)).toList();
+    final gone = devices.entries
+        .where((e) => e.value.source == DeviceSource.native)
+        .map((e) => e.key)
+        .where((k) => !seen.contains(k))
+        .toList();
     if (gone.isNotEmpty) {
       gone.forEach(devices.remove);
       changed = true;
     }
     if (changed) notifyListeners();
   }
+
+  /// A native device's own modes, minus the one that takes the app's
+  /// colors.
+  static List<(Object?, String)> _nativeModes(DriverDevice d) => [
+    for (var i = 0; i < d.modes.length; i++)
+      if (d.modes[i].toLowerCase() != 'direct') (i, d.modes[i]),
+  ];
 
   static const _conflictingProcesses = {
     'signalrgb.exe': 'SignalRGB',
@@ -792,9 +1112,8 @@ class Engine extends ChangeNotifier {
     _save();
     d.status = enabled ? 'running' : 'disabled';
     // A disabled device is left dark rather than frozen on the last frame.
-    if (!enabled) {
-      drivers.setLeds(d.device.id, Uint8List(d.device.ledCount * 3));
-    }
+    if (!enabled) _sendColors(d, Uint8List(d.device.ledCount * 3));
+    d.lastSent = null;
     notifyListeners();
   }
 
@@ -937,11 +1256,24 @@ class Engine extends ChangeNotifier {
     final b = _alertUntil != null ? 1.0 : brightness / 100.0;
     for (final d in devices.values) {
       if (d.status != 'running' || d.device.ledCount == 0) continue;
+      if (d.activeMode != null) continue;
       final out = Uint8List(d.device.ledCount * 3);
       for (final z in d.zones) {
         _sampleZone(z, layoutOf(d, z.key), f, b, out);
       }
-      drivers.setLeds(d.device.id, out);
+      // Static effects would resend the same colors 30 times a second.
+      final last = d.lastSent;
+      if (last != null && listEquals(last, out)) continue;
+      d.lastSent = out;
+      _sendColors(d, out);
+    }
+  }
+
+  void _sendColors(DeviceInstance d, Uint8List rgb) {
+    if (d.source == DeviceSource.plugin) {
+      d.port?.send({'t': 'frame', 'rgb': rgb});
+    } else {
+      drivers.setLeds(d.device.id, rgb);
     }
   }
 
@@ -951,6 +1283,7 @@ class Engine extends ChangeNotifier {
     _tick?.cancel();
     _rescan?.cancel();
     _devicePoll?.cancel();
+    _pluginScan?.cancel();
     audio.setSource(AudioSource.off);
     _saveDebounce?.cancel();
     try {
@@ -958,6 +1291,16 @@ class Engine extends ChangeNotifier {
         const JsonEncoder.withIndent('  ').convert(_settings),
       );
     } catch (_) {}
+    // Plugins get a moment to leave their devices in a sensible state.
+    final running = devices.values.where((d) => d.port != null).toList();
+    for (final d in running) {
+      d.port!.send({'t': 'stop'});
+    }
+    final deadline = DateTime.now().add(const Duration(seconds: 2));
+    while (running.any((d) => d.port != null) &&
+        DateTime.now().isBefore(deadline)) {
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+    }
     drivers.shutdown();
   }
 }

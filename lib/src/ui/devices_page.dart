@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../engine/engine.dart';
 import 'device_art.dart';
+import 'property_controls.dart';
 import 'theme.dart';
 import 'widgets.dart';
 
@@ -243,6 +244,16 @@ class _DeviceDetailState extends State<_DeviceDetail> {
                             ? '1 LED'
                             : '${d.device.ledCount} LEDs',
                       ),
+                      if (d.battery != null)
+                        OcBadge(
+                          d.charging
+                              ? 'Carregando · ${d.battery}%'
+                              : 'Bateria ${d.battery}%',
+                          dot: d.battery! <= 15 && !d.charging
+                              ? Oc.danger
+                              : Oc.success,
+                          color: Oc.text,
+                        ),
                     ],
                   ),
                 ],
@@ -257,6 +268,21 @@ class _DeviceDetailState extends State<_DeviceDetail> {
             ),
           ],
         ),
+        if (d.error != null) ...[
+          const SizedBox(height: 20),
+          Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: Oc.danger.withValues(alpha: .06),
+              borderRadius: Oc.r12,
+              border: Border.all(color: Oc.danger.withValues(alpha: .25)),
+            ),
+            child: SelectableText(
+              d.error!,
+              style: const TextStyle(fontSize: 12.5, color: Oc.danger),
+            ),
+          ),
+        ],
         const SizedBox(height: 28),
         Align(
           alignment: Alignment.centerLeft,
@@ -277,6 +303,8 @@ class _DeviceDetailState extends State<_DeviceDetail> {
 }
 
 /// The device's LED zones; ARGB headers take the number of LEDs plugged in.
+const _appMode = ' app';
+
 class _ZonesTab extends StatelessWidget {
   const _ZonesTab({required this.engine, required this.device});
   final Engine engine;
@@ -286,9 +314,51 @@ class _ZonesTab extends StatelessWidget {
   Widget build(BuildContext context) {
     final zones = device.device.zones;
     final resizable = device.resizableZones.isNotEmpty;
+    final settings = device.plugin?.settings ?? const {};
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        if (device.modes.isNotEmpty || settings.isNotEmpty) ...[
+          OcPanel(
+            children: [
+              if (device.modes.isNotEmpty)
+                OcRow(
+                  leading: const Icon(
+                    Icons.auto_awesome_outlined,
+                    size: 18,
+                    color: Oc.textTertiary,
+                  ),
+                  title: 'Iluminação',
+                  description: device.activeMode == null
+                      ? 'Segue os efeitos do OpenChroma.'
+                      : 'O próprio dispositivo faz o efeito.',
+                  trailing: OcSelect(
+                    value: device.activeMode ?? _appMode,
+                    options: [_appMode, for (final m in device.modes) m.$2],
+                    labelOf: (v) => v == _appMode ? 'Efeitos do OpenChroma' : v,
+                    onChanged: (v) =>
+                        engine.setDeviceMode(device, v == _appMode ? null : v),
+                    width: 240,
+                  ),
+                ),
+              for (final e in settings.entries)
+                PropertyControl(
+                  label: '${e.value['label'] ?? e.key}',
+                  type: '${e.value['type'] ?? 'number'}',
+                  tooltip: '${e.value['description'] ?? ''}',
+                  min: (e.value['min'] as num?)?.toDouble() ?? 0,
+                  max: (e.value['max'] as num?)?.toDouble() ?? 100,
+                  step: (e.value['step'] as num?)?.toDouble(),
+                  values: [
+                    for (final v in e.value['values'] as List? ?? []) '$v',
+                  ],
+                  value: engine.pluginSetting(device, e.key),
+                  onChanged: (v) => engine.setPluginSetting(device, e.key, v),
+                ),
+            ],
+          ),
+          const SizedBox(height: 20),
+        ],
         if (resizable)
           const Padding(
             padding: EdgeInsets.only(bottom: 14, left: 2),
@@ -358,6 +428,13 @@ class _InfoTab extends StatelessWidget {
         if (d.description.isNotEmpty) info('Descrição', d.description),
         if (d.version.isNotEmpty) info('Versão', d.version),
         if (d.serial.isNotEmpty) info('Número de série', d.serial),
+        info(
+          'Driver',
+          device.plugin == null
+              ? 'OpenRGB (incluído)'
+              : '${device.plugin!.name} · plugin '
+                    '${device.plugin!.bundled ? 'incluído' : 'seu'}',
+        ),
         info('Conexão', d.location),
         info('Zonas', '${d.zones.length}'),
         if (d.modes.isNotEmpty) info('Modos do hardware', d.modes.join(', ')),

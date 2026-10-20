@@ -127,6 +127,25 @@ class SettingsPage extends StatelessWidget {
                       ),
                       OcRow(
                         leading: const OcIconTile(
+                          Icons.extension_rounded,
+                          color: _Tint.green,
+                        ),
+                        title: 'Plugins de dispositivos',
+                        description:
+                            '${engine.plugins.length} carregados. Coloque '
+                            'arquivos .js na pasta e reinicie o app.',
+                        trailing: OcButton(
+                          label: 'Abrir pasta',
+                          onPressed: () {
+                            Directory(
+                              engine.pluginsDir,
+                            ).createSync(recursive: true);
+                            Process.run('explorer', [engine.pluginsDir]);
+                          },
+                        ),
+                      ),
+                      OcRow(
+                        leading: const OcIconTile(
                           Icons.folder_rounded,
                           color: _Tint.gray,
                         ),
