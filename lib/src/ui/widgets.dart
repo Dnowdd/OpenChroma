@@ -45,9 +45,13 @@ class OcButton extends StatelessWidget {
     this.icon,
     this.onPressed,
     this.variant = OcButtonVariant.secondary,
+    this.iconColor,
   });
   final String label;
   final IconData? icon;
+
+  /// Overrides the icon's color (e.g. a color swatch).
+  final Color? iconColor;
   final VoidCallback? onPressed;
   final OcButtonVariant variant;
 
@@ -92,7 +96,7 @@ class OcButton extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               children: [
                 if (icon != null) ...[
-                  Icon(icon, size: 15, color: fg),
+                  Icon(icon, size: 15, color: iconColor ?? fg),
                   const SizedBox(width: 6),
                 ],
                 Text(

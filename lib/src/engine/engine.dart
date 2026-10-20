@@ -109,6 +109,10 @@ class DeviceInstance {
   SendPort? port;
   ReceivePort? inbox;
 
+  /// While set, zone $1 shows the pure color ($2, $3, $4) and every other
+  /// LED is dark (the color-order assistant).
+  (int, int, int, int)? testColor;
+
   /// Last colors sent and when, to skip identical frames.
   Uint8List? lastSent;
   DateTime lastSentAt = DateTime(0);
@@ -1131,13 +1135,71 @@ class Engine extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Lights only zone [zone] of [d] with a pure color; null goes back to
+  /// the effect.
+  void setTestColor(
+    DeviceInstance d,
+    int? zone, [
+    int r = 0,
+    int g = 0,
+    int b = 0,
+  ]) {
+    d.testColor = zone == null ? null : (zone, r, g, b);
+    d.lastSent = null;
+  }
+
+  /// Puts [d] back as it was first detected: driver options (the values
+  /// the hardware reported then), the app's effects instead of a hardware
+  /// effect, plugin settings and its place in the layout. LED counts stay:
+  /// they describe what is plugged in.
+  void resetDevice(DeviceInstance d) {
+    final ds = _deviceSettings(d.key);
+    final original = (ds['driverConfigOriginal'] as Map?)
+        ?.cast<String, Object?>();
+    ds
+      ..remove('driverConfig')
+      ..remove('hwMode')
+      ..remove('props')
+      ..remove('layout');
+    if (original != null && original.isNotEmpty) {
+      drivers.setConfig(d.device.id, original);
+    }
+    _sendMode(d, null);
+    if (d.source == DeviceSource.plugin) {
+      for (final e in d.plugin!.settings.entries) {
+        d.port?.send({
+          't': 'setting',
+          'name': e.key,
+          'value': e.value['default'],
+        });
+      }
+    }
+    _ensureLayout(d);
+    _save();
+    notifyListeners();
+  }
+
+  /// Whether [d] has anything to reset.
+  bool isCustomized(DeviceInstance d) {
+    final ds = _deviceSettings(d.key);
+    return ds['driverConfig'] != null ||
+        ds['hwMode'] != null ||
+        ds['props'] != null;
+  }
+
   /// The option's value: what the user chose, else what the driver reports.
   Object? driverConfigValue(DeviceInstance d, String key) =>
       ((_deviceSettings(d.key)['driverConfig'] as Map?) ?? {})[key] ??
       d.device.configValues[key];
 
   void _applyDriverConfig(DeviceInstance d) {
-    final saved = (_deviceSettings(d.key)['driverConfig'] as Map?) ?? {};
+    final ds = _deviceSettings(d.key);
+    if (ds['driverConfigOriginal'] == null &&
+        d.device.configValues.isNotEmpty) {
+      ds['driverConfigOriginal'] = Map.of(d.device.configValues);
+      _save();
+    }
+    final saved = (ds['driverConfig'] as Map?) ?? {};
     if (saved.isEmpty) return;
     drivers.setConfig(d.device.id, saved.cast<String, Object?>());
   }
@@ -1321,8 +1383,18 @@ class Engine extends ChangeNotifier {
       if (d.status != 'running' || d.device.ledCount == 0) continue;
       if (d.activeMode != null) continue;
       final out = Uint8List(d.device.ledCount * 3);
-      for (final z in d.zones) {
-        _sampleZone(z, layoutOf(d, z.key), f, b, out);
+      final test = d.testColor;
+      if (test != null) {
+        final z = d.device.zones[test.$1];
+        for (var i = z.start; i < z.start + z.count; i++) {
+          out[i * 3] = test.$2;
+          out[i * 3 + 1] = test.$3;
+          out[i * 3 + 2] = test.$4;
+        }
+      } else {
+        for (final z in d.zones) {
+          _sampleZone(z, layoutOf(d, z.key), f, b, out);
+        }
       }
       // Static effects would resend the same colors 30 times a second;
       // once a second is kept so a device that slips back to its own

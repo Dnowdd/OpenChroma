@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../engine/engine.dart';
+import 'color_order.dart';
 import 'device_art.dart';
 import 'property_controls.dart';
 import 'theme.dart';
@@ -259,6 +260,14 @@ class _DeviceDetailState extends State<_DeviceDetail> {
                 ],
               ),
             ),
+            if (engine.isCustomized(d)) ...[
+              OcButton(
+                label: 'Restaurar padrão',
+                icon: Icons.restart_alt_rounded,
+                onPressed: () => _confirmReset(context, engine, d),
+              ),
+              const SizedBox(width: 16),
+            ],
             Tooltip(
               message: d.status == 'disabled' ? 'Ativar' : 'Desativar',
               child: OcSwitch(
@@ -510,7 +519,6 @@ class _DriverOptions extends StatelessWidget {
       return 'Detectar ARGB Gen2 · ${gen2.group(1)}';
     }
     return switch (title) {
-      'Override RGB Calibration' => 'Usar a ordem de cores escolhida',
       'Persist Lighting on Exit' => 'Gravar a iluminação ao fechar',
       _ => title,
     };
@@ -518,8 +526,8 @@ class _DriverOptions extends StatelessWidget {
 
   static String? _description(String key, Map entry) {
     if (key.startsWith('calibration_') && key != 'calibration_enabled') {
-      return 'Se a cor sair trocada (ex.: verde no lugar de azul), teste '
-          'outra ordem.';
+      return 'Se a cor sair trocada (ex.: verde no lugar de azul), use '
+          '"Descobrir": duas perguntas e o app acha a ordem certa.';
     }
     return null;
   }
@@ -527,7 +535,9 @@ class _DriverOptions extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final schema = device.device.configSchema;
-    final keys = schema.keys.toList()
+    // The override is switched on with any order the user picks; on its
+    // own it changes nothing, so it is not shown.
+    final keys = schema.keys.where((k) => k != 'calibration_enabled').toList()
       ..sort(
         (a, b) => ((schema[a] as Map)['order'] as num? ?? 0).compareTo(
           (schema[b] as Map)['order'] as num? ?? 0,
@@ -574,13 +584,77 @@ class _DriverOptions extends StatelessWidget {
                 onSubmitted: (v) => set(key, v),
               );
             }
+            // Orders of a header with LEDs get the assistant.
+            final header = RegExp(r'^(.*) Color Order$')
+                .firstMatch('${entry['title'] ?? ''}')
+                ?.group(1);
+            final zone = header == null
+                ? -1
+                : device.device.zones.indexWhere(
+                    (z) => z.name == header && z.count > 0,
+                  );
             return OcRow(
               title: _title(key, entry),
               description: _description(key, entry),
-              trailing: control,
+              trailing: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (zone >= 0) ...[
+                    OcButton(
+                      label: 'Descobrir',
+                      icon: Icons.auto_fix_high_rounded,
+                      onPressed: () => showColorOrderAssistant(
+                        context,
+                        engine: engine,
+                        device: device,
+                        zone: zone,
+                        configKey: key,
+                        header: header!,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                  ],
+                  ?control,
+                ],
+              ),
             );
           }(),
       ],
     );
   }
+}
+
+Future<void> _confirmReset(
+  BuildContext context,
+  Engine engine,
+  DeviceInstance d,
+) async {
+  final ok = await showDialog<bool>(
+    context: context,
+    builder: (context) => AlertDialog(
+      title: const Text('Restaurar padrão?', style: OcText.title),
+      content: const SizedBox(
+        width: 380,
+        child: Text(
+          'Volta as opções do dispositivo (como a ordem das cores) ao que ele '
+          'tinha quando foi detectado pela primeira vez, faz ele seguir os '
+          'efeitos do OpenChroma e devolve a posição dele no layout. A '
+          'quantidade de LEDs dos conectores continua.',
+          style: OcText.body,
+        ),
+      ),
+      actions: [
+        OcButton(
+          label: 'Cancelar',
+          onPressed: () => Navigator.pop(context, false),
+        ),
+        OcButton(
+          label: 'Restaurar',
+          variant: OcButtonVariant.primary,
+          onPressed: () => Navigator.pop(context, true),
+        ),
+      ],
+    ),
+  );
+  if (ok == true) engine.resetDevice(d);
 }
