@@ -17,6 +17,7 @@
 #include <string>
 #include <thread>
 
+#include "DetectionManager.h"
 #include "ResourceManager.h"
 #include "RGBController.h"
 
@@ -179,6 +180,30 @@ OCD_API void OcdResizeZone(std::uint64_t id, int zone, int count) {
     return;
   }
   c->ResizeZone(zone, count);
+}
+
+// Leaves the device [vid]:[pid] to an OpenChroma plugin: the drivers here
+// never open it. Call before OcdStart.
+OCD_API void OcdClaimHid(int vid, int pid) {
+  openchroma_claimed_hid.insert((static_cast<unsigned int>(vid) << 16) |
+                                (static_cast<unsigned int>(pid) & 0xFFFF));
+}
+
+// Runs one of the device's own lighting modes (by index in "modes"); -1
+// hands the LEDs back to the app (per-LED colors from OcdSetLeds).
+OCD_API void OcdSetMode(std::uint64_t id, int mode) {
+  if (!g_initialized) return;
+  std::lock_guard<std::mutex> lock(g_mutex);
+  auto* c = reinterpret_cast<RGBController*>(static_cast<std::uintptr_t>(id));
+  if (!Known(c)) return;
+  g_direct.erase(c);
+  if (mode < 0) {
+    EnsureDirect(c);
+    return;
+  }
+  if (static_cast<unsigned int>(mode) >= c->GetModeCount()) return;
+  c->SetActiveMode(mode);
+  c->UpdateMode();
 }
 
 // Detects again (devices plugged in or out).

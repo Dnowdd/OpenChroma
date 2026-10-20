@@ -103,8 +103,15 @@ const hidapi_wrapper default_hidapi_wrapper =
 /*---------------------------------------------------------*\
 | BasicHIDBlock Implementation                              |
 \*---------------------------------------------------------*/
+/* OpenChroma: (vid << 16 | pid) of devices OpenChroma plugins drive. */
+std::set<unsigned int> openchroma_claimed_hid;
+
 bool BasicHIDBlock::compare(hid_device_info* info)
 {
+    if(openchroma_claimed_hid.count(((unsigned int)info->vendor_id << 16) | info->product_id))
+    {
+        return(false);
+    }
     return(((vid        == HID_VID_ANY)
          || (vid == info->vendor_id))
         && ((pid        == HID_PID_ANY)

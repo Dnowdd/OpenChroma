@@ -151,6 +151,15 @@ class NativeDrivers {
       _rescan = lib.lookupFunction<Void Function(), void Function()>(
         'OcdRescan',
       );
+      _claim = lib
+          .lookupFunction<Void Function(Int32, Int32), void Function(int, int)>(
+            'OcdClaimHid',
+          );
+      _setMode = lib
+          .lookupFunction<
+            Void Function(Uint64, Int32),
+            void Function(int, int)
+          >('OcdSetMode');
       _shutdown = lib
           .lookupFunction<
             Void Function(Uint8, Uint8, Uint8),
@@ -166,6 +175,8 @@ class NativeDrivers {
   void Function(int, Pointer<Uint8>, int)? _setLeds;
   void Function(int, int, int)? _resize;
   void Function()? _rescan;
+  void Function(int, int)? _claim;
+  void Function(int, int)? _setMode;
   void Function(int, int, int)? _shutdown;
 
   bool get available => _start != null;
@@ -235,6 +246,13 @@ class NativeDrivers {
       _resize?.call(id, zone, count);
 
   void rescan() => _rescan?.call();
+
+  /// Leaves [vid]:[pid] to an OpenChroma plugin; call before [start].
+  void claimHid(int vid, int pid) => _claim?.call(vid, pid);
+
+  /// Runs the device's own mode [index] (see [DriverDevice.modes]); -1
+  /// gives the LEDs back to the app.
+  void setMode(int id, int index) => _setMode?.call(id, index);
 
   /// Leaves every device at one color (the app is exiting).
   void shutdown([int r = 0, int g = 0, int b = 0]) => _shutdown?.call(r, g, b);

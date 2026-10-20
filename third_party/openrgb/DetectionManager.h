@@ -150,6 +150,10 @@ enum
 /*---------------------------------------------------------*\
 | DetectionManager class                                    |
 \*---------------------------------------------------------*/
+#include <set>
+/* OpenChroma: devices claimed by OpenChroma plugins (see BasicHIDBlock). */
+extern std::set<unsigned int> openchroma_claimed_hid;
+
 class DetectionManager
 {
 public:

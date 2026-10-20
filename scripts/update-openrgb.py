@@ -52,13 +52,21 @@ DIRS = [
 SKIP = ['Controllers/QMKController', 'Controllers/PhilipsHueController',
         'Controllers/NanoleafController', 'Controllers/E131Controller']
 
-# Empty the folder rather than deleting it (it may be open in a shell).
+def empty(folder):
+    """Deletes what is inside [folder]; folders that are open in a shell
+    (and so cannot be deleted) are emptied and kept."""
+    for child in folder.iterdir():
+        if child.is_dir():
+            try:
+                shutil.rmtree(child)
+            except PermissionError:
+                empty(child)
+        else:
+            child.unlink()
+
+
 dst.mkdir(parents=True, exist_ok=True)
-for child in dst.iterdir():
-    if child.is_dir():
-        shutil.rmtree(child)
-    else:
-        child.unlink()
+empty(dst)
 for f in ROOT_FILES:
     (dst / f).parent.mkdir(parents=True, exist_ok=True)
     shutil.copy2(src / f, dst / f)
@@ -72,7 +80,7 @@ def other_os(directory, names):
 
 
 for d in DIRS:
-    shutil.copytree(src / d, dst / d, ignore=other_os)
+    shutil.copytree(src / d, dst / d, ignore=other_os, dirs_exist_ok=True)
 for s in SKIP:
     shutil.rmtree(dst / s, ignore_errors=True)
 for lic in ['LICENSE', 'COPYING', 'LICENSE.txt', 'COPYING.txt', 'README.txt']:
@@ -186,6 +194,28 @@ PATCHES = [
      '    CoSetProxyBlanket(pEnumerator, RPC_C_AUTHN_WINNT, RPC_C_AUTHZ_NONE,\n'
      '                      nullptr, RPC_C_AUTHN_LEVEL_CALL,\n'
      '                      RPC_C_IMP_LEVEL_IMPERSONATE, nullptr, EOAC_NONE);\n'),
+    # Devices an OpenChroma plugin drives are claimed by VID:PID before
+    # detection; OpenRGB's detectors then leave them alone, so two drivers
+    # never talk to the same device.
+    ('DetectionManager.cpp',
+     'bool BasicHIDBlock::compare(hid_device_info* info)\n'
+     '{\n',
+     '/* OpenChroma: (vid << 16 | pid) of devices OpenChroma plugins drive. */\n'
+     'std::set<unsigned int> openchroma_claimed_hid;\n'
+     '\n'
+     'bool BasicHIDBlock::compare(hid_device_info* info)\n'
+     '{\n'
+     '    if(openchroma_claimed_hid.count(((unsigned int)info->vendor_id << 16) | info->product_id))\n'
+     '    {\n'
+     '        return(false);\n'
+     '    }\n'),
+    ('DetectionManager.h',
+     'class DetectionManager\n',
+     '#include <set>\n'
+     '/* OpenChroma: devices claimed by OpenChroma plugins (see BasicHIDBlock). */\n'
+     'extern std::set<unsigned int> openchroma_claimed_hid;\n'
+     '\n'
+     'class DetectionManager\n'),
     ('ResourceManager.h',
      'class ResourceManager',
      '/* OpenChroma: settings folder chosen by the host app. */\n'
