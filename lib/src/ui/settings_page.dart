@@ -137,9 +137,8 @@ class SettingsPage extends StatelessWidget {
                         trailing: OcButton(
                           label: 'Abrir pasta',
                           onPressed: () {
-                            Directory(
-                              engine.pluginsDir,
-                            ).createSync(recursive: true);
+                            Directory(engine.pluginsDir)
+                                .createSync(recursive: true);
                             Process.run('explorer', [engine.pluginsDir]);
                           },
                         ),
