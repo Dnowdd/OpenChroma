@@ -29,17 +29,18 @@ só recompilam o que mudou.
 ## Atualizar os drivers do OpenRGB
 
 Os drivers são uma cópia do código do OpenRGB em `third_party/openrgb`. Para
-trazer uma versão mais nova:
+trazer a versão mais nova:
 
 ```powershell
-git clone https://gitlab.com/CalcProgrammer1/OpenRGB.git $env:TEMP\OpenRGB
-python scripts\update-openrgb.py $env:TEMP\OpenRGB (git -C $env:TEMP\OpenRGB rev-parse HEAD)
+powershell -ExecutionPolicy Bypass -File scripts\update-openrgb.ps1
 ```
 
-O script copia só o que o OpenChroma compila e reaplica as nossas mudanças
-(lista `PATCHES` no script). Se um patch não se aplicar mais, ele avisa. Depois
-compile, teste com os dispositivos que tiver e confira se algum arquivo novo
-mudou de licença (veja [THIRD_PARTY.md](../THIRD_PARTY.md)).
+O script baixa o OpenRGB, copia só o que o OpenChroma compila, reaplica as
+nossas mudanças (lista `PATCHES` em `scripts/update-openrgb.py`; se uma não
+se aplicar mais, ele para e avisa), mostra arquivos com outra licença e os
+drivers que entraram ou saíram, compila e roda todos os testes, inclusive os
+dos plugins. Ele não faz commit: teste com os dispositivos que tiver, confira
+[THIRD_PARTY.md](../THIRD_PARTY.md) e então faça o commit.
 
 ## Gerar o .exe (a versão para publicar)
 

@@ -97,6 +97,11 @@ outro programa.
   administrador e do driver [PawnIO](https://pawnio.eu).
 - Conectores ARGB da placa-mãe: informe quantos LEDs estão ligados em cada um
   na tela Dispositivos.
+- Cada dispositivo pode seguir os efeitos do OpenChroma ou rodar um efeito do
+  próprio hardware.
+- Dá para escrever plugins em JavaScript para dispositivos novos ou para
+  melhorar os existentes: veja [docs/PLUGINS.md](docs/PLUGINS.md). Os
+  plugins incluídos ficam em [`assets/plugins`](assets/plugins).
 
 ## Efeitos `.ocfx`
 
@@ -163,6 +168,9 @@ lib/src/
   engine/        motor: layout, amostra o efeito em cada LED e manda para os
                  drivers; perfis, luz reativa e o piscar dos avisos
   drivers/       ponte com os drivers nativos (oc_drivers.dll)
+  plugins/       plugins JavaScript: API, leitura e o worker de cada
+                 dispositivo (QuickJS)
+  hid/           acesso USB HID direto pelo Windows, para os plugins
   effects/       biblioteca de efeitos, o renderizador .ocfx e o WebView2
                  que desenha o efeito num canvas de 320x200
   fans/          curvas e controle das ventoinhas

@@ -6,25 +6,30 @@ prioridade. Atualize quando algo for feito.
 ## 1. Drivers
 
 Os drivers vêm do OpenRGB, compilados dentro do app (`windows/drivers` e
-`third_party/openrgb`). O OpenChroma não depende nem conversa com o SignalRGB
-ou com o OpenRGB instalado.
+`third_party/openrgb`), mais os plugins JavaScript do OpenChroma
+([docs/PLUGINS.md](docs/PLUGINS.md)). O OpenChroma não depende nem conversa
+com o SignalRGB ou com o OpenRGB instalado.
 
 - [x] Núcleo nativo com os drivers do OpenRGB e uma API nossa
       (`oc_drivers.dll`).
-- [x] Remover tudo do SignalRGB (plugins, shim da API, traduções, efeitos,
-      imagens).
+- [x] Remover tudo do SignalRGB.
 - [x] Licença GPL-2.0-or-later.
-- [ ] **Formato de plugin próprio em JavaScript**, para drivers novos ou
-      melhorados sem recompilar: como o driver se identifica (VID/PID, tipo,
-      zonas e LEDs), inicia, recebe as cores e desliga. O motor já trata os
-      dispositivos de forma genérica; falta o runtime (QuickJS) e a API.
-- [ ] Migrar aos poucos os drivers mais usados para o formato próprio,
-      melhorando o que der (por exemplo, posição real de cada LED do teclado).
-- [ ] Mostrar a bateria de mouses e headsets sem fio.
-- [ ] Deixar escolher um modo do próprio hardware (os efeitos que o
-      dispositivo faz sozinho) em vez de só o modo controlado pelo app.
-- [ ] Rotina para atualizar o `third_party/openrgb` com a versão nova do
-      OpenRGB (`scripts/update-openrgb.py`) e testar.
+- [x] Formato de plugin próprio em JavaScript, com prioridade sobre os
+      drivers embutidos.
+- [x] Primeiros plugins migrados e melhorados: DualShock 4 (com bateria),
+      teclados ROYUAN (com limite de escrita) e Logitech G403 HERO (sem gravar
+      na memória do mouse).
+- [x] Bateria de dispositivos sem fio (plugins).
+- [x] Escolher um efeito do próprio hardware em vez das cores do app.
+- [x] Rotina de atualização do OpenRGB (`scripts/update-openrgb.ps1`).
+- [ ] Migrar mais drivers populares para plugins (Razer, Corsair, SteelSeries,
+      HyperX), melhorando o que der.
+- [ ] Teclado ROYUAN tecla por tecla: o chip tem um comando por tecla, mas
+      ele grava na memória do teclado; falta descobrir um modo que não grave.
+- [ ] Ajustar velocidade, brilho e cor dos efeitos do hardware (hoje só
+      escolher o efeito).
+- [ ] Bateria também nos drivers embutidos.
+- [ ] Recarregar plugins sem reiniciar o app.
 
 ## 2. Dispositivos que ainda não funcionam
 

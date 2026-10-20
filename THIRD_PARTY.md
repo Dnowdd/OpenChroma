@@ -12,6 +12,8 @@ distribuído como um todo segue a GPL-2.0.
 | Componente | Onde | Licença |
 |---|---|---|
 | [OpenRGB](https://gitlab.com/CalcProgrammer1/OpenRGB): drivers de dispositivos e o framework deles | `third_party/openrgb` (commit em `UPSTREAM_COMMIT`) | GPL-2.0-or-later; alguns arquivos GPL-2.0-only (Gigabyte Fusion2 USB, HID LampArray, Lian Li Uni Hub SL, Mountain 60) |
+| Plugins em `assets/plugins` (DualShock 4, ROYUAN, Logitech G403 HERO), baseados nos drivers do OpenRGB | `assets/plugins` | GPL-2.0-or-later |
+| QuickJS (via flutter_js), que roda os plugins | pacote `flutter_js` | MIT |
 | hidapi (build do OpenRGB com hotplug) | `third_party/openrgb/dependencies/hidapi-hotplug-win` | BSD (uma das licenças oferecidas pelo hidapi) |
 | libusb 1.0.27 | `third_party/openrgb/dependencies/libusb-1.0.27` | LGPL-2.1-or-later |
 | PawnIOLib e módulos PawnIO | `third_party/openrgb/dependencies/PawnIO`, `assets/pawnio` | LGPL-2.1-or-later |
