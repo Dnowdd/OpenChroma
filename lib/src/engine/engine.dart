@@ -109,8 +109,9 @@ class DeviceInstance {
   SendPort? port;
   ReceivePort? inbox;
 
-  /// Last colors sent, to skip identical frames.
+  /// Last colors sent and when, to skip identical frames.
   Uint8List? lastSent;
+  DateTime lastSentAt = DateTime(0);
 
   String get name => device.name;
   String get type => device.type;
@@ -1031,8 +1032,16 @@ class Engine extends ChangeNotifier {
       } else if (existing.device.id != dev.id ||
           existing.device.ledCount != dev.ledCount ||
           existing.device.zones.length != dev.zones.length) {
+        final redetected = existing.device.id != dev.id;
         existing.update(dev);
         existing.modes = _nativeModes(dev);
+        // A new controller object (after "Procurar" or a replug) has not
+        // received anything yet: colors, LED counts and mode go again.
+        existing.lastSent = null;
+        if (redetected) {
+          _applyZoneSizes(existing);
+          _applySavedMode(existing);
+        }
         _ensureLayout(existing);
         changed = true;
       } else {
@@ -1098,12 +1107,41 @@ class Engine extends ChangeNotifier {
 
   /// Re-applies the user's LED counts after the device is detected.
   void _applyZoneSizes(DeviceInstance d) {
+    _migrateLegacyChannels(d);
     final sizes = (_deviceSettings(d.key)['zoneSizes'] as Map?) ?? {};
     for (final (i, z) in d.resizableZones) {
       final want = (sizes[z.name] as num?)?.toInt();
       if (want != null && want != z.count) {
         drivers.resizeZone(d.device.id, i, want.clamp(z.min, z.max));
       }
+    }
+  }
+
+  /// LED counts saved by versions before the built-in drivers, under a
+  /// "vid:pid:serial" key and channel names of their own ("5v ARGB Header
+  /// 1"). They are moved, in order, to a device with the same number of
+  /// resizable zones that has no counts yet.
+  void _migrateLegacyChannels(DeviceInstance d) {
+    final ds = _deviceSettings(d.key);
+    final zones = d.resizableZones;
+    if (ds['zoneSizes'] != null || zones.isEmpty) return;
+    final all = (_settings['devices'] as Map?) ?? {};
+    final legacyKey = RegExp(r'^[0-9a-f]{4}:[0-9a-f]{4}:');
+    for (final e in all.entries) {
+      final v = e.value;
+      if (!legacyKey.hasMatch('${e.key}') || v is! Map) continue;
+      final channels = v['channels'];
+      if (channels is! Map || channels.length != zones.length) continue;
+      final names = channels.keys.map((k) => '$k').toList()..sort();
+      final sizes = <String, dynamic>{};
+      for (var i = 0; i < zones.length; i++) {
+        final count = (channels[names[i]] as num?)?.toInt() ?? 0;
+        sizes[zones[i].$2.name] = count.clamp(zones[i].$2.min, zones[i].$2.max);
+      }
+      ds['zoneSizes'] = sizes;
+      v.remove('channels');
+      _save();
+      return;
     }
   }
 
@@ -1261,10 +1299,18 @@ class Engine extends ChangeNotifier {
       for (final z in d.zones) {
         _sampleZone(z, layoutOf(d, z.key), f, b, out);
       }
-      // Static effects would resend the same colors 30 times a second.
+      // Static effects would resend the same colors 30 times a second;
+      // once a second is kept so a device that slips back to its own
+      // effect is brought back.
       final last = d.lastSent;
-      if (last != null && listEquals(last, out)) continue;
+      final now = DateTime.now();
+      if (last != null &&
+          listEquals(last, out) &&
+          now.difference(d.lastSentAt) < const Duration(seconds: 1)) {
+        continue;
+      }
       d.lastSent = out;
+      d.lastSentAt = now;
       _sendColors(d, out);
     }
   }

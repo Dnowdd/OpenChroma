@@ -303,7 +303,33 @@ class _DeviceDetailState extends State<_DeviceDetail> {
 }
 
 /// The device's LED zones; ARGB headers take the number of LEDs plugged in.
-const _appMode = ' app';
+/// Names OpenRGB drivers give their effects, in Portuguese.
+const _modeNames = {
+  'off': 'Desligado',
+  'static': 'Cor fixa',
+  'breathing': 'Respirar',
+  'blinking': 'Piscar',
+  'flashing': 'Piscar',
+  'color cycle': 'Ciclo de cores',
+  'spectrum cycle': 'Ciclo de cores',
+  'rainbow': 'Arco-íris',
+  'rainbow wave': 'Onda arco-íris',
+  'wave': 'Onda',
+  'color wave': 'Onda de cores',
+  'reactive': 'Ao digitar',
+  'ripple': 'Ondulação',
+  'starlight': 'Estrelas',
+  'random flicker': 'Cintilar',
+  'double flash': 'Flash duplo',
+  'spectrum': 'Espectro',
+  'custom': 'Personalizado',
+};
+
+String hardwareModeName(String name) =>
+    _modeNames[name.trim().toLowerCase()] ?? name;
+
+/// The mode select's entry for "follow the app's effects".
+const _appMode = 'openchroma:app';
 
 class _ZonesTab extends StatelessWidget {
   const _ZonesTab({required this.engine, required this.device});
@@ -335,7 +361,9 @@ class _ZonesTab extends StatelessWidget {
                   trailing: OcSelect(
                     value: device.activeMode ?? _appMode,
                     options: [_appMode, for (final m in device.modes) m.$2],
-                    labelOf: (v) => v == _appMode ? 'Efeitos do OpenChroma' : v,
+                    labelOf: (v) => v == _appMode
+                        ? 'Efeitos do OpenChroma'
+                        : hardwareModeName(v),
                     onChanged: (v) =>
                         engine.setDeviceMode(device, v == _appMode ? null : v),
                     width: 240,
@@ -359,6 +387,22 @@ class _ZonesTab extends StatelessWidget {
           ),
           const SizedBox(height: 20),
         ],
+        if (device.resizableZones.any((z) => z.$2.count == 0))
+          Container(
+            margin: const EdgeInsets.only(bottom: 14),
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: Oc.warning.withValues(alpha: .08),
+              borderRadius: Oc.r12,
+              border: Border.all(color: Oc.warning.withValues(alpha: .25)),
+            ),
+            child: Text(
+              '${device.resizableZones.where((z) => z.$2.count == 0).map((z) => z.$2.name).join(', ')} '
+              'sem LEDs: o que estiver ligado nesses conectores não segue os '
+              'efeitos e fica no efeito anterior. Informe a quantidade abaixo.',
+              style: const TextStyle(fontSize: 12.5, color: Oc.warning),
+            ),
+          ),
         if (resizable)
           const Padding(
             padding: EdgeInsets.only(bottom: 14, left: 2),
