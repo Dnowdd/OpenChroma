@@ -61,6 +61,10 @@ class DriverDevice {
       type = '${j['type'] ?? 'other'}',
       ledCount = (j['leds'] as num?)?.toInt() ?? 0,
       modes = [for (final m in j['modes'] as List? ?? []) '$m'],
+      configSchema = ((j['config'] as Map?)?['schema'] as Map? ?? {})
+          .cast<String, dynamic>(),
+      configValues = ((j['config'] as Map?)?['values'] as Map? ?? {})
+          .cast<String, dynamic>(),
       zones = _zones(j['zones'] as List? ?? []);
 
   /// Some drivers leave the name empty (e.g. when the board model could not
@@ -98,6 +102,11 @@ class DriverDevice {
   final int ledCount;
   final List<String> modes;
   final List<DriverZone> zones;
+
+  /// Driver-specific options: key -> {title, description, type, enum,
+  /// default, order}, and their current values.
+  final Map<String, dynamic> configSchema;
+  final Map<String, dynamic> configValues;
 
   /// Identity that survives restarts and re-detection.
   String get key => '$type|$name|${serial.isNotEmpty ? serial : location}';
@@ -155,6 +164,11 @@ class NativeDrivers {
           .lookupFunction<Void Function(Int32, Int32), void Function(int, int)>(
             'OcdClaimHid',
           );
+      _setConfig = lib
+          .lookupFunction<
+            Void Function(Uint64, Pointer<Utf8>),
+            void Function(int, Pointer<Utf8>)
+          >('OcdSetConfig');
       _setMode = lib
           .lookupFunction<
             Void Function(Uint64, Int32),
@@ -177,6 +191,7 @@ class NativeDrivers {
   void Function()? _rescan;
   void Function(int, int)? _claim;
   void Function(int, int)? _setMode;
+  void Function(int, Pointer<Utf8>)? _setConfig;
   void Function(int, int, int)? _shutdown;
 
   bool get available => _start != null;
@@ -246,6 +261,15 @@ class NativeDrivers {
       _resize?.call(id, zone, count);
 
   void rescan() => _rescan?.call();
+
+  /// Applies driver-specific options ({key: value}).
+  void setConfig(int id, Map<String, Object?> values) {
+    final set = _setConfig;
+    if (set == null || values.isEmpty) return;
+    using(
+      (arena) => set(id, jsonEncode(values).toNativeUtf8(allocator: arena)),
+    );
+  }
 
   /// Leaves [vid]:[pid] to an OpenChroma plugin; call before [start].
   void claimHid(int vid, int pid) => _claim?.call(vid, pid);

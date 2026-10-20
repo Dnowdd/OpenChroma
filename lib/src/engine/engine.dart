@@ -1025,6 +1025,7 @@ class Engine extends ChangeNotifier {
         if (_deviceSettings(key)['disabled'] == true) d.status = 'disabled';
         d.modes = _nativeModes(dev);
         devices[key] = d;
+        _applyDriverConfig(d);
         _applyZoneSizes(d);
         _ensureLayout(d);
         _applySavedMode(d);
@@ -1039,6 +1040,7 @@ class Engine extends ChangeNotifier {
         // received anything yet: colors, LED counts and mode go again.
         existing.lastSent = null;
         if (redetected) {
+          _applyDriverConfig(existing);
           _applyZoneSizes(existing);
           _applySavedMode(existing);
         }
@@ -1115,6 +1117,29 @@ class Engine extends ChangeNotifier {
         drivers.resizeZone(d.device.id, i, want.clamp(z.min, z.max));
       }
     }
+  }
+
+  /// Changes a driver-specific option (see [DriverDevice.configSchema]); it
+  /// is kept and applied again whenever the device is detected.
+  void setDriverConfig(DeviceInstance d, Map<String, Object?> values) {
+    final saved =
+        (_deviceSettings(d.key)['driverConfig'] ??= <String, dynamic>{}) as Map;
+    saved.addAll(values);
+    _save();
+    drivers.setConfig(d.device.id, values);
+    d.lastSent = null;
+    notifyListeners();
+  }
+
+  /// The option's value: what the user chose, else what the driver reports.
+  Object? driverConfigValue(DeviceInstance d, String key) =>
+      ((_deviceSettings(d.key)['driverConfig'] as Map?) ?? {})[key] ??
+      d.device.configValues[key];
+
+  void _applyDriverConfig(DeviceInstance d) {
+    final saved = (_deviceSettings(d.key)['driverConfig'] as Map?) ?? {};
+    if (saved.isEmpty) return;
+    drivers.setConfig(d.device.id, saved.cast<String, Object?>());
   }
 
   /// LED counts saved by versions before the built-in drivers, under a

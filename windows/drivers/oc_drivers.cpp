@@ -108,6 +108,12 @@ nlohmann::json Describe(RGBController* c) {
   }
   j["modes"] = modes;
   j["activeMode"] = c->GetActiveMode();
+  // Driver-specific options (e.g. the color order of ARGB headers).
+  nlohmann::json schema = c->GetDeviceSpecificConfigurationSchema();
+  if (schema.is_object() && !schema.empty()) {
+    j["config"] = {{"schema", schema},
+                   {"values", c->GetDeviceSpecificConfiguration()}};
+  }
   return j;
 }
 
@@ -169,6 +175,18 @@ OCD_API void OcdSetLeds(std::uint64_t id, const std::uint8_t* rgb, int count) {
     c->SetColor(i, ToRGBColor(rgb[i * 3], rgb[i * 3 + 1], rgb[i * 3 + 2]));
   }
   c->UpdateLEDs();
+}
+
+// Applies driver-specific options: [json] is a UTF-8 JSON object of
+// {key: value} from the device's "config" schema.
+OCD_API void OcdSetConfig(std::uint64_t id, const char* json) {
+  if (!g_initialized || !json) return;
+  std::lock_guard<std::mutex> lock(g_mutex);
+  auto* c = reinterpret_cast<RGBController*>(static_cast<std::uintptr_t>(id));
+  if (!Known(c)) return;
+  nlohmann::json values = nlohmann::json::parse(json, nullptr, false);
+  if (!values.is_object()) return;
+  c->SetDeviceSpecificConfiguration(values);
 }
 
 // Changes the LED count of a resizable zone (ARGB headers).

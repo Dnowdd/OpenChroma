@@ -387,6 +387,10 @@ class _ZonesTab extends StatelessWidget {
           ),
           const SizedBox(height: 20),
         ],
+        if (device.device.configSchema.isNotEmpty) ...[
+          _DriverOptions(engine: engine, device: device),
+          const SizedBox(height: 20),
+        ],
         if (device.resizableZones.any((z) => z.$2.count == 0))
           Container(
             margin: const EdgeInsets.only(bottom: 14),
@@ -482,6 +486,100 @@ class _InfoTab extends StatelessWidget {
         info('Conexão', d.location),
         info('Zonas', '${d.zones.length}'),
         if (d.modes.isNotEmpty) info('Modos do hardware', d.modes.join(', ')),
+      ],
+    );
+  }
+}
+
+/// Options a built-in driver offers for this device, such as the color
+/// order of each ARGB header.
+class _DriverOptions extends StatelessWidget {
+  const _DriverOptions({required this.engine, required this.device});
+  final Engine engine;
+  final DeviceInstance device;
+
+  static String _title(String key, Map entry) {
+    final title = '${entry['title'] ?? key}';
+    final order = RegExp(r'^(.*) Color Order$').firstMatch(title);
+    if (order != null) {
+      final what = order.group(1)!.replaceAll('LED_C(x)', 'LED_C da placa');
+      return 'Ordem das cores · $what';
+    }
+    final gen2 = RegExp(r'^(.*) Gen2').firstMatch(title);
+    if (gen2 != null && key.startsWith('gen2_')) {
+      return 'Detectar ARGB Gen2 · ${gen2.group(1)}';
+    }
+    return switch (title) {
+      'Override RGB Calibration' => 'Usar a ordem de cores escolhida',
+      'Persist Lighting on Exit' => 'Gravar a iluminação ao fechar',
+      _ => title,
+    };
+  }
+
+  static String? _description(String key, Map entry) {
+    if (key.startsWith('calibration_') && key != 'calibration_enabled') {
+      return 'Se a cor sair trocada (ex.: verde no lugar de azul), teste '
+          'outra ordem.';
+    }
+    return null;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final schema = device.device.configSchema;
+    final keys = schema.keys.toList()
+      ..sort(
+        (a, b) => ((schema[a] as Map)['order'] as num? ?? 0).compareTo(
+          (schema[b] as Map)['order'] as num? ?? 0,
+        ),
+      );
+    // Picking an order only takes effect with the override on.
+    final hasOverride = schema.containsKey('calibration_enabled');
+    void set(String key, Object? value) => engine.setDriverConfig(device, {
+      key: value,
+      if (hasOverride &&
+          key.startsWith('calibration_') &&
+          key != 'calibration_enabled')
+        'calibration_enabled': true,
+    });
+    return OcPanel(
+      children: [
+        for (final key in keys)
+          () {
+            final entry = schema[key] as Map;
+            final value = engine.driverConfigValue(device, key);
+            final type = '${entry['type'] ?? ''}';
+            final options = [
+              for (final o in entry['enum'] as List? ?? [])
+                if ('$o' != 'INVALID') '$o',
+            ];
+            Widget? control;
+            if (type == 'bool') {
+              control = OcSwitch(
+                value: value == true,
+                onChanged: (v) => set(key, v),
+              );
+            } else if (options.isNotEmpty) {
+              final current = '$value';
+              control = OcSelect(
+                value: options.contains(current) ? current : options.first,
+                options: options,
+                labelOf: (o) => o == 'OFF' ? 'Desligado' : o,
+                onChanged: (o) => set(key, o),
+                width: 160,
+              );
+            } else if (type == 'integer') {
+              control = OcNumberField(
+                value: (value as num?)?.toInt() ?? 0,
+                onSubmitted: (v) => set(key, v),
+              );
+            }
+            return OcRow(
+              title: _title(key, entry),
+              description: _description(key, entry),
+              trailing: control,
+            );
+          }(),
       ],
     );
   }
