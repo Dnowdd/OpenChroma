@@ -115,6 +115,21 @@ void main() {
     expect(fake.features.last.sublist(1, 9), [0x07, 0x01, 4, 4, 0x07, 1, 2, 3]);
   }, skip: skip);
 
+  test('ROYUAN keyboard direct mode enters 0x15 once, then sends 0x0E', () {
+    final fake = _FakeDevice(
+      'assets/plugins/royuan-keyboard.js',
+      endpoints: [_endpoint(interface: 2, featureLength: 65)],
+      settings: {'live': 'Direto B (teste)', 'rate': 30},
+    );
+    fake.start();
+    fake.render([10, 20, 30]);
+    expect(fake.features, hasLength(2));
+    expect(fake.features[0].sublist(1, 3), [0x07, 0x15]);
+    final payload = [0x0E, 10, 20, 30, 0, 0, 0];
+    final sum = payload.reduce((a, b) => a + b);
+    expect(fake.features[1], [0x00, ...payload, (0xFF - (sum & 0xFF)) & 0xFF]);
+  }, skip: skip);
+
   test('G403 HERO turns off saving and sets both zones', () {
     final fake = _FakeDevice(
       'assets/plugins/logitech-g403-hero.js',
@@ -193,12 +208,13 @@ class _FakeDevice {
     String path, {
     List<List<int>> reads = const [],
     List<Map<String, Object>>? endpoints,
+    Map<String, Object?> settings = const {},
   }) : _reads = [...reads],
        _endpoints = endpoints ?? [_endpoint()] {
     _rt = JsRuntime(_host);
     _rt.eval(File(path).readAsStringSync(), name: path);
     _rt.eval('__oc.setInfo({"vid": 1, "pid": 2})');
-    _rt.eval('__oc.setSettings({})');
+    _rt.eval('__oc.setSettings(${jsonEncode(settings)})');
   }
 
   late final JsRuntime _rt;
