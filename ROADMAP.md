@@ -25,11 +25,20 @@ com o SignalRGB ou com o OpenRGB instalado.
       (drivers embutidos e plugins).
 - [x] Rotina de atualização do OpenRGB (`scripts/update-openrgb.ps1`).
 - [x] Recarregar plugins sem reiniciar o app (sozinho ao salvar o `.js`).
+- [x] Teclado ROYUAN com cor ao vivo, sem piscar (testado no Attack Shark
+      K86, a 30 atualizações por segundo).
+- [x] Bateria que o Windows já conhece (Bluetooth): aparece no dispositivo
+      quando ele também tem luz e numa lista "Outros sem fio" quando não tem.
+- [x] Plugin novo: Attack Shark X11 (luz, efeitos do mouse e bateria, no
+      cabo e pelo receptor 2.4 GHz), protocolo aprendido do app oficial e
+      testado no mouse.
 - [ ] Migrar mais drivers populares para plugins (Razer, Corsair, SteelSeries,
-      HyperX), melhorando o que der.
-- [ ] Teclado ROYUAN tecla por tecla: o chip tem um comando por tecla, mas
-      ele grava na memória do teclado; falta descobrir um modo que não grave.
-- [ ] Bateria também nos drivers embutidos.
+      HyperX), principalmente para ter a bateria dos modelos sem fio.
+      **Precisa do aparelho para testar**: os drivers embutidos já acendem
+      esses modelos, e um plugin sem teste pode piorar o que funciona.
+- [ ] Teclado ROYUAN tecla por tecla: o único comando por tecla conhecido
+      grava uma imagem na memória do teclado. **Precisa do app oficial do
+      teclado** (não do mouse) para descobrir um modo ao vivo.
 
 ## 2. Dispositivos que ainda não funcionam
 

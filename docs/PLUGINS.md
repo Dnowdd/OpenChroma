@@ -128,6 +128,13 @@ mode: function (dev, id, opcoes) {
   salvam a cor quando recebem o comando de modo; se for o caso, use o modo
   "sem salvar" do aparelho (como no `logitech-g403-hero.js`) ou limite a taxa
   (como no `royuan-keyboard.js`).
+- **Não regrave o que você não entende.** Se o comando de cor leva junto
+  outras configurações (tempo de suspensão, debounce dos botões...), não
+  confie numa leitura para copiá-las: há aparelhos que devolvem a leitura
+  cortada. Use valores conhecidos ou ofereça-os como opções (como no
+  `attack-shark-x11.js`).
+- Se o aparelho só manda a bateria quando não está ocupado, pare de escrever
+  de vez em quando para ouvi-la (como no `attack-shark-x11.js`).
 - Em `stop`, deixe o dispositivo num estado sensato: apagado ou de volta ao
   efeito salvo nele.
 - Plugins baseados em código do OpenRGB continuam GPL-2.0-or-later: mantenha
