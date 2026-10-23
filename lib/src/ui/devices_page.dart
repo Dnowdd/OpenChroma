@@ -312,7 +312,6 @@ class _DeviceDetailState extends State<_DeviceDetail> {
   }
 }
 
-/// The device's LED zones; ARGB headers take the number of LEDs plugged in.
 /// Names OpenRGB drivers give their effects, in Portuguese.
 const _modeNames = {
   'off': 'Desligado',
@@ -333,10 +332,17 @@ const _modeNames = {
   'double flash': 'Flash duplo',
   'spectrum': 'Espectro',
   'custom': 'Personalizado',
+  'random': 'Aleatório',
 };
 
-String hardwareModeName(String name) =>
-    _modeNames[name.trim().toLowerCase()] ?? name;
+/// [name] in Portuguese; a trailing number stays ("Wave 2" -> "Onda 2").
+String hardwareModeName(String name) {
+  final m = RegExp(r'^(.*?)\s*(\d+)$').firstMatch(name.trim());
+  final base = (m?[1] ?? name).trim();
+  final known = _modeNames[base.toLowerCase()];
+  if (known == null) return name;
+  return m == null ? known : '$known ${m[2]}';
+}
 
 /// The mode select's entry for "follow the app's effects".
 const _appMode = 'openchroma:app';
@@ -478,6 +484,7 @@ class _ModeSliderState extends State<_ModeSlider> {
   );
 }
 
+/// The device's LED zones; ARGB headers take the number of LEDs plugged in.
 class _ZonesTab extends StatelessWidget {
   const _ZonesTab({required this.engine, required this.device});
   final Engine engine;
