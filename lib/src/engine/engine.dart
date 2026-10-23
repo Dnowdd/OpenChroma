@@ -15,6 +15,7 @@ import '../drivers/native_drivers.dart';
 import '../hid/hid_ffi.dart';
 import '../plugins/plugin_library.dart';
 import '../plugins/plugin_worker.dart';
+import '../system/batteries.dart';
 import '../system/processes.dart';
 import '../paths.dart';
 
@@ -108,6 +109,9 @@ class DeviceInstance {
   /// Charge of a wireless device (0-100) and whether it is charging.
   int? battery;
   bool charging = false;
+
+  /// [battery] comes from Windows, not from the device's plugin.
+  bool batteryFromSystem = false;
 
   /// Plugin isolate link.
   SendPort? port;
@@ -298,6 +302,7 @@ class Engine extends ChangeNotifier {
   Map<String, dynamic> _settings = {};
   Timer? _tick;
   Timer? _rescan;
+  Timer? _batteryCheck;
   Timer? _devicePoll;
   Timer? _saveDebounce;
 
@@ -351,6 +356,11 @@ class Engine extends ChangeNotifier {
     _rescan = Timer.periodic(
       const Duration(seconds: 5),
       (_) => _checkProcesses(),
+    );
+    _checkBatteries();
+    _batteryCheck = Timer.periodic(
+      const Duration(minutes: 1),
+      (_) => _checkBatteries(),
     );
     _tick = Timer.periodic(const Duration(milliseconds: 33), (_) {
       _pollAudio();
@@ -1198,6 +1208,7 @@ class Engine extends ChangeNotifier {
       case 'battery':
         d.battery = m['level'] as int?;
         d.charging = m['charging'] == true;
+        d.batteryFromSystem = false;
         notifyListeners();
       case 'log':
         d.logs.add(m['msg'] as String);
@@ -1425,6 +1436,56 @@ class Engine extends ChangeNotifier {
     'rgbfusion.exe': 'Gigabyte RGB Fusion',
     'openrgb.exe': 'OpenRGB',
   };
+
+  // ------------------------------------------------------------- batteries
+  /// Batteries Windows reports for devices the app does not light (a
+  /// Bluetooth headset, say); the others show on their device.
+  List<WirelessBattery> otherBatteries = [];
+  List<WirelessBattery> _batteries = [];
+
+  Future<void> _checkBatteries() async {
+    _batteries = await readBatteries();
+    if (_shuttingDown) return;
+    _applyBatteries();
+  }
+
+  /// Gives each device the battery Windows reports for its model, unless
+  /// its plugin reports one itself.
+  void _applyBatteries() {
+    final matched = <WirelessBattery>{};
+    for (final d in devices.values) {
+      final model = hidModel(d);
+      final b = model == null
+          ? null
+          : _batteries
+                .where((b) => b.vid == model.$1 && b.pid == model.$2)
+                .firstOrNull;
+      if (b != null) matched.add(b);
+      if (d.battery != null && !d.batteryFromSystem) continue;
+      d
+        ..battery = b?.level
+        ..charging = false
+        ..batteryFromSystem = b != null;
+    }
+    otherBatteries = [
+      for (final b in _batteries)
+        if (!matched.contains(b)) b,
+    ];
+    notifyListeners();
+  }
+
+  /// [d]'s USB vendor and product ids, from its plugin or from the HID path
+  /// the drivers report ("...VID_3151&PID_4015...").
+  static (int, int)? hidModel(DeviceInstance d) {
+    final m = d.model;
+    if (m != null) return (m.vid, m.pid);
+    final match = RegExp(
+      r'VID_([0-9A-F]{4})&PID_([0-9A-F]{4})',
+      caseSensitive: false,
+    ).firstMatch(d.device.location);
+    if (match == null) return null;
+    return (int.parse(match[1]!, radix: 16), int.parse(match[2]!, radix: 16));
+  }
 
   /// Looks at the running programs: other lighting apps that fight over
   /// the devices, and programs that turn a profile on.
@@ -1773,6 +1834,7 @@ class Engine extends ChangeNotifier {
     _rescan?.cancel();
     _devicePoll?.cancel();
     _pluginScan?.cancel();
+    _batteryCheck?.cancel();
     _pluginWatch?.cancel();
     _pluginReloadDelay?.cancel();
     audio.setSource(AudioSource.off);

@@ -29,7 +29,7 @@ plugin({
   devices: [
     { vid: 0x054C, pid: 0x05C4, name: 'DualShock 4' },
     { vid: 0x054C, pid: 0x09CC, name: 'DualShock 4' },
-    { vid: 0x054C, pid: 0x0BA0, name: 'DualShock 4 (adaptador sem fio)' }
+    { vid: 0x054C, pid: 0x0BA0, name: 'DualShock 4' }
   ],
   // The gamepad collection takes the light bar report.
   endpoint: function (endpoints) {

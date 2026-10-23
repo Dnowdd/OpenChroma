@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../drivers/hardware_mode.dart';
 import '../engine/engine.dart';
+import '../system/batteries.dart';
 import 'color_order.dart';
 import 'device_art.dart';
 import 'property_controls.dart';
@@ -83,6 +84,14 @@ class _DevicesPageState extends State<DevicesPage> {
                                 selected: d.key == sel?.key,
                                 onTap: () => setState(() => _selected = d.key),
                               ),
+                            if (engine.otherBatteries.isNotEmpty) ...[
+                              const Padding(
+                                padding: EdgeInsets.fromLTRB(10, 18, 10, 6),
+                                child: SectionLabel('Outros sem fio'),
+                              ),
+                              for (final b in engine.otherBatteries)
+                                _BatteryTile(battery: b),
+                            ],
                           ],
                         ),
                       ),
@@ -174,11 +183,21 @@ class _DeviceTile extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      device.name,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: OcText.label,
+                    Row(
+                      children: [
+                        Flexible(
+                          child: Text(
+                            device.name,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: OcText.label,
+                          ),
+                        ),
+                        if (device.battery case final level?) ...[
+                          const SizedBox(width: 8),
+                          BatteryLevel(level, charging: device.charging),
+                        ],
+                      ],
                     ),
                     const SizedBox(height: 3),
                     Row(
@@ -203,6 +222,63 @@ class _DeviceTile extends StatelessWidget {
       ),
     );
   }
+}
+
+/// A small battery icon and percentage, red when low.
+class BatteryLevel extends StatelessWidget {
+  const BatteryLevel(this.level, {super.key, this.charging = false});
+  final int level;
+  final bool charging;
+
+  @override
+  Widget build(BuildContext context) {
+    final low = level <= 15 && !charging;
+    final color = low ? Oc.danger : Oc.textTertiary;
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(
+          charging
+              ? Icons.battery_charging_full_rounded
+              : switch (level) {
+                  <= 15 => Icons.battery_1_bar_rounded,
+                  <= 50 => Icons.battery_3_bar_rounded,
+                  <= 85 => Icons.battery_5_bar_rounded,
+                  _ => Icons.battery_full_rounded,
+                },
+          size: 15,
+          color: color,
+        ),
+        const SizedBox(width: 2),
+        Text('$level%', style: OcText.caption.copyWith(color: color)),
+      ],
+    );
+  }
+}
+
+/// A device without lighting whose charge Windows reports.
+class _BatteryTile extends StatelessWidget {
+  const _BatteryTile({required this.battery});
+  final WirelessBattery battery;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+    child: Row(
+      children: [
+        Expanded(
+          child: Text(
+            battery.name,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: OcText.body,
+          ),
+        ),
+        const SizedBox(width: 8),
+        BatteryLevel(battery.level),
+      ],
+    ),
+  );
 }
 
 class _DeviceDetail extends StatefulWidget {
