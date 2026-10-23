@@ -160,7 +160,7 @@ void main() {
     final fake = _FakeDevice(
       'assets/plugins/royuan-keyboard.js',
       endpoints: [_endpoint(interface: 2, featureLength: 65)],
-      settings: {'live': 'Direto B (teste)', 'rate': 30},
+      settings: {'live': 'Ao vivo B'},
     );
     fake.start();
     fake.render([10, 20, 30]);
@@ -169,6 +169,89 @@ void main() {
     final payload = [0x0E, 10, 20, 30, 0, 0, 0];
     final sum = payload.reduce((a, b) => a + b);
     expect(fake.features[1], [0x00, ...payload, (0xFF - (sum & 0xFF)) & 0xFF]);
+  }, skip: skip);
+
+  test('the K86 takes live colors by default, at frame rate', () {
+    final fake = _FakeDevice(
+      'assets/plugins/royuan-keyboard.js',
+      endpoints: [_endpoint(interface: 2, featureLength: 65)],
+      info: {'vid': 0x3151, 'pid': 0x4015},
+    );
+    fake.start();
+    fake.render([10, 20, 30]);
+    fake.render([11, 20, 30]);
+    // Direct mode once, then one live color per frame, with no rate limit.
+    expect(fake.features.map((f) => f[1]), [0x07, 0x0E, 0x0E]);
+    expect(fake.features.first[2], 0x15);
+    // Names saved by older versions still work.
+    final old = _FakeDevice(
+      'assets/plugins/royuan-keyboard.js',
+      endpoints: [_endpoint(interface: 2, featureLength: 65)],
+      info: {'vid': 0x3151, 'pid': 0x4015},
+      settings: {'live': 'Padrão'},
+    );
+    old.start();
+    old.render([10, 20, 30]);
+    expect(old.features.single[1], 0x07);
+  }, skip: skip);
+
+  test('Attack Shark X11 sends the lighting report checked on the mouse', () {
+    final fake = _FakeDevice(
+      'assets/plugins/attack-shark-x11.js',
+      endpoints: [_endpoint(interface: 2, usagePage: 0x0B, featureLength: 134)],
+      info: {'vid': 0x1D57, 'pid': 0xFA60},
+    );
+    fake.start();
+    // Static red, as written to the mouse on 2026-10-23 (it turned red).
+    fake.mode(1, {
+      'brightness': 8,
+      'colors': [0xFF0000],
+    });
+    expect(fake.features.last, [
+      0x05, 0x0F, 0x01, 0x10, 0x03, 0xA8, 0xFF, 0x00, 0x00, //
+      0x01, 0x04, 0x01, 0xBF, 0x00, 0x00,
+    ]);
+    // App colors go as a static color; the speed byte keeps its default.
+    fake.mode(null);
+    fake.render([10, 20, 30]);
+    expect(fake.features.last.sublist(3, 13), [
+      0x10, 0x03, 0xA8, 10, 20, 30, 0x01, 0x04, 0x00, 0xFC, //
+    ]);
+  }, skip: skip);
+
+  test('Attack Shark X11 reads its battery from the event reports', () {
+    final fake = _FakeDevice(
+      'assets/plugins/attack-shark-x11.js',
+      endpoints: [
+        _endpoint(interface: 2, usagePage: 0x0B, featureLength: 134),
+        _endpoint(interface: 2, usagePage: 0x0A),
+      ],
+      info: {'vid': 0x1D57, 'pid': 0xFA60},
+      reads: [
+        [0x03, 0x55, 0x40, 0x01, 0x64],
+        [0x03, 0x55, 0x40, 0x03, 0x50],
+      ],
+    );
+    fake.start();
+    fake.poll();
+    // The newest event: 80%, charging (state 3 through the receiver).
+    expect(fake.battery, [0x50, true]);
+  }, skip: skip);
+
+  test('Attack Shark X11 pauses colors to hear its battery', () {
+    final fake = _FakeDevice(
+      'assets/plugins/attack-shark-x11.js',
+      endpoints: [
+        _endpoint(interface: 2, usagePage: 0x0B, featureLength: 134),
+        _endpoint(interface: 2, usagePage: 0x0A),
+      ],
+      info: {'vid': 0x1D57, 'pid': 0xFA60},
+    );
+    fake.start();
+    // No battery report yet: the next colors wait so one can come through.
+    fake.poll();
+    fake.render([1, 2, 3]);
+    expect(fake.features, isEmpty);
   }, skip: skip);
 
   test('G403 HERO turns off saving and sets both zones', () {
@@ -280,11 +363,12 @@ class _FakeDevice {
     List<List<int>> reads = const [],
     List<Map<String, Object>>? endpoints,
     Map<String, Object?> settings = const {},
+    Map<String, Object?> info = const {'vid': 1, 'pid': 2},
   }) : _reads = [...reads],
        _endpoints = endpoints ?? [_endpoint()] {
     _rt = JsRuntime(_host);
     _rt.eval(File(path).readAsStringSync(), name: path);
-    _rt.eval('__oc.setInfo({"vid": 1, "pid": 2})');
+    _rt.eval('__oc.setInfo(${jsonEncode(info)})');
     _rt.eval('__oc.setSettings(${jsonEncode(settings)})');
   }
 
