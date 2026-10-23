@@ -68,4 +68,38 @@ void main() {
     expect(back.props['speed'], 10);
     expect(back.brightness, 40);
   });
+
+  test('profiles remember their programs in lowercase', () {
+    final back = LightProfile.fromJson({
+      'id': 'game',
+      'name': 'Jogo',
+      'apps': ['CS2.exe'],
+    });
+    expect(back.apps, ['cs2.exe']);
+    expect(LightProfile.fromJson(back.toJson()).apps, ['cs2.exe']);
+    expect(LightProfile.defaults().first.toJson().containsKey('apps'), isFalse);
+  });
+
+  test('the first profile with a running program wins', () {
+    final game = LightProfile(
+      id: 'g',
+      name: 'G',
+      icon: 'game',
+      apps: ['cs2.exe'],
+    );
+    final work = LightProfile(
+      id: 'w',
+      name: 'W',
+      icon: 'work',
+      apps: ['code.exe', 'cs2.exe'],
+    );
+    final both = Engine.profileForPrograms(
+      [game, work],
+      {'cs2.exe', 'code.exe'},
+    );
+    expect(both?.$1.id, 'g');
+    final code = Engine.profileForPrograms([game, work], {'code.exe'});
+    expect((code?.$1.id, code?.$2), ('w', 'code.exe'));
+    expect(Engine.profileForPrograms([game, work], {'explorer.exe'}), isNull);
+  });
 }

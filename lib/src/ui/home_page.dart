@@ -15,6 +15,7 @@ import 'device_art.dart';
 import 'effects_page.dart' show EffectArtwork;
 import 'fan_glyph.dart';
 import 'fans_page.dart' show fanSpin;
+import 'profile_apps.dart';
 import 'shell.dart' show Pages;
 import 'theme.dart';
 import 'widgets.dart';
@@ -535,7 +536,7 @@ class _ProfilesCard extends StatelessWidget {
             trailing: Tooltip(
               message:
                   'Clique com o botão direito num perfil para salvar '
-                  'nele a iluminação atual',
+                  'nele a iluminação atual ou ligá-lo junto com um programa',
               child: const Icon(
                 Icons.info_outline_rounded,
                 size: 16,
@@ -576,7 +577,10 @@ class _ProfilesCard extends StatelessWidget {
   Widget _tile(BuildContext context, LightProfile p, Color accent) {
     final on = engine.activeProfile == p.id;
     final fg = on ? onAccent(accent) : Oc.text;
-    final detail = p.brightness == 0
+    final byApp = engine.autoProfile == p.id ? engine.autoProfileApp : null;
+    final detail = byApp != null
+        ? 'Com $byApp'
+        : p.brightness == 0
         ? 'Luzes apagadas'
         : '${p.effect ?? 'Efeito atual'} · ${p.brightness}%';
     return GestureDetector(
@@ -595,7 +599,21 @@ class _ProfilesCard extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Icon(iconOf(p.icon), size: 20, color: fg),
+              Row(
+                children: [
+                  Icon(iconOf(p.icon), size: 20, color: fg),
+                  const Spacer(),
+                  if (p.apps.isNotEmpty)
+                    Tooltip(
+                      message: 'Liga sozinho com ${p.apps.join(', ')}',
+                      child: Icon(
+                        Icons.bolt_rounded,
+                        size: 16,
+                        color: on ? fg.withValues(alpha: .75) : Oc.textTertiary,
+                      ),
+                    ),
+                ],
+              ),
               const Spacer(),
               Text(
                 p.name,
@@ -634,6 +652,7 @@ class _ProfilesCard extends StatelessWidget {
           child: Text('Salvar a iluminação atual aqui'),
         ),
         PopupMenuItem(value: 'rename', child: Text('Renomear')),
+        PopupMenuItem(value: 'apps', child: Text('Ligar com programas…')),
         PopupMenuItem(value: 'reset', child: Text('Restaurar perfis padrão')),
       ],
     );
@@ -644,6 +663,8 @@ class _ProfilesCard extends StatelessWidget {
       case 'rename':
         final name = await _askName(context, p.name);
         if (name != null) engine.renameProfile(p.id, name);
+      case 'apps':
+        await showProfileAppsDialog(context, engine, p);
       case 'reset':
         engine.resetProfiles();
     }

@@ -15,6 +15,7 @@ import '../drivers/native_drivers.dart';
 import '../hid/hid_ffi.dart';
 import '../plugins/plugin_library.dart';
 import '../plugins/plugin_worker.dart';
+import '../system/processes.dart';
 import '../paths.dart';
 
 /// Canvas size effects draw on; layout coordinates use this space.
@@ -195,7 +196,9 @@ class LightProfile {
     this.effect,
     Map<String, dynamic>? props,
     this.brightness = 100,
-  }) : props = props ?? {};
+    List<String>? apps,
+  }) : props = props ?? {},
+       apps = apps ?? [];
 
   final String id;
   String name;
@@ -208,6 +211,10 @@ class LightProfile {
   Map<String, dynamic> props;
   int brightness;
 
+  /// Programs (executable names, lowercase) that turn this profile on while
+  /// they run.
+  List<String> apps;
+
   Map<String, Object?> toJson() => {
     'id': id,
     'name': name,
@@ -215,6 +222,7 @@ class LightProfile {
     'effect': effect,
     'props': props,
     'brightness': brightness,
+    if (apps.isNotEmpty) 'apps': apps,
   };
 
   static LightProfile fromJson(Map j) => LightProfile(
@@ -224,6 +232,7 @@ class LightProfile {
     effect: j['effect'] as String?,
     props: ((j['props'] as Map?) ?? {}).cast<String, dynamic>(),
     brightness: (j['brightness'] as num?)?.toInt() ?? 100,
+    apps: [for (final a in j['apps'] as List? ?? []) '$a'.toLowerCase()],
   );
 
   static List<LightProfile> defaults() => [
@@ -245,6 +254,15 @@ class LightProfile {
     LightProfile(id: 'off', name: 'Desligado', icon: 'off', brightness: 0),
   ];
 }
+
+/// The effect (by path), its settings, the brightness and the profile on
+/// at one moment.
+typedef _Lighting = ({
+  String? effect,
+  Map<String, dynamic> props,
+  int brightness,
+  String? profile,
+});
 
 /// Which temperature drives the reactive light.
 enum ReactiveSource { cpu, gpu }
@@ -288,6 +306,7 @@ class Engine extends ChangeNotifier {
   Future<void> start() async {
     _loadSettings();
     brightness = (_settings['brightness'] as int?) ?? 100;
+    _loadAuto();
     audioSource = AudioSource.byName(_settings['audioSource'] as String?);
     final r = (_settings['reactive'] as Map?) ?? {};
     reactive = r['on'] == true;
@@ -328,10 +347,10 @@ class Engine extends ChangeNotifier {
       const Duration(milliseconds: 700),
       (_) => _pollDevices(),
     );
-    _checkConflicts();
+    _checkProcesses();
     _rescan = Timer.periodic(
       const Duration(seconds: 5),
-      (_) => _checkConflicts(),
+      (_) => _checkProcesses(),
     );
     _tick = Timer.periodic(const Duration(milliseconds: 33), (_) {
       _pollAudio();
@@ -415,7 +434,10 @@ class Engine extends ChangeNotifier {
 
   void selectEffect(EffectInfo e) {
     currentEffect = e;
-    if (!_applyingProfile) _settings.remove('profile');
+    if (!_applyingProfile) {
+      _settings.remove('profile');
+      _keepUserChoice();
+    }
     _settings['effect'] = e.path;
     _save();
     notifyListeners();
@@ -545,6 +567,11 @@ class Engine extends ChangeNotifier {
 
   /// Turns on the effect, settings and brightness saved in profile [id].
   void applyProfile(String id) {
+    _keepUserChoice();
+    _applyProfile(id);
+  }
+
+  void _applyProfile(String id) {
     final profile = profiles.where((p) => p.id == id).firstOrNull;
     if (profile == null) return;
     _applyingProfile = true;
@@ -593,6 +620,145 @@ class Engine extends ChangeNotifier {
     _settings['profiles'] = [for (final p in list) p.toJson()];
     _save();
     notifyListeners();
+  }
+
+  /// Programs that turn profile [id] on while they run.
+  void setProfileApps(String id, List<String> apps) {
+    final list = profiles;
+    for (final p in list) {
+      if (p.id == id) {
+        p.apps = [
+          for (final a in {for (final a in apps) a.trim().toLowerCase()})
+            if (a.isNotEmpty) a,
+        ];
+      }
+    }
+    _settings['profiles'] = [for (final p in list) p.toJson()];
+    _save();
+    notifyListeners();
+  }
+
+  /// The profile a running program turned on, and that program.
+  String? autoProfile;
+  String? autoProfileApp;
+
+  /// What was on before [autoProfile], to put back when the program
+  /// closes; null once the user picks something else.
+  _Lighting? _autoReturn;
+
+  /// Turns on the first profile (in order) with a program in [running],
+  /// and puts the lighting back when none runs any more.
+  void _updateAutoProfile(Set<String> running) {
+    final match = profileForPrograms(profiles, running);
+    if (match?.$1.id == autoProfile) {
+      if (autoProfileApp != match?.$2) {
+        autoProfileApp = match?.$2;
+        notifyListeners();
+      }
+      return;
+    }
+    if (match == null) {
+      final back = _autoReturn;
+      autoProfile = autoProfileApp = _autoReturn = null;
+      _saveAuto();
+      if (back != null) _restoreLighting(back);
+      notifyListeners();
+      return;
+    }
+    // From one program's profile to another's, the way back stays the
+    // lighting from before the first.
+    if (autoProfile == null) {
+      final e = currentEffect;
+      _autoReturn = (
+        effect: e?.path,
+        props: e == null ? {} : Map.of(effectSettings(e)),
+        brightness: brightness,
+        profile: activeProfile,
+      );
+    }
+    autoProfile = match.$1.id;
+    autoProfileApp = match.$2;
+    _saveAuto();
+    _applyProfile(match.$1.id);
+  }
+
+  /// The user picked an effect or profile: it stays after the program that
+  /// turned a profile on closes.
+  void _keepUserChoice() {
+    if (_autoReturn == null) return;
+    _autoReturn = null;
+    _saveAuto();
+  }
+
+  /// Keeps the program's profile and the way back in the settings, so a
+  /// restart in between still puts the lighting back.
+  void _saveAuto() {
+    final back = _autoReturn;
+    if (autoProfile == null) {
+      _settings.remove('autoProfile');
+    } else {
+      _settings['autoProfile'] = {
+        'id': autoProfile,
+        if (back != null)
+          'back': {
+            'effect': back.effect,
+            'props': back.props,
+            'brightness': back.brightness,
+            'profile': back.profile,
+          },
+      };
+    }
+    _save();
+  }
+
+  void _loadAuto() {
+    final j = _settings['autoProfile'];
+    if (j is! Map) return;
+    autoProfile = j['id'] as String?;
+    final back = j['back'];
+    if (back is Map) {
+      _autoReturn = (
+        effect: back['effect'] as String?,
+        props: ((back['props'] as Map?) ?? {}).cast<String, dynamic>(),
+        brightness: (back['brightness'] as num?)?.toInt() ?? brightness,
+        profile: back['profile'] as String?,
+      );
+    }
+  }
+
+  /// The first of [profiles] with a program in [running], and that
+  /// program.
+  static (LightProfile, String)? profileForPrograms(
+    List<LightProfile> profiles,
+    Set<String> running,
+  ) {
+    for (final p in profiles) {
+      final app = p.apps.where(running.contains).firstOrNull;
+      if (app != null) return (p, app);
+    }
+    return null;
+  }
+
+  void _restoreLighting(_Lighting back) {
+    _applyingProfile = true;
+    try {
+      final effect = effects.where((e) => e.path == back.effect).firstOrNull;
+      if (effect != null) {
+        effectSettings(effect)
+          ..clear()
+          ..addAll(back.props);
+        selectEffect(effect);
+      }
+      setBrightness(back.brightness);
+      if (back.profile == null) {
+        _settings.remove('profile');
+      } else {
+        _settings['profile'] = back.profile;
+      }
+      _save();
+    } finally {
+      _applyingProfile = false;
+    }
   }
 
   void resetProfiles() {
@@ -1260,14 +1426,13 @@ class Engine extends ChangeNotifier {
     'openrgb.exe': 'OpenRGB',
   };
 
-  Future<void> _checkConflicts() async {
+  /// Looks at the running programs: other lighting apps that fight over
+  /// the devices, and programs that turn a profile on.
+  Future<void> _checkProcesses() async {
     try {
-      final r = await Process.run('tasklist', ['/fo', 'csv', '/nh']);
-      final running = <String>{
-        for (final line in (r.stdout as String).split('\n'))
-          if (line.startsWith('"'))
-            line.substring(1, line.indexOf('"', 1)).toLowerCase(),
-      };
+      final running = await runningProcesses();
+      if (_shuttingDown) return;
+      _updateAutoProfile(running);
       final found = [
         for (final e in _conflictingProcesses.entries)
           if (running.contains(e.key)) e.value,

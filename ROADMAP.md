@@ -46,7 +46,8 @@ com o SignalRGB ou com o OpenRGB instalado.
 - [ ] Rotação no layout (hoje só posição e tamanho).
 - [ ] Biblioteca de componentes ARGB: escolher "fan de 120 mm com 16 LEDs"
       em vez de digitar a quantidade de LEDs.
-- [ ] Trocar de perfil sozinho quando um jogo ou programa abre.
+- [x] Trocar de perfil sozinho quando um jogo ou programa abre (e voltar
+      quando ele fecha).
 - [ ] Mais efeitos próprios (todos os efeitos do OpenChroma são exclusivos;
       nunca copiar efeitos de outros apps).
 
