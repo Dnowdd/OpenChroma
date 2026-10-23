@@ -83,7 +83,15 @@ var __oc = (function () {
       return JSON.stringify({ zones: resolve(def.zones) || [], modes: resolve(def.modes) || [] });
     },
     render: function (colors) { call('render', [colors]); },
-    mode: function (id) { call('mode', [id]); },
+    /** Hardware mode [id] with the user's options; colors come as 0xRRGGBB. */
+    mode: function (id, options) {
+      var o = {};
+      for (var k in (options || {})) o[k] = options[k];
+      if (o.colors) {
+        o.colors = o.colors.map(function (c) { return [(c >> 16) & 255, (c >> 8) & 255, c & 255]; });
+      }
+      call('mode', [id, o]);
+    },
     poll: function () { call('poll'); },
     stop: function () { call('stop'); },
     fps: function () { return def.fps || 30; },

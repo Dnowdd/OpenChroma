@@ -115,6 +115,31 @@ void main() {
     expect(fake.features.last.sublist(1, 9), [0x07, 0x01, 4, 4, 0x07, 1, 2, 3]);
   }, skip: skip);
 
+  test('ROYUAN keyboard effects take speed, brightness and a color', () {
+    final fake = _FakeDevice(
+      'assets/plugins/royuan-keyboard.js',
+      endpoints: [_endpoint(interface: 2, featureLength: 65)],
+    );
+    fake.start();
+    // Options reach the plugin as the app sends them: colors in 0xRRGGBB.
+    fake.mode(0x05, {
+      'speed': 1,
+      'brightness': 2,
+      'random': false,
+      'colors': [0x102030],
+    });
+    expect(fake.features.last.sublist(1, 9), [
+      0x07,
+      0x05,
+      1,
+      2,
+      0x07,
+      0x10,
+      0x20,
+      0x30,
+    ]);
+  }, skip: skip);
+
   test('ROYUAN keyboard direct mode enters 0x15 once, then sends 0x0E', () {
     final fake = _FakeDevice(
       'assets/plugins/royuan-keyboard.js',
@@ -166,6 +191,36 @@ void main() {
       5,
       6,
       2,
+    ]);
+  }, skip: skip);
+
+  test('G403 HERO breathes in the chosen color, speed and brightness', () {
+    final fake = _FakeDevice(
+      'assets/plugins/logitech-g403-hero.js',
+      endpoints: [
+        _endpoint(interface: 1, usagePage: 0xFF00, usage: 1),
+        _endpoint(interface: 1, usagePage: 0xFF00, usage: 2),
+      ],
+    );
+    fake.start();
+    fake.writes.clear();
+    fake.mode('breathing', {
+      'speed': 20,
+      'brightness': 40,
+      'colors': [0xFF8000],
+    });
+    // Saving back on, then one effect report per zone: 2000 ms, 40%.
+    expect(fake.writes.first, [0x10, 0xFF, 0x0E, 0x8A, 0, 0, 0]);
+    expect(fake.writes[1].sublist(4, 13), [
+      0,
+      3,
+      0xFF,
+      0x80,
+      0x00,
+      2000 >> 8,
+      2000 & 0xFF,
+      0,
+      40,
     ]);
   }, skip: skip);
 }
@@ -256,5 +311,6 @@ class _FakeDevice {
 
   void render(List<int> rgb) => _rt.eval('__oc.render(${jsonEncode(rgb)})');
   void poll() => _rt.eval('__oc.poll()');
-  void mode(Object? id) => _rt.eval('__oc.mode(${jsonEncode(id)})');
+  void mode(Object? id, [Map<String, Object?>? options]) =>
+      _rt.eval('__oc.mode(${jsonEncode(id)}, ${jsonEncode(options)})');
 }

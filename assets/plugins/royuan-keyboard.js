@@ -26,6 +26,15 @@ function onesComplement(bytes) {
   return (0xFF - (sum & 0xFF)) & 0xFF;
 }
 
+// Speed and brightness ranges of these models (OpenRGB's EpomakerLegacy
+// profile); 0 brightness turns the lights off, which "Desligado" already does.
+var SPEED = { min: 0, max: 5, default: 4 };
+var BRIGHTNESS = { min: 1, max: 4, default: 4 };
+
+function effect(id, name) {
+  return { id: id, name: name, speed: SPEED, brightness: BRIGHTNESS, colors: 1, random: true };
+}
+
 function checksum(bytes) {
   var sum = 0;
   for (var i = 0; i < bytes.length; i++) sum += bytes[i];
@@ -52,19 +61,19 @@ plugin({
   },
   zones: [{ name: 'Teclado', leds: 1 }],
   modes: [
-    { id: 0x02, name: 'Respirar' },
-    { id: 0x03, name: 'Arco-íris' },
-    { id: 0x04, name: 'Deriva' },
-    { id: 0x05, name: 'Ondas' },
-    { id: 0x06, name: 'Estrelas' },
-    { id: 0x07, name: 'Correnteza' },
-    { id: 0x08, name: 'Ao digitar' },
-    { id: 0x0A, name: 'Senoide' },
-    { id: 0x0C, name: 'Flores' },
-    { id: 0x0E, name: 'Laser' },
-    { id: 0x10, name: 'Chuva' },
-    { id: 0x11, name: 'Neve' },
-    { id: 0x12, name: 'Meteoro' },
+    effect(0x02, 'Respirar'),
+    effect(0x03, 'Arco-íris'),
+    effect(0x04, 'Deriva'),
+    effect(0x05, 'Ondas'),
+    effect(0x06, 'Estrelas'),
+    effect(0x07, 'Correnteza'),
+    effect(0x08, 'Ao digitar'),
+    effect(0x0A, 'Senoide'),
+    effect(0x0C, 'Flores'),
+    effect(0x0E, 'Laser'),
+    effect(0x10, 'Chuva'),
+    effect(0x11, 'Neve'),
+    effect(0x12, 'Meteoro'),
     { id: 0x00, name: 'Desligado' }
   ],
   settings: {
@@ -112,8 +121,13 @@ plugin({
     this.directOn = false;
   },
 
-  send: function (dev, mode, dazzle, r, g, b) {
-    var payload = [SET_LED_PARAMS, mode, 0x04, 0x04, dazzle, r, g, b];
+  send: function (dev, mode, dazzle, r, g, b, speed, brightness) {
+    var payload = [
+      SET_LED_PARAMS, mode,
+      speed === undefined ? SPEED.default : speed,
+      brightness === undefined ? BRIGHTNESS.default : brightness,
+      dazzle, r, g, b
+    ];
     dev.sendFeature([0x00].concat(payload, [checksum(payload)]));
   },
 
@@ -133,11 +147,13 @@ plugin({
     }
   },
 
-  mode: function (dev, id) {
+  mode: function (dev, id, options) {
     this.sentKey = '';
     this.directOn = false;
     if (id === null) return; // the next frame sends the app's color
-    this.send(dev, id, DAZZLE_ON, 0xFF, 0xFF, 0xFF);
+    var c = (options.colors && options.colors[0]) || [0xFF, 0xFF, 0xFF];
+    var dazzle = options.random === false ? DAZZLE_OFF : DAZZLE_ON;
+    this.send(dev, id, dazzle, c[0], c[1], c[2], options.speed, options.brightness);
   },
 
   stop: function (dev) {

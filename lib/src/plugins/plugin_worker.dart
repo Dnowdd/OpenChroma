@@ -30,8 +30,8 @@ class PluginWorkerArgs {
 ///
 /// To the app: `port`, `layout` {zones, modes}, `battery`, `log`, `error`,
 /// `rejected`, `stopped`. From the app: `frame` (RGB bytes per LED),
-/// `mode` (hardware mode id, or null for the app's colors), `setting`,
-/// `stop`.
+/// `mode` (hardware mode id, or null for the app's colors, and its
+/// options), `setting`, `stop`.
 Future<void> pluginWorkerMain(PluginWorkerArgs args) async {
   final inbox = ReceivePort();
   final out = args.sendPort;
@@ -104,6 +104,7 @@ Future<void> pluginWorkerMain(PluginWorkerArgs args) async {
   Uint8List? pendingFrame;
   // A mode id is whatever the plugin declared (a number or a string).
   Object? hardwareMode;
+  Object? modeOptions;
   var modeChanged = false;
   final pendingSettings = <MapEntry<String, Object?>>[];
   final stop = Completer<void>();
@@ -116,6 +117,7 @@ Future<void> pluginWorkerMain(PluginWorkerArgs args) async {
         pendingFrame = m['rgb'] as Uint8List;
       case 'mode':
         hardwareMode = m['id'];
+        modeOptions = m['options'];
         modeChanged = true;
       case 'setting':
         pendingSettings.add(MapEntry(m['name'] as String, m['value']));
@@ -176,7 +178,9 @@ Future<void> pluginWorkerMain(PluginWorkerArgs args) async {
       pendingSettings.clear();
       if (modeChanged) {
         modeChanged = false;
-        safe('__oc.mode(${jsonEncode(hardwareMode)})');
+        safe(
+          '__oc.mode(${jsonEncode(hardwareMode)}, ${jsonEncode(modeOptions)})',
+        );
       }
       final f = pendingFrame;
       if (f != null && hardwareMode == null) {

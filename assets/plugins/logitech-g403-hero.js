@@ -11,7 +11,10 @@ var FEATURE = 0x0E;  // lighting feature index on this mouse
 var SET_ZONE = 0x3A; // function: set zone effect
 
 var STATIC = 0x01, CYCLE = 0x02, BREATHING = 0x03;
-var SPEED = 50 * 100; // ms per cycle, OpenRGB's "normal"
+// Effect speed in tenths of a second per cycle (slowest to fastest, as in
+// OpenRGB) and brightness in percent.
+var SPEED = { min: 200, max: 10, default: 50 };
+var BRIGHTNESS = { min: 1, max: 100, default: 100 };
 
 var SHORT = { interface: 1, usagePage: 0xFF00, usage: 0x01 };
 var LONG = { interface: 1, usagePage: 0xFF00, usage: 0x02 };
@@ -27,8 +30,8 @@ plugin({
     { name: 'Logo', leds: 1 }
   ],
   modes: [
-    { id: 'cycle', name: 'Arco-íris' },
-    { id: 'breathing', name: 'Respirar' },
+    { id: 'cycle', name: 'Arco-íris', speed: SPEED, brightness: BRIGHTNESS },
+    { id: 'breathing', name: 'Respirar', speed: SPEED, brightness: BRIGHTNESS, colors: 1 },
     { id: 'off', name: 'Desligado' }
   ],
   fps: 30,
@@ -41,11 +44,13 @@ plugin({
     dev.read(20, 50);
   },
 
-  zone: function (dev, zone, effect, r, g, b) {
+  zone: function (dev, zone, effect, r, g, b, speed, brightness) {
+    var ms = (speed || SPEED.default) * 100;
+    var level = brightness || BRIGHTNESS.default;
     var p = [0x11, DEVICE, FEATURE, SET_ZONE, zone, effect, r, g, b, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
     if (effect === STATIC) p[0x09] = 0x02;
-    if (effect === CYCLE) { p[0x0B] = SPEED >> 8; p[0x0C] = SPEED & 0xFF; p[0x0D] = 100; }
-    if (effect === BREATHING) { p[0x09] = SPEED >> 8; p[0x0A] = SPEED & 0xFF; p[0x0C] = 100; }
+    if (effect === CYCLE) { p[0x0B] = ms >> 8; p[0x0C] = ms & 0xFF; p[0x0D] = level; }
+    if (effect === BREATHING) { p[0x09] = ms >> 8; p[0x0A] = ms & 0xFF; p[0x0C] = level; }
     dev.write(p);
     dev.read(20, 20);
   },
@@ -68,7 +73,7 @@ plugin({
     }
   },
 
-  mode: function (dev, id) {
+  mode: function (dev, id, options) {
     this.sent = ['', ''];
     if (id === null) {
       this.setLive(dev, true);
@@ -77,7 +82,8 @@ plugin({
     // Hardware effects run on their own and may be saved.
     this.setLive(dev, false);
     var effect = id === 'cycle' ? CYCLE : id === 'breathing' ? BREATHING : 0x00;
-    for (var z = 0; z < 2; z++) this.zone(dev, z, effect, this.color[0], this.color[1], this.color[2]);
+    var c = (options.colors && options.colors[0]) || this.color;
+    for (var z = 0; z < 2; z++) this.zone(dev, z, effect, c[0], c[1], c[2], options.speed, options.brightness);
   },
 
   // Back to the lighting saved in the mouse.

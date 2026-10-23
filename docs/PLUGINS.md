@@ -54,7 +54,7 @@ plugin({
 | `devices` | sim | Lista de `{ vid, pid, name }` atendidos. |
 | `endpoint` | não | Qual coleção HID abrir: um objeto com os campos que precisam bater (`interface`, `usagePage`, `usage`, `collection`) ou uma função `(endpoints) => índice` (-1 recusa). Sem ele, a primeira coleção. |
 | `zones` | sim | Grupos de LEDs, na ordem das cores: `{ name, leds }` (uma fileira) ou `{ name, width, height, map }` (matriz; `map` tem `width × height` posições com o índice do LED na zona ou `-1`). Pode ser uma função `(dev) => zonas`, chamada depois do `start`. |
-| `modes` | não | Efeitos do próprio hardware: `[{ id, name }]`. O usuário escolhe na tela do dispositivo. Também pode ser uma função. |
+| `modes` | não | Efeitos do próprio hardware: `[{ id, name, speed, brightness, colors, random }]`. O usuário escolhe na tela do dispositivo. Só `id` e `name` são obrigatórios; os outros campos mostram controles para o efeito (veja [Efeitos do hardware](#efeitos-do-hardware)). Também pode ser uma função. |
 | `settings` | não | Opções mostradas no app: `{ nome: { label, type, default, min, max, values, description } }`, com `type` `number`, `boolean`, `color` ou `combobox`. |
 | `fps` | não | Quadros por segundo de `render` (padrão 30, máximo 60). |
 | `pollMs` | não | Intervalo de `poll` em milissegundos (padrão 1000). |
@@ -68,10 +68,39 @@ para guardar estado nele (`this.ultimaCor = ...`).
 |---|---|
 | `start(dev)` | Ao abrir o dispositivo. Retornar `false` recusa o dispositivo. |
 | `render(dev, colors)` | A cada quadro, com as cores de todos os LEDs (`[r, g, b, r, g, b, ...]`, 0 a 255, já com o brilho aplicado). O app só chama quando as cores mudam. |
-| `mode(dev, id)` | O usuário escolheu um efeito do hardware (`id` de `modes`), ou `null` para voltar às cores do app. |
+| `mode(dev, id, opções)` | O usuário escolheu um efeito do hardware (`id` de `modes`) ou mudou as opções dele, ou `null` para voltar às cores do app. |
 | `poll(dev)` | A cada `pollMs`: ler bateria, estado etc. |
 | `settingChanged(dev, nome, valor)` | O usuário mudou uma opção. |
 | `stop(dev)` | O app vai fechar ou o dispositivo foi desativado. |
+
+## Efeitos do hardware
+
+Cada efeito em `modes` pode declarar o que o usuário ajusta:
+
+| Campo | O que é |
+|---|---|
+| `speed` | `{ min, max, default }`: `min` é o mais lento e `max` o mais rápido, mesmo que `min` seja o número maior (como em aparelhos que medem a velocidade em tempo por ciclo). |
+| `brightness` | `{ min, max, default }`, do mais fraco ao mais forte. |
+| `colors` | Quantas cores o efeito usa (`1`), ou `{ min, max, default: ['#ff0000', ...] }` para deixar o usuário escolher quantas. Sem `default`, as cores começam brancas. |
+| `random` | `true` se o aparelho também sabe escolher as cores sozinho (arco-íris). Começa ligado. |
+
+`mode(dev, id, opções)` recebe os valores escolhidos (ou os `default`):
+`{ speed, brightness, colors: [[r, g, b], ...], random }`, só com os campos
+que o efeito declarou. A função é chamada de novo a cada mudança, então
+mande o comando completo do efeito.
+
+```js
+modes: [
+  { id: 0x02, name: 'Respirar', speed: { min: 0, max: 4, default: 2 }, colors: 1, random: true },
+  { id: 0x00, name: 'Desligado' }
+],
+
+mode: function (dev, id, opcoes) {
+  if (id === null) return; // o próximo render manda as cores do app
+  var cor = opcoes.random ? [0, 0, 0] : opcoes.colors[0];
+  dev.write([0x01, id, opcoes.speed, opcoes.random ? 1 : 0].concat(cor));
+}
+```
 
 ## O objeto `dev`
 
