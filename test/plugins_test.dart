@@ -29,6 +29,22 @@ void main() {
     }, skip: skip);
   }
 
+  test('a plugin stamp changes with its source', () {
+    final dir = Directory.systemTemp.createTempSync('oc_plugin');
+    final f = File('${dir.path}/test.js');
+    String source(String name) =>
+        "plugin({ name: '$name', devices: [{ vid: 1, pid: 2 }], zones: [] });";
+    try {
+      f.writeAsStringSync(source('A'));
+      final a = readPlugin(f.path, bundled: false);
+      expect(readPlugin(f.path, bundled: false).stamp, a.stamp);
+      f.writeAsStringSync(source('B'));
+      expect(readPlugin(f.path, bundled: false).stamp, isNot(a.stamp));
+    } finally {
+      dir.deleteSync(recursive: true);
+    }
+  }, skip: skip);
+
   test('DualShock 4 sends the light bar report over USB', () {
     final fake = _FakeDevice(
       'assets/plugins/sony-dualshock4.js',

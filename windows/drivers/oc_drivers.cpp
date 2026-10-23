@@ -239,6 +239,26 @@ OCD_API void OcdClaimHid(int vid, int pid) {
                                 (static_cast<unsigned int>(pid) & 0xFFFF));
 }
 
+// Replaces the devices left to plugins with [keys] ((vid << 16) | pid, [n]
+// of them) and detects again, so devices a plugin gave up go back to the
+// drivers here and new claims take theirs away. Detection threads read the
+// list, so nothing changes while they run: returns 0 then, and the caller
+// tries again later.
+OCD_API int OcdSetClaims(const std::uint32_t* keys, int n) {
+  if (!g_initialized) return 0;
+  std::lock_guard<std::mutex> lock(g_mutex);
+  ResourceManager* rm = ResourceManager::get();
+  if (rm->GetDetectionPercent() < 100) return 0;
+  std::set<unsigned int> claims;
+  for (int i = 0; keys && i < n; i++) claims.insert(keys[i]);
+  if (claims != openchroma_claimed_hid) {
+    openchroma_claimed_hid = claims;
+    g_direct.clear();
+    rm->RescanDevices();
+  }
+  return 1;
+}
+
 // Runs one of the device's own lighting modes (by index in "modes"); -1
 // hands the LEDs back to the app (per-LED colors from OcdSetLeds).
 OCD_API void OcdSetMode(std::uint64_t id, int mode) {

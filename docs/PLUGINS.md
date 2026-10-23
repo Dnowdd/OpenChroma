@@ -9,8 +9,10 @@ aquele dispositivo.
 - Plugins que vêm com o app: [`assets/plugins`](../assets/plugins).
 - Seus plugins: `%APPDATA%\OpenChroma\plugins` (Configurações › Plugins de
   dispositivos › Abrir pasta). Um arquivo com o mesmo nome de um plugin
-  incluído substitui o incluído. Reinicie o app depois de adicionar ou mudar
-  um plugin.
+  incluído substitui o incluído. O app recarrega sozinho quando um `.js` da
+  pasta é salvo, criado ou apagado (ou pelo botão de recarregar, ao lado de
+  "Abrir pasta"): só os dispositivos daquele plugin reiniciam, e um modelo
+  que um plugin passa a atender sai dos drivers embutidos na hora.
 
 Cada dispositivo roda o seu plugin numa instância separada do QuickJS
 (JavaScript ES2020), sem acesso a arquivos, rede ou outros dispositivos.

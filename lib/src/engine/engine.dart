@@ -81,14 +81,17 @@ class DeviceInstance {
     this.device, {
     this.source = DeviceSource.native,
     this.plugin,
+    this.model,
   });
 
   final String key;
   DriverDevice device;
   final DeviceSource source;
 
-  /// The plugin driving it, for [DeviceSource.plugin].
+  /// The plugin driving it and which of its models it is, for
+  /// [DeviceSource.plugin].
   final PluginInfo? plugin;
+  final PluginDevice? model;
 
   /// starting, running, disabled, error, unsupported or stopped.
   String status = 'running';
@@ -306,7 +309,12 @@ class Engine extends ChangeNotifier {
     } catch (_) {}
 
     // Plugins claim their devices before the native drivers look.
-    await _loadPlugins();
+    await _installBundledPlugins();
+    await _readPlugins();
+    for (final key in _pluginModels.keys) {
+      drivers.claimHid(key >> 16, key & 0xFFFF);
+    }
+    _watchPlugins();
     _scanPluginDevices();
     _pluginScan = Timer.periodic(
       const Duration(seconds: 3),
@@ -743,10 +751,15 @@ class Engine extends ChangeNotifier {
   Timer? _pluginScan;
   bool _scanningPlugins = false;
   int _nextPluginId = -1;
+  StreamSubscription<FileSystemEvent>? _pluginWatch;
+  Timer? _pluginReloadDelay;
+  Future<void> _pluginReload = Future.value();
 
-  /// Copies the bundled plugins out of the assets and reads every plugin.
-  /// Their devices are claimed before the native drivers start.
-  Future<void> _loadPlugins() async {
+  /// The built-in drivers still have to learn which devices plugins took.
+  bool _claimsPending = false;
+
+  /// Copies the bundled plugins out of the assets.
+  Future<void> _installBundledPlugins() async {
     final dir = Directory(_bundledPluginsDir);
     if (dir.existsSync()) dir.deleteSync(recursive: true);
     dir.createSync(recursive: true);
@@ -756,15 +769,104 @@ class Engine extends ChangeNotifier {
       File(p.join(_bundledPluginsDir, p.basename(asset)))
           .writeAsStringSync(await rootBundle.loadString(asset));
     }
+  }
+
+  /// Reads every plugin and which models each one drives.
+  Future<void> _readPlugins() async {
     plugins = await loadPlugins(
       bundledDir: _bundledPluginsDir,
       userDir: pluginsDir,
     );
+    _pluginModels.clear();
     for (final pl in plugins) {
       for (final model in pl.devices) {
         _pluginModels[model.key] = (pl, model);
-        drivers.claimHid(model.vid, model.pid);
       }
+    }
+  }
+
+  /// Reloads the plugins shortly after a .js file in [pluginsDir] changes
+  /// (editors write a file in several steps).
+  void _watchPlugins() {
+    try {
+      Directory(pluginsDir).createSync(recursive: true);
+      _pluginWatch = Directory(pluginsDir)
+          .watch()
+          .where((e) => e.path.toLowerCase().endsWith('.js'))
+          .listen((_) {
+            _pluginReloadDelay?.cancel();
+            _pluginReloadDelay = Timer(
+              const Duration(milliseconds: 400),
+              reloadPlugins,
+            );
+          });
+    } catch (_) {
+      // No watching (e.g. the folder is not writable): the button remains.
+    }
+  }
+
+  /// Reads the plugins again without restarting the app. Devices whose
+  /// plugin changed, appeared or went away start over, and the built-in
+  /// drivers take or give back the devices whose claims changed.
+  Future<void> reloadPlugins() =>
+      _pluginReload = _pluginReload.then((_) => _reloadPlugins());
+
+  Future<void> _reloadPlugins() async {
+    if (_shuttingDown) return;
+    final claimed = _pluginModels.keys.toSet();
+    await _readPlugins();
+    while (_scanningPlugins) {
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+    }
+    if (_shuttingDown) return;
+    _scanningPlugins = true;
+    try {
+      final stale = [
+        for (final d in devices.values)
+          if (d.source == DeviceSource.plugin && _pluginChanged(d)) d,
+      ];
+      for (final d in stale) {
+        devices.remove(d.key);
+      }
+      notifyListeners();
+      await _stopPlugins(stale);
+    } finally {
+      _scanningPlugins = false;
+    }
+    if (!setEquals(claimed, _pluginModels.keys.toSet())) {
+      _claimsPending = true;
+      _applyClaims();
+    }
+    await _scanPluginDevices();
+    notifyListeners();
+  }
+
+  /// Whether the plugin now in charge of [d]'s model is not the one that
+  /// is running it.
+  bool _pluginChanged(DeviceInstance d) {
+    final now = _pluginModels[d.model?.key]?.$1;
+    return now == null ||
+        now.path != d.plugin?.path ||
+        now.stamp != d.plugin?.stamp;
+  }
+
+  void _applyClaims() {
+    if (_claimsPending && drivers.setClaims(_pluginModels.keys)) {
+      _claimsPending = false;
+    }
+  }
+
+  /// Asks the plugins of [stopping] to leave their devices and waits (up to
+  /// two seconds) for them to finish.
+  Future<void> _stopPlugins(List<DeviceInstance> stopping) async {
+    final running = stopping.where((d) => d.port != null).toList();
+    for (final d in running) {
+      d.port!.send({'t': 'stop'});
+    }
+    final deadline = DateTime.now().add(const Duration(seconds: 2));
+    while (running.any((d) => d.port != null) &&
+        DateTime.now().isBefore(deadline)) {
+      await Future<void>.delayed(const Duration(milliseconds: 50));
     }
   }
 
@@ -814,6 +916,7 @@ class Engine extends ChangeNotifier {
           }),
           source: DeviceSource.plugin,
           plugin: plugin,
+          model: model,
         )..status = 'starting';
         devices[d.key] = d;
         changed = true;
@@ -1082,6 +1185,7 @@ class Engine extends ChangeNotifier {
 
   void _pollDevices() {
     if (_shuttingDown) return;
+    _applyClaims();
     final s = drivers.poll();
     var changed =
         scanning != (!s.ready || s.detecting) ||
@@ -1504,6 +1608,8 @@ class Engine extends ChangeNotifier {
     _rescan?.cancel();
     _devicePoll?.cancel();
     _pluginScan?.cancel();
+    _pluginWatch?.cancel();
+    _pluginReloadDelay?.cancel();
     audio.setSource(AudioSource.off);
     _saveDebounce?.cancel();
     try {
@@ -1512,15 +1618,7 @@ class Engine extends ChangeNotifier {
       );
     } catch (_) {}
     // Plugins get a moment to leave their devices in a sensible state.
-    final running = devices.values.where((d) => d.port != null).toList();
-    for (final d in running) {
-      d.port!.send({'t': 'stop'});
-    }
-    final deadline = DateTime.now().add(const Duration(seconds: 2));
-    while (running.any((d) => d.port != null) &&
-        DateTime.now().isBefore(deadline)) {
-      await Future<void>.delayed(const Duration(milliseconds: 50));
-    }
+    await _stopPlugins(devices.values.toList());
     drivers.shutdown();
   }
 }

@@ -25,6 +25,7 @@ class PluginInfo {
     required this.devices,
     required this.settings,
     required this.bundled,
+    this.stamp = 0,
     this.error,
   });
 
@@ -39,6 +40,9 @@ class PluginInfo {
 
   /// Ships with the app (else the user added it).
   final bool bundled;
+
+  /// Hash of the file's source, to tell when it changed.
+  final int stamp;
   final String? error;
 
   String get id => p.basenameWithoutExtension(path).toLowerCase();
@@ -58,8 +62,10 @@ int? _int(Object? v) => switch (v) {
 /// Reads one plugin file's description.
 PluginInfo readPlugin(String path, {required bool bundled}) {
   final rt = JsRuntime((method, args) => null);
+  var source = '';
   try {
-    rt.eval(File(path).readAsStringSync(), name: p.basename(path));
+    source = File(path).readAsStringSync();
+    rt.eval(source, name: p.basename(path));
     if (rt.eval('__oc.defined()') != true) {
       throw PluginError('o arquivo não chama plugin({...})');
     }
@@ -86,6 +92,7 @@ PluginInfo readPlugin(String path, {required bool bundled}) {
             '${e.key}': (e.value as Map).cast<String, dynamic>(),
       },
       bundled: bundled,
+      stamp: source.hashCode,
     );
   } catch (e) {
     return PluginInfo(
@@ -96,6 +103,7 @@ PluginInfo readPlugin(String path, {required bool bundled}) {
       devices: const [],
       settings: const {},
       bundled: bundled,
+      stamp: source.hashCode,
       error: '$e',
     );
   } finally {

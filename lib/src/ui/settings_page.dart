@@ -131,16 +131,25 @@ class SettingsPage extends StatelessWidget {
                           color: _Tint.green,
                         ),
                         title: 'Plugins de dispositivos',
-                        description:
-                            '${engine.plugins.length} carregados. Coloque '
-                            'arquivos .js na pasta e reinicie o app.',
-                        trailing: OcButton(
-                          label: 'Abrir pasta',
-                          onPressed: () {
-                            Directory(engine.pluginsDir)
-                                .createSync(recursive: true);
-                            Process.run('explorer', [engine.pluginsDir]);
-                          },
+                        description: _pluginsSummary(engine),
+                        trailing: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            OcIconButton(
+                              icon: Icons.refresh_rounded,
+                              tooltip: 'Recarregar plugins',
+                              onPressed: engine.reloadPlugins,
+                            ),
+                            const SizedBox(width: 6),
+                            OcButton(
+                              label: 'Abrir pasta',
+                              onPressed: () {
+                                Directory(engine.pluginsDir)
+                                    .createSync(recursive: true);
+                                Process.run('explorer', [engine.pluginsDir]);
+                              },
+                            ),
+                          ],
                         ),
                       ),
                       OcRow(
@@ -227,6 +236,17 @@ class SettingsPage extends StatelessWidget {
 }
 
 /// Shown in Settings; scripts/build-release.ps1 passes the pubspec version.
+/// How many plugins loaded, and which ones failed and why.
+String _pluginsSummary(Engine engine) {
+  final failed = engine.plugins.where((p) => p.error != null).toList();
+  final ok = engine.plugins.length - failed.length;
+  return [
+    '$ok ${ok == 1 ? 'carregado' : 'carregados'}. Arquivos .js salvos na '
+        'pasta entram na hora.',
+    for (final p in failed) '${p.name}: ${p.error}',
+  ].join('\n');
+}
+
 const appVersion = String.fromEnvironment('OC_VERSION', defaultValue: 'dev');
 
 class _LaunchPanel extends StatefulWidget {

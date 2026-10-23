@@ -24,12 +24,12 @@ com o SignalRGB ou com o OpenRGB instalado.
 - [x] Ajustar velocidade, brilho, direção e cores dos efeitos do hardware
       (drivers embutidos e plugins).
 - [x] Rotina de atualização do OpenRGB (`scripts/update-openrgb.ps1`).
+- [x] Recarregar plugins sem reiniciar o app (sozinho ao salvar o `.js`).
 - [ ] Migrar mais drivers populares para plugins (Razer, Corsair, SteelSeries,
       HyperX), melhorando o que der.
 - [ ] Teclado ROYUAN tecla por tecla: o chip tem um comando por tecla, mas
       ele grava na memória do teclado; falta descobrir um modo que não grave.
 - [ ] Bateria também nos drivers embutidos.
-- [ ] Recarregar plugins sem reiniciar o app.
 
 ## 2. Dispositivos que ainda não funcionam
 

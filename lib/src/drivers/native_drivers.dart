@@ -181,6 +181,11 @@ class NativeDrivers {
             Void Function(Uint64, Int32),
             void Function(int, int)
           >('OcdSetMode');
+      _setClaims = lib
+          .lookupFunction<
+            Int32 Function(Pointer<Uint32>, Int32),
+            int Function(Pointer<Uint32>, int)
+          >('OcdSetClaims');
       _setModeOptions = lib
           .lookupFunction<
             Void Function(Uint64, Int32, Pointer<Utf8>),
@@ -204,6 +209,7 @@ class NativeDrivers {
   void Function(int, int)? _claim;
   void Function(int, int)? _setMode;
   void Function(int, int, Pointer<Utf8>)? _setModeOptions;
+  int Function(Pointer<Uint32>, int)? _setClaims;
   void Function(int, Pointer<Utf8>)? _setConfig;
   void Function(int, int, int)? _shutdown;
 
@@ -286,6 +292,19 @@ class NativeDrivers {
 
   /// Leaves [vid]:[pid] to an OpenChroma plugin; call before [start].
   void claimHid(int vid, int pid) => _claim?.call(vid, pid);
+
+  /// Leaves exactly [keys] ((vid << 16) | pid) to plugins from now on and
+  /// detects again. False while detection runs: try again later.
+  bool setClaims(Iterable<int> keys) {
+    final set = _setClaims;
+    if (set == null) return true;
+    final list = keys.toList();
+    return using((arena) {
+      final buf = arena<Uint32>(list.isEmpty ? 1 : list.length);
+      buf.asTypedList(list.length).setAll(0, list);
+      return set(buf, list.length) == 1;
+    });
+  }
 
   /// Runs the device's own mode [index] (see [DriverDevice.modes]); -1
   /// gives the LEDs back to the app.
