@@ -271,6 +271,7 @@ class OcSlider extends StatelessWidget {
     required this.min,
     required this.max,
     required this.onChanged,
+    this.onChangeEnd,
     this.integer = true,
     this.suffix = '',
     this.activeColor,
@@ -279,6 +280,9 @@ class OcSlider extends StatelessWidget {
   final double min;
   final double max;
   final ValueChanged<double> onChanged;
+
+  /// When the drag ends, for changes too costly to apply on every move.
+  final ValueChanged<double>? onChangeEnd;
   final bool integer;
   final String suffix;
   final Color? activeColor;
@@ -294,7 +298,13 @@ class OcSlider extends StatelessWidget {
               activeTrackColor: activeColor ?? LiveAccent.of(context),
               thumbColor: activeColor ?? LiveAccent.of(context),
             ),
-            child: Slider(value: v, min: min, max: max, onChanged: onChanged),
+            child: Slider(
+              value: v,
+              min: min,
+              max: max,
+              onChanged: onChanged,
+              onChangeEnd: onChangeEnd,
+            ),
           ),
         ),
         SizedBox(

@@ -21,13 +21,13 @@ com o SignalRGB ou com o OpenRGB instalado.
       na memória do mouse).
 - [x] Bateria de dispositivos sem fio (plugins).
 - [x] Escolher um efeito do próprio hardware em vez das cores do app.
+- [x] Ajustar velocidade, brilho, direção e cores dos efeitos do hardware
+      (drivers embutidos e plugins).
 - [x] Rotina de atualização do OpenRGB (`scripts/update-openrgb.ps1`).
 - [ ] Migrar mais drivers populares para plugins (Razer, Corsair, SteelSeries,
       HyperX), melhorando o que der.
 - [ ] Teclado ROYUAN tecla por tecla: o chip tem um comando por tecla, mas
       ele grava na memória do teclado; falta descobrir um modo que não grave.
-- [ ] Ajustar velocidade, brilho e cor dos efeitos do hardware (hoje só
-      escolher o efeito).
 - [ ] Bateria também nos drivers embutidos.
 - [ ] Recarregar plugins sem reiniciar o app.
 

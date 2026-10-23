@@ -95,8 +95,8 @@ class DeviceInstance {
   String? error;
   final List<String> logs = [];
 
-  /// The device's own lighting effects, as (id, name).
-  List<(Object?, String)> modes = [];
+  /// The device's own lighting effects.
+  List<HardwareMode> modes = [];
 
   /// The hardware effect running instead of the app's colors, if any.
   String? activeMode;
@@ -918,7 +918,7 @@ class Engine extends ChangeNotifier {
         );
         d.modes = [
           for (final mode in j['modes'] as List? ?? [])
-            if (mode is Map) (mode['id'], '${mode['name'] ?? mode['id']}'),
+            if (mode is Map) HardwareMode.fromPlugin(mode),
         ];
         d.status = _deviceSettings(d.key)['disabled'] == true
             ? 'disabled'
@@ -995,22 +995,73 @@ class Engine extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// The hardware effect [d] is running, if any.
+  HardwareMode? activeHardwareMode(DeviceInstance d) =>
+      d.modes.where((m) => m.name == d.activeMode).firstOrNull;
+
+  /// Speed, brightness, colors... of [mode] on [d]: what the user chose,
+  /// else what the device started with (see [HardwareMode.options]).
+  Map<String, Object?> modeOptions(DeviceInstance d, HardwareMode mode) =>
+      mode.options(
+        ((_deviceSettings(d.key)['hwModeOptions'] as Map?) ?? {})[mode.name]
+            as Map?,
+      );
+
+  /// Changes option [key] of the hardware effect [d] is running.
+  void setModeOption(DeviceInstance d, String key, Object? value) {
+    final name = d.activeMode;
+    if (name == null) return;
+    final all =
+        (_deviceSettings(d.key)['hwModeOptions'] ??= <String, dynamic>{})
+            as Map;
+    ((all[name] ??= <String, dynamic>{}) as Map)[key] = value;
+    _save();
+    _sendMode(d, name);
+    notifyListeners();
+  }
+
   void _sendMode(DeviceInstance d, String? name) {
     final mode = name == null
         ? null
-        : d.modes.where((m) => m.$2 == name).firstOrNull;
-    d.activeMode = mode?.$2;
+        : d.modes.where((m) => m.name == name).firstOrNull;
+    d.activeMode = mode?.name;
     d.lastSent = null;
+    final options = mode == null ? null : modeOptions(d, mode);
     if (d.source == DeviceSource.plugin) {
-      d.port?.send({'t': 'mode', 'id': mode?.$1});
+      d.port?.send({'t': 'mode', 'id': mode?.id, 'options': options});
+    } else if (mode == null) {
+      drivers.setMode(d.device.id, -1);
     } else {
-      drivers.setMode(d.device.id, mode == null ? -1 : mode.$1 as int);
+      drivers.setModeOptions(
+        d.device.id,
+        mode.id as int,
+        _driverModeOptions(mode, options!),
+      );
     }
   }
 
+  /// [options] as oc_drivers.dll takes them: the color source becomes
+  /// OpenRGB's color mode.
+  static Map<String, Object?> _driverModeOptions(
+    HardwareMode mode,
+    Map<String, Object?> options,
+  ) => {
+    for (final k in ['speed', 'brightness', 'direction'])
+      if (options[k] != null) k: options[k],
+    if (options['random'] == true)
+      'colorMode': ModeColorMode.random
+    else if (mode.hasColors) ...{
+      'colorMode': ModeColorMode.modeSpecific,
+      'colors': options['colors'],
+    } else if (mode.ledColor) ...{
+      'colorMode': ModeColorMode.perLed,
+      'ledColor': options['ledColor'],
+    },
+  };
+
   void _applySavedMode(DeviceInstance d) {
     final saved = _deviceSettings(d.key)['hwMode'] as String?;
-    if (saved != null && d.modes.any((m) => m.$2 == saved)) {
+    if (saved != null && d.modes.any((m) => m.name == saved)) {
       _sendMode(d, saved);
     }
   }
@@ -1092,9 +1143,9 @@ class Engine extends ChangeNotifier {
 
   /// A native device's own modes, minus the one that takes the app's
   /// colors.
-  static List<(Object?, String)> _nativeModes(DriverDevice d) => [
-    for (var i = 0; i < d.modes.length; i++)
-      if (d.modes[i].toLowerCase() != 'direct') (i, d.modes[i]),
+  static List<HardwareMode> _nativeModes(DriverDevice d) => [
+    for (final m in d.modes)
+      if (m.name.toLowerCase() != 'direct') m,
   ];
 
   static const _conflictingProcesses = {
@@ -1183,6 +1234,7 @@ class Engine extends ChangeNotifier {
     ds
       ..remove('driverConfig')
       ..remove('hwMode')
+      ..remove('hwModeOptions')
       ..remove('props')
       ..remove('layout');
     if (original != null && original.isNotEmpty) {
@@ -1208,6 +1260,7 @@ class Engine extends ChangeNotifier {
     final ds = _deviceSettings(d.key);
     return ds['driverConfig'] != null ||
         ds['hwMode'] != null ||
+        ds['hwModeOptions'] != null ||
         ds['props'] != null;
   }
 

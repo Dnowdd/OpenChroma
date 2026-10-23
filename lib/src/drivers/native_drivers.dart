@@ -4,6 +4,10 @@ import 'dart:typed_data';
 
 import 'package:ffi/ffi.dart';
 
+import 'hardware_mode.dart';
+
+export 'hardware_mode.dart';
+
 /// OpenRGB zone types, as oc_drivers.dll reports them.
 abstract final class ZoneType {
   static const single = 0;
@@ -60,7 +64,10 @@ class DriverDevice {
       version = '${j['version'] ?? ''}',
       type = '${j['type'] ?? 'other'}',
       ledCount = (j['leds'] as num?)?.toInt() ?? 0,
-      modes = [for (final m in j['modes'] as List? ?? []) '$m'],
+      modes = [
+        for (final (i, m) in (j['modes'] as List? ?? []).indexed)
+          HardwareMode.fromDriver(i, m),
+      ],
       configSchema = ((j['config'] as Map?)?['schema'] as Map? ?? {})
           .cast<String, dynamic>(),
       configValues = ((j['config'] as Map?)?['values'] as Map? ?? {})
@@ -100,7 +107,7 @@ class DriverDevice {
   final String version;
   final String type;
   final int ledCount;
-  final List<String> modes;
+  final List<HardwareMode> modes;
   final List<DriverZone> zones;
 
   /// Driver-specific options: key -> {title, description, type, enum,
@@ -174,6 +181,11 @@ class NativeDrivers {
             Void Function(Uint64, Int32),
             void Function(int, int)
           >('OcdSetMode');
+      _setModeOptions = lib
+          .lookupFunction<
+            Void Function(Uint64, Int32, Pointer<Utf8>),
+            void Function(int, int, Pointer<Utf8>)
+          >('OcdSetModeOptions');
       _shutdown = lib
           .lookupFunction<
             Void Function(Uint8, Uint8, Uint8),
@@ -191,6 +203,7 @@ class NativeDrivers {
   void Function()? _rescan;
   void Function(int, int)? _claim;
   void Function(int, int)? _setMode;
+  void Function(int, int, Pointer<Utf8>)? _setModeOptions;
   void Function(int, Pointer<Utf8>)? _setConfig;
   void Function(int, int, int)? _shutdown;
 
@@ -277,6 +290,17 @@ class NativeDrivers {
   /// Runs the device's own mode [index] (see [DriverDevice.modes]); -1
   /// gives the LEDs back to the app.
   void setMode(int id, int index) => _setMode?.call(id, index);
+
+  /// Runs mode [index] with [options]: `speed`, `brightness`, `direction`,
+  /// `colorMode`, `colors` (0xRRGGBB) and `ledColor`, all optional.
+  void setModeOptions(int id, int index, Map<String, Object?> options) {
+    final set = _setModeOptions;
+    if (set == null) return setMode(id, index);
+    using(
+      (arena) =>
+          set(id, index, jsonEncode(options).toNativeUtf8(allocator: arena)),
+    );
+  }
 
   /// Leaves every device at one color (the app is exiting).
   void shutdown([int r = 0, int g = 0, int b = 0]) => _shutdown?.call(r, g, b);

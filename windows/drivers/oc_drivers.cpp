@@ -72,6 +72,38 @@ void EnsureDirect(RGBController* c) {
   c->SetCustomMode();
 }
 
+unsigned int ToRgb(RGBColor c) {
+  return (RGBGetRValue(c) << 16) | (RGBGetGValue(c) << 8) | RGBGetBValue(c);
+}
+
+RGBColor FromRgb(unsigned int v) {
+  return ToRGBColor((v >> 16) & 0xFF, (v >> 8) & 0xFF, v & 0xFF);
+}
+
+// A mode's name, what it lets the user adjust (OpenRGB's MODE_FLAG_*) and
+// the current values. Colors are 0xRRGGBB.
+nlohmann::json DescribeMode(RGBController* c, unsigned int m) {
+  nlohmann::json j;
+  j["name"] = c->GetModeName(m);
+  j["flags"] = c->GetModeFlags(m);
+  j["speedMin"] = c->GetModeSpeedMin(m);
+  j["speedMax"] = c->GetModeSpeedMax(m);
+  j["speed"] = c->GetModeSpeed(m);
+  j["brightnessMin"] = c->GetModeBrightnessMin(m);
+  j["brightnessMax"] = c->GetModeBrightnessMax(m);
+  j["brightness"] = c->GetModeBrightness(m);
+  j["direction"] = c->GetModeDirection(m);
+  j["colorMode"] = c->GetModeColorMode(m);
+  j["colorsMin"] = c->GetModeColorsMin(m);
+  j["colorsMax"] = c->GetModeColorsMax(m);
+  nlohmann::json colors = nlohmann::json::array();
+  for (unsigned int i = 0; i < c->GetModeColorsCount(m); i++) {
+    colors.push_back(ToRgb(c->GetModeColor(m, i)));
+  }
+  j["colors"] = colors;
+  return j;
+}
+
 nlohmann::json Describe(RGBController* c) {
   nlohmann::json j;
   j["id"] = reinterpret_cast<std::uintptr_t>(c);
@@ -104,7 +136,7 @@ nlohmann::json Describe(RGBController* c) {
   j["zones"] = zones;
   nlohmann::json modes = nlohmann::json::array();
   for (unsigned int m = 0; m < c->GetModeCount(); m++) {
-    modes.push_back(c->GetModeName(m));
+    modes.push_back(DescribeMode(c, m));
   }
   j["modes"] = modes;
   j["activeMode"] = c->GetActiveMode();
@@ -222,6 +254,49 @@ OCD_API void OcdSetMode(std::uint64_t id, int mode) {
   if (static_cast<unsigned int>(mode) >= c->GetModeCount()) return;
   c->SetActiveMode(mode);
   c->UpdateMode();
+}
+
+// Runs mode [mode] like OcdSetMode, first applying [json] (UTF-8 JSON):
+// {"speed", "brightness", "direction", "colorMode", "colors": [0xRRGGBB],
+// "ledColor": 0xRRGGBB}, every key optional. The drivers ignore values out
+// of the mode's range. "ledColor" paints every LED, for modes that use the
+// LEDs' own colors (MODE_FLAG_HAS_PER_LED_COLOR).
+OCD_API void OcdSetModeOptions(std::uint64_t id, int mode, const char* json) {
+  if (!g_initialized || mode < 0) return;
+  std::lock_guard<std::mutex> lock(g_mutex);
+  auto* c = reinterpret_cast<RGBController*>(static_cast<std::uintptr_t>(id));
+  if (!Known(c) || static_cast<unsigned int>(mode) >= c->GetModeCount()) return;
+  const unsigned int m = static_cast<unsigned int>(mode);
+  nlohmann::json o = nlohmann::json::parse(json ? json : "", nullptr, false);
+  if (!o.is_object()) o = nlohmann::json::object();
+  auto number = [&](const char* key, auto apply) {
+    auto it = o.find(key);
+    if (it != o.end() && it->is_number_unsigned()) {
+      apply(it->get<unsigned int>());
+    }
+  };
+  number("speed", [&](unsigned int v) { c->SetModeSpeed(m, v); });
+  number("brightness", [&](unsigned int v) { c->SetModeBrightness(m, v); });
+  number("direction", [&](unsigned int v) { c->SetModeDirection(m, v); });
+  number("colorMode", [&](unsigned int v) { c->SetModeColorMode(m, v); });
+  auto colors = o.find("colors");
+  if (colors != o.end() && colors->is_array()) {
+    c->SetModeColorsCount(m, static_cast<unsigned int>(colors->size()));
+    for (unsigned int i = 0; i < colors->size(); i++) {
+      if ((*colors)[i].is_number_unsigned()) {
+        c->SetModeColor(m, i, FromRgb((*colors)[i].get<unsigned int>()));
+      }
+    }
+  }
+  g_direct.erase(c);
+  c->SetActiveMode(mode);
+  c->UpdateMode();
+  auto led = o.find("ledColor");
+  if (led != o.end() && led->is_number_unsigned() &&
+      (c->GetModeFlags(m) & MODE_FLAG_HAS_PER_LED_COLOR)) {
+    c->SetAllColors(FromRgb(led->get<unsigned int>()));
+    c->UpdateLEDs();
+  }
 }
 
 // Detects again (devices plugged in or out).

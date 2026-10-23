@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../drivers/hardware_mode.dart';
 import '../engine/engine.dart';
 import 'color_order.dart';
 import 'device_art.dart';
@@ -340,6 +341,143 @@ String hardwareModeName(String name) =>
 /// The mode select's entry for "follow the app's effects".
 const _appMode = 'openchroma:app';
 
+const _directionNames = {
+  ModeDirection.left: 'Para a esquerda',
+  ModeDirection.right: 'Para a direita',
+  ModeDirection.up: 'Para cima',
+  ModeDirection.down: 'Para baixo',
+  ModeDirection.horizontal: 'Horizontal',
+  ModeDirection.vertical: 'Vertical',
+  ModeDirection.upLeft: 'Para cima e à esquerda',
+  ModeDirection.upRight: 'Para cima e à direita',
+  ModeDirection.downLeft: 'Para baixo e à esquerda',
+  ModeDirection.downRight: 'Para baixo e à direita',
+};
+
+/// Rows for what the running hardware effect lets the user adjust.
+List<Widget> _modeOptions(
+  Engine engine,
+  DeviceInstance device,
+  HardwareMode mode,
+) {
+  final o = engine.modeOptions(device, mode);
+  void set(String key, Object? value) =>
+      engine.setModeOption(device, key, value);
+  final colors = (o['colors'] as List?)?.cast<int>() ?? const <int>[];
+  final random = o['random'] == true;
+  return [
+    if (mode.speed case final r?)
+      OcRow(
+        title: 'Velocidade',
+        stacked: true,
+        trailing: _ModeSlider(
+          value: r.fraction(o['speed'] as int),
+          onDone: (t) => set('speed', r.at(t)),
+        ),
+      ),
+    if (mode.brightness case final r?)
+      OcRow(
+        title: 'Brilho',
+        stacked: true,
+        trailing: _ModeSlider(
+          value: r.fraction(o['brightness'] as int),
+          onDone: (t) => set('brightness', r.at(t)),
+        ),
+      ),
+    if (mode.directions.length > 1)
+      OcRow(
+        title: 'Direção',
+        trailing: OcSelect(
+          value: '${o['direction']}',
+          options: [for (final d in mode.directions) '$d'],
+          labelOf: (v) => _directionNames[int.parse(v)] ?? v,
+          onChanged: (v) => set('direction', int.parse(v)),
+          width: 200,
+        ),
+      ),
+    if (mode.random)
+      OcRow(
+        title: 'Cores aleatórias',
+        trailing: OcSwitch(value: random, onChanged: (v) => set('random', v)),
+      ),
+    if (mode.hasColors && !random)
+      OcRow(
+        title: colors.length == 1 ? 'Cor' : 'Cores',
+        trailing: Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          alignment: WrapAlignment.end,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          children: [
+            for (final (i, c) in colors.indexed)
+              ColorField(
+                color: Color(0xFF000000 | c),
+                onChanged: (picked) => set('colors', [
+                  for (final (j, old) in colors.indexed)
+                    j == i ? picked.toARGB32() & 0xFFFFFF : old,
+                ]),
+              ),
+            if (mode.colorsMax > mode.colorsMin) ...[
+              OcIconButton(
+                icon: Icons.remove,
+                tooltip: 'Uma cor a menos',
+                onPressed: colors.length > mode.colorsMin
+                    ? () => set('colors', colors.sublist(0, colors.length - 1))
+                    : null,
+              ),
+              OcIconButton(
+                icon: Icons.add,
+                tooltip: 'Mais uma cor',
+                onPressed: colors.length < mode.colorsMax
+                    ? () => set('colors', [
+                        ...colors,
+                        colors.lastOrNull ?? 0xFFFFFF,
+                      ])
+                    : null,
+              ),
+            ],
+          ],
+        ),
+      ),
+    if (mode.ledColor)
+      OcRow(
+        title: 'Cor',
+        trailing: ColorField(
+          color: Color(0xFF000000 | (o['ledColor'] as int)),
+          onChanged: (c) => set('ledColor', c.toARGB32() & 0xFFFFFF),
+        ),
+      ),
+  ];
+}
+
+/// A 0-100% slider that applies its value when the drag ends: each change
+/// is a command to the device, which some store in their memory.
+class _ModeSlider extends StatefulWidget {
+  const _ModeSlider({required this.value, required this.onDone});
+  final double value;
+  final ValueChanged<double> onDone;
+
+  @override
+  State<_ModeSlider> createState() => _ModeSliderState();
+}
+
+class _ModeSliderState extends State<_ModeSlider> {
+  double? _drag;
+
+  @override
+  Widget build(BuildContext context) => OcSlider(
+    value: (_drag ?? widget.value) * 100,
+    min: 0,
+    max: 100,
+    suffix: '%',
+    onChanged: (v) => setState(() => _drag = v / 100),
+    onChangeEnd: (v) {
+      setState(() => _drag = null);
+      widget.onDone(v / 100);
+    },
+  );
+}
+
 class _ZonesTab extends StatelessWidget {
   const _ZonesTab({required this.engine, required this.device});
   final Engine engine;
@@ -369,7 +507,7 @@ class _ZonesTab extends StatelessWidget {
                       : 'O próprio dispositivo faz o efeito.',
                   trailing: OcSelect(
                     value: device.activeMode ?? _appMode,
-                    options: [_appMode, for (final m in device.modes) m.$2],
+                    options: [_appMode, for (final m in device.modes) m.name],
                     labelOf: (v) => v == _appMode
                         ? 'Efeitos do OpenChroma'
                         : hardwareModeName(v),
@@ -378,6 +516,9 @@ class _ZonesTab extends StatelessWidget {
                     width: 240,
                   ),
                 ),
+              if (engine.activeHardwareMode(device) case final mode?
+                  when mode.adjustable)
+                ..._modeOptions(engine, device, mode),
               for (final e in settings.entries)
                 PropertyControl(
                   label: '${e.value['label'] ?? e.key}',
@@ -494,7 +635,11 @@ class _InfoTab extends StatelessWidget {
         ),
         info('Conexão', d.location),
         info('Zonas', '${d.zones.length}'),
-        if (d.modes.isNotEmpty) info('Modos do hardware', d.modes.join(', ')),
+        if (device.modes.isNotEmpty)
+          info(
+            'Modos do hardware',
+            device.modes.map((m) => hardwareModeName(m.name)).join(', '),
+          ),
       ],
     );
   }
