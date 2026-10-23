@@ -6,8 +6,10 @@
 // these keyboards take color changes through the same command that sets
 // the lighting mode, which the firmware may store and which restarts the
 // lighting (animated effects blink), so the app does not stream it at full
-// frame rate. The experimental "Direto" setting tries the live color command
-// of sibling models instead.
+// frame rate. Models where the live color command of sibling models is known
+// to work (the Attack Shark K86, tested 2026-10-23) use that instead: the
+// keyboard goes to its direct mode once and then takes colors at frame rate,
+// without blinking.
 //
 // SPDX-License-Identifier: GPL-2.0-or-later
 
@@ -17,6 +19,9 @@ var MODE_ALWAYS_ON = 0x01;
 var MODE_DIRECT = 0x15; // live color mode on sibling models (GK68HE Pro)
 var DAZZLE_OFF = 0x07; // the color given
 var DAZZLE_ON = 0x08;  // rainbow colors
+
+// Models tested with the live color command and its checksum variant.
+var LIVE_MODELS = { 0x4015: 'A' };
 
 // Checksum of this keyboard family: distance to the next power of two of
 // the payload sum, minus one. Some models use a ones' complement instead.
@@ -50,7 +55,7 @@ plugin({
   devices: [
     { vid: 0x3151, pid: 0x4015, name: 'Attack Shark K86' },
     { vid: 0x3151, pid: 0x4010, name: 'Epomaker TH80 Pro' },
-    { vid: 0x3151, pid: 0x4011, name: 'Epomaker TH80 Pro (sem fio)' }
+    { vid: 0x3151, pid: 0x4011, name: 'Epomaker TH80 Pro' }
   ],
   // Lighting goes through feature reports on interface 2.
   endpoint: function (endpoints) {
@@ -80,17 +85,17 @@ plugin({
     live: {
       label: 'Como enviar a cor',
       type: 'combobox',
-      values: ['Padrão', 'Direto A (teste)', 'Direto B (teste)'],
-      default: 'Padrão',
-      description: 'Padrão funciona em todos, mas pode piscar com efeitos animados. Os modos Direto usam o comando de cor ao vivo de modelos irmãos; se o teclado não mudar de cor, volte para Padrão.'
+      values: ['Automático', 'Ao vivo A', 'Ao vivo B', 'Compatível'],
+      default: 'Automático',
+      description: 'Ao vivo muda a cor sem piscar; Compatível funciona em todos os modelos, mas pisca com efeitos animados. Automático usa Ao vivo nos modelos testados. Se o teclado não mudar de cor em Ao vivo, use Compatível.'
     },
     rate: {
-      label: 'Atualizações por segundo',
+      label: 'Atualizações por segundo (Compatível)',
       type: 'number',
       min: 1,
       max: 30,
       default: 8,
-      description: 'Menos atualizações poupam o teclado; mais deixam efeitos rápidos mais suaves.'
+      description: 'Só no modo Compatível: menos atualizações poupam o teclado; mais deixam efeitos rápidos mais suaves.'
     }
   },
   fps: 30,
@@ -131,17 +136,30 @@ plugin({
     dev.sendFeature([0x00].concat(payload, [checksum(payload)]));
   },
 
+  // 'A' or 'B' (checksum variant) for the live command, or null for the
+  // mode command. Accepts the names older versions saved ("Direto A (teste)",
+  // "Padrão").
+  liveVariant: function (dev) {
+    var live = dev.setting('live') || 'Automático';
+    if (live === 'Automático') return LIVE_MODELS[dev.info.pid] || null;
+    if (live.indexOf('Ao vivo') === 0 || live.indexOf('Direto') === 0) {
+      return live.indexOf(' B') > 0 ? 'B' : 'A';
+    }
+    return null;
+  },
+
   render: function (dev, colors) {
     var r = colors[0], g = colors[1], b = colors[2];
     var key = r + ',' + g + ',' + b;
+    if (key === this.sentKey) return;
+    var variant = this.liveVariant(dev);
     var now = Date.now();
-    var rate = dev.setting('rate') || 8;
-    if (key === this.sentKey || now - this.sentAt < 1000 / rate) return;
+    // The mode command restarts the lighting and may be stored: limited.
+    if (!variant && now - this.sentAt < 1000 / (dev.setting('rate') || 8)) return;
     this.sentKey = key;
     this.sentAt = now;
-    var live = dev.setting('live') || 'Padrão';
-    if (live.indexOf('Direto') === 0) {
-      this.sendDirect(dev, live.indexOf(' B') > 0 ? 'B' : 'A', r, g, b);
+    if (variant) {
+      this.sendDirect(dev, variant, r, g, b);
     } else {
       this.send(dev, MODE_ALWAYS_ON, DAZZLE_OFF, r, g, b);
     }
