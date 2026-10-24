@@ -18,6 +18,9 @@ import '../plugins/plugin_worker.dart';
 import '../system/batteries.dart';
 import '../system/processes.dart';
 import '../paths.dart';
+import 'screen_image.dart';
+
+export 'screen_image.dart' show ScreenSpec;
 
 /// Canvas size effects draw on; layout coordinates use this space.
 const canvasWidth = 320.0;
@@ -112,6 +115,15 @@ class DeviceInstance {
 
   /// [battery] comes from Windows, not from the device's plugin.
   bool batteryFromSystem = false;
+
+  /// The device's own screen, if its plugin drives one.
+  ScreenSpec? screen;
+
+  /// How far an image upload to [screen] is (0 to 1), while one runs, and
+  /// why the last one failed.
+  double? screenProgress;
+  String? screenError;
+  Completer<bool>? _screenDone;
 
   /// Plugin isolate link.
   SendPort? port;
@@ -1199,11 +1211,24 @@ class Engine extends ChangeNotifier {
           for (final mode in j['modes'] as List? ?? [])
             if (mode is Map) HardwareMode.fromPlugin(mode),
         ];
+        d.screen = ScreenSpec.fromJson(j['screen']);
         d.status = _deviceSettings(d.key)['disabled'] == true
             ? 'disabled'
             : 'running';
         _ensureLayout(d);
         _applySavedMode(d);
+        notifyListeners();
+      case 'progress':
+        final v = (m['value'] as num).toDouble();
+        // Redraw only for visible steps: uploads report every chunk.
+        if (d.screenProgress == null || (v - d.screenProgress!).abs() >= .01) {
+          d.screenProgress = v;
+          notifyListeners();
+        }
+      case 'screenDone':
+        d.screenProgress = null;
+        d._screenDone?.complete(m['ok'] == true);
+        d._screenDone = null;
         notifyListeners();
       case 'battery':
         d.battery = m['level'] as int?;
@@ -1223,6 +1248,8 @@ class Engine extends ChangeNotifier {
         d.error = 'O plugin não reconheceu este dispositivo.';
         notifyListeners();
       case 'stopped':
+        d._screenDone?.complete(false);
+        d._screenDone = null;
         d.inbox?.close();
         d.port = null;
         if (d.status == 'running' || d.status == 'starting') {
@@ -1232,9 +1259,78 @@ class Engine extends ChangeNotifier {
     }
   }
 
+  // ---------------------------------------------------------------- screens
+  /// The image last sent to [d]'s screen (a copy the app keeps), if any.
+  String? screenImagePath(DeviceInstance d) {
+    final path = _deviceSettings(d.key)['screenImage'] as String?;
+    return path != null && File(path).existsSync() ? path : null;
+  }
+
+  /// Fills or fits the image when sending it to a screen.
+  bool screenFill(DeviceInstance d) =>
+      _deviceSettings(d.key)['screenFill'] as bool? ?? true;
+
+  void setScreenFill(DeviceInstance d, bool fill) {
+    _deviceSettings(d.key)['screenFill'] = fill;
+    _save();
+    notifyListeners();
+  }
+
+  /// Sends the picture or animation at [path] to [d]'s screen, where the
+  /// device keeps it. True when the device took it.
+  Future<bool> sendToScreen(DeviceInstance d, String path) async {
+    final spec = d.screen;
+    final port = d.port;
+    if (spec == null || port == null || d._screenDone != null) return false;
+    d
+      ..screenError = null
+      ..screenProgress = 0;
+    notifyListeners();
+    try {
+      final image = await loadScreenImage(path, spec, fill: screenFill(d));
+      if (image.frames.isEmpty) throw const FormatException('imagem vazia');
+      final done = d._screenDone = Completer<bool>();
+      port.send({
+        't': 'screen',
+        'width': spec.width,
+        'height': spec.height,
+        'frames': image.frames,
+        'delays': image.delaysMs,
+      });
+      final ok = await done.future;
+      if (ok) {
+        // Keep a copy for the preview: the original may move or vanish.
+        final dir = Directory(p.join(dataDir, 'screens'))
+          ..createSync(recursive: true);
+        final name = d.key.replaceAll(RegExp(r'[^A-Za-z0-9]+'), '_');
+        final copy = p.join(
+          dir.path,
+          '$name${p.extension(path).toLowerCase()}',
+        );
+        final old = screenImagePath(d);
+        if (old != null && old != copy) File(old).deleteSync();
+        File(path).copySync(copy);
+        _deviceSettings(d.key)['screenImage'] = copy;
+        _save();
+      } else {
+        d.screenError = 'O dispositivo não aceitou a imagem.';
+      }
+      return ok;
+    } catch (e) {
+      d.screenError = 'Não foi possível abrir a imagem.';
+      return false;
+    } finally {
+      d.screenProgress = null;
+      d._screenDone = null;
+      notifyListeners();
+    }
+  }
+
   /// The plugin's isolate ended. When that was not asked for (a crash), the
   /// device is dropped so the next scan starts the plugin again.
   void _onPluginExit(DeviceInstance d) {
+    d._screenDone?.complete(false);
+    d._screenDone = null;
     d.inbox?.close();
     d.port = null;
     if (_shuttingDown || devices[d.key] != d) return;
@@ -1664,9 +1760,19 @@ class Engine extends ChangeNotifier {
     item.x = item.x.clamp(-canvasWidth, canvasWidth * 2);
     item.y = item.y.clamp(-canvasHeight, canvasHeight * 2);
     item.scale = item.scale.clamp(0.5, 60);
-    layout[zoneKey] = item.toJson();
+    layout[zoneKey] = _layoutJson(d, zoneKey, item);
     _save();
     notifyListeners();
+  }
+
+  /// [item] as saved, with the size of the zone's grid it was made for.
+  Map<String, Object> _layoutJson(
+    DeviceInstance d,
+    String zoneKey,
+    LayoutItem item,
+  ) {
+    final zone = d.zones.where((z) => z.key == zoneKey).firstOrNull;
+    return {...item.toJson(), 'w': ?zone?.width, 'h': ?zone?.height};
   }
 
   LayoutItem _defaultLayout(DeviceInstance d, String zoneKey) {
@@ -1706,8 +1812,21 @@ class Engine extends ChangeNotifier {
         (_deviceSettings(d.key)['layout'] ??= <String, dynamic>{}) as Map;
     var changed = false;
     for (final z in d.zones) {
-      if (!layout.containsKey(z.key)) {
-        layout[z.key] = _defaultLayout(d, z.key).toJson();
+      final saved = layout[z.key];
+      // A place made for another grid (a plugin that now lights every key
+      // instead of one color) would stretch the new one: start over.
+      final stale =
+          saved is Map &&
+          (saved['w'] != null
+              ? saved['w'] != z.width || saved['h'] != z.height
+              : z.width * (saved['scale'] as num) > canvasWidth * 2 ||
+                    z.height * (saved['scale'] as num) > canvasHeight * 2);
+      if (saved is! Map || stale) {
+        layout[z.key] = _layoutJson(d, z.key, _defaultLayout(d, z.key));
+        changed = true;
+      } else if (saved['w'] == null) {
+        saved['w'] = z.width;
+        saved['h'] = z.height;
         changed = true;
       }
     }

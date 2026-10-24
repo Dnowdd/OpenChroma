@@ -31,7 +31,8 @@ class PluginWorkerArgs {
 /// To the app: `port`, `layout` {zones, modes}, `battery`, `log`, `error`,
 /// `rejected`, `stopped`. From the app: `frame` (RGB bytes per LED),
 /// `mode` (hardware mode id, or null for the app's colors, and its
-/// options), `setting`, `stop`.
+/// options), `setting`, `screen` (frames and delays for the device's
+/// screen), `stop`. Screen uploads answer with `progress` and `screenDone`.
 Future<void> pluginWorkerMain(PluginWorkerArgs args) async {
   final inbox = ReceivePort();
   final out = args.sendPort;
@@ -42,6 +43,11 @@ Future<void> pluginWorkerMain(PluginWorkerArgs args) async {
   ];
   final handles = <String, HidHandle>{};
   HidEndpointInfo? current;
+
+  // The image waiting for the screen, and the frames of the one being sent
+  // (RGB bytes, row by row).
+  Map? pendingScreen;
+  List<Uint8List> screenFrames = const [];
 
   void log(String msg) => out.send({'t': 'log', 'msg': msg});
 
@@ -88,6 +94,17 @@ Future<void> pluginWorkerMain(PluginWorkerArgs args) async {
       case 'log':
         log('${a[0]}');
         return null;
+      case 'frame':
+        final i = n(a[0]);
+        return i >= 0 && i < screenFrames.length
+            ? screenFrames[i].toList()
+            : <int>[];
+      case 'localTime':
+        final t = DateTime.now();
+        return [t.year, t.month, t.day, t.hour, t.minute, t.second];
+      case 'progress':
+        out.send({'t': 'progress', 'value': (a[0] as num).toDouble()});
+        return null;
       case 'battery':
         out.send({
           't': 'battery',
@@ -121,6 +138,8 @@ Future<void> pluginWorkerMain(PluginWorkerArgs args) async {
         modeChanged = true;
       case 'setting':
         pendingSettings.add(MapEntry(m['name'] as String, m['value']));
+      case 'screen':
+        pendingScreen = m;
       case 'stop':
         running = false;
         if (!stop.isCompleted) stop.complete();
@@ -176,6 +195,24 @@ Future<void> pluginWorkerMain(PluginWorkerArgs args) async {
         safe('__oc.setSetting(${jsonEncode(s.key)}, ${jsonEncode(s.value)})');
       }
       pendingSettings.clear();
+      final image = pendingScreen;
+      if (image != null) {
+        pendingScreen = null;
+        screenFrames = (image['frames'] as List).cast<Uint8List>();
+        var ok = false;
+        try {
+          ok =
+              rt.eval(
+                '__oc.screen(${jsonEncode({'width': image['width'], 'height': image['height'], 'frames': screenFrames.length, 'delays': image['delays']})})',
+              ) ==
+              true;
+        } on PluginError catch (e) {
+          log('tela: $e');
+        }
+        screenFrames = const [];
+        out.send({'t': 'screenDone', 'ok': ok});
+        // A long upload: frames and settings queued meanwhile go on below.
+      }
       if (modeChanged) {
         modeChanged = false;
         safe(

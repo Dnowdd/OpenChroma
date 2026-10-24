@@ -44,6 +44,14 @@ var __oc = (function () {
     },
     /** Current value of one of the plugin's settings. */
     setting: function (name) { return settings[name]; },
+    /** Frame [index] of the image being sent to the screen: [r, g, b, ...]
+     * row by row, screen.width x screen.height. */
+    frame: function (index) { return h('frame', index | 0) || []; },
+    /** The PC's local time as [year, month, day, hour, minute, second]
+     * (JavaScript's Date here only knows UTC). */
+    localTime: function () { return h('localTime'); },
+    /** Reports how far a long job (a screen upload) is, 0 to 1. */
+    progress: function (value) { h('progress', Math.max(0, Math.min(1, +value || 0))); },
     /** Reports a wireless device's charge (0-100, or null when unknown). */
     setBattery: function (percent, charging) {
       h('battery', percent == null ? null : Math.max(0, Math.min(100, Math.round(percent))), !!charging);
@@ -54,7 +62,7 @@ var __oc = (function () {
     var fn = def && def[name];
     return typeof fn === 'function' ? fn.apply(def, [dev].concat(args || [])) : undefined;
   }
-  function resolve(v) { return typeof v === 'function' ? v(dev) : v; }
+  function resolve(v) { return typeof v === 'function' ? v.call(def, dev) : v; }
 
   return {
     defined: function () { return def != null; },
@@ -80,7 +88,11 @@ var __oc = (function () {
     start: function () { return call('start') !== false; },
     /** Zones and hardware modes, after start (they may depend on the device). */
     layout: function () {
-      return JSON.stringify({ zones: resolve(def.zones) || [], modes: resolve(def.modes) || [] });
+      return JSON.stringify({
+        zones: resolve(def.zones) || [],
+        modes: resolve(def.modes) || [],
+        screen: resolve(def.screen) || null
+      });
     },
     render: function (colors) { call('render', [colors]); },
     /** Hardware mode [id] with the user's options; colors come as 0xRRGGBB. */
@@ -92,6 +104,8 @@ var __oc = (function () {
       }
       call('mode', [id, o]);
     },
+    /** Shows an image on the device's screen; false when it failed. */
+    screen: function (image) { return call('showImage', [image]) === true; },
     poll: function () { call('poll'); },
     stop: function () { call('stop'); },
     fps: function () { return def.fps || 30; },

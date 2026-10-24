@@ -6,6 +6,7 @@ import '../system/batteries.dart';
 import 'color_order.dart';
 import 'device_art.dart';
 import 'property_controls.dart';
+import 'screen_tab.dart';
 import 'theme.dart';
 import 'widgets.dart';
 
@@ -373,14 +374,20 @@ class _DeviceDetailState extends State<_DeviceDetail> {
         Align(
           alignment: Alignment.centerLeft,
           child: OcSegmented<String>(
-            value: _tab,
-            options: const [('lighting', 'Iluminação'), ('info', 'Detalhes')],
+            value: _tab == 'screen' && d.screen == null ? 'lighting' : _tab,
+            options: [
+              ('lighting', 'Iluminação'),
+              if (d.screen != null) ('screen', 'Tela'),
+              ('info', 'Detalhes'),
+            ],
             onChanged: (v) => setState(() => _tab = v),
           ),
         ),
         const SizedBox(height: 20),
         if (_tab == 'info')
           _InfoTab(device: d)
+        else if (_tab == 'screen' && d.screen != null)
+          ScreenTab(engine: engine, device: d)
         else
           _ZonesTab(engine: engine, device: d),
       ],
