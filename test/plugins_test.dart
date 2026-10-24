@@ -178,11 +178,23 @@ void main() {
       info: {'vid': 0x3151, 'pid': 0x4015},
     );
     fake.start();
+    fake.features.clear(); // the model id question
     fake.render([10, 20, 30]);
     fake.render([11, 20, 30]);
     // Direct mode once, then one live color per frame, with no rate limit.
     expect(fake.features.map((f) => f[1]), [0x07, 0x0E, 0x0E]);
     expect(fake.features.first[2], 0x15);
+    // The Attack Shark app's checksum: 255 minus the sum's low byte.
+    expect(fake.features.last.sublist(1, 9), [
+      0x0E,
+      11,
+      20,
+      30,
+      0,
+      0,
+      0,
+      255 - ((0x0E + 11 + 20 + 30) & 255),
+    ]);
     // Names saved by older versions still work.
     final old = _FakeDevice(
       'assets/plugins/royuan-keyboard.js',
@@ -191,8 +203,91 @@ void main() {
       settings: {'live': 'Padrão'},
     );
     old.start();
+    old.features.clear();
     old.render([10, 20, 30]);
     expect(old.features.single[1], 0x07);
+  }, skip: skip);
+
+  test('the K86 shows still effects key by key in picture 3', () async {
+    final fake = _FakeDevice(
+      'assets/plugins/royuan-keyboard.js',
+      endpoints: [_endpoint(interface: 2, featureLength: 65)],
+      info: {'vid': 0x3151, 'pid': 0x4015},
+      answers: {
+        0x8F: [0x00, 0x8F, 0x90, 0x04, 0x00, 0x00], // model id 1168
+      },
+    );
+    fake.start();
+    // Set the clock at start, in local time: 2026-10-23 16:30:05.
+    expect(fake.features.last.sublist(1, 2), [0x28]);
+    expect(fake.features.last.sublist(9, 16), [0x07, 0xEA, 10, 23, 16, 30, 5]);
+    final layout = fake.layout();
+    final zone = (layout['zones'] as List).single as Map;
+    expect([zone['width'], zone['height']], [37, 6]);
+    final leds = (zone['map'] as List).where((v) => v != -1).length;
+    expect(leds, 86);
+    expect((layout['screen'] as Map)['width'], 240);
+    expect(
+      (layout['modes'] as List).map((m) => (m as Map)['id']),
+      contains('picture3'),
+    );
+    // Different colors per key, held still: one write to picture 3.
+    final colors = [
+      for (var i = 0; i < leds; i++) ...[i, 255 - i, 0],
+    ];
+    fake.render(colors);
+    fake.features.clear();
+    fake.poll();
+    expect(fake.features, isEmpty); // not still long enough yet
+    await Future<void>.delayed(const Duration(milliseconds: 1600));
+    fake.poll();
+    expect(fake.features.first.sublist(1, 6), [0x07, 0x0D, 4, 4, 2]);
+    expect(fake.features.skip(1).map((f) => f.sublist(1, 6)).toList(), [
+      for (var part = 0; part < 7; part++) [0x0C, 0, 0x80, 0x01, part],
+    ]);
+    // Esc (LED 0) sits in slot 0: its color leads the first part.
+    expect(fake.features[1].sublist(9, 12), [0, 255, 0]);
+    // The same frame again does not write the picture again.
+    fake.features.clear();
+    fake.render(colors);
+    fake.poll();
+    expect(fake.features, isEmpty);
+  }, skip: skip);
+
+  test('the K86 sends images to its screen column by column', () {
+    final fake = _FakeDevice(
+      'assets/plugins/royuan-keyboard.js',
+      endpoints: [_endpoint(interface: 2, featureLength: 65)],
+      info: {'vid': 0x3151, 'pid': 0x4015},
+      answers: {
+        0x8F: [0x00, 0x8F, 0x90, 0x04, 0x00, 0x00],
+        0xA5: [0x00, 0xA5, 0x01],
+      },
+      frames: [
+        // 2 x 2: red, green / blue, white, row by row.
+        [255, 0, 0, 0, 255, 0, 0, 0, 255, 255, 255, 255],
+      ],
+    );
+    fake.start();
+    fake.features.clear();
+    expect(fake.screen(2, 2, [120]), isTrue);
+    // Start: frame 0 of 1, 120 ms, 8 bytes, the whole 2 x 2 screen.
+    expect(fake.features.first.sublist(1, 7), [0xA5, 0, 1, 120, 8, 0]);
+    expect(fake.features.first.sublist(9, 13), [0, 0, 2, 2]);
+    // Data: red, blue (first column), green, white, in RGB565.
+    final data = fake.features.last;
+    expect(data.sublist(1, 8), [0x25, 0, 1, 120, 0, 0, 8]);
+    expect(data.sublist(9, 17), [
+      0xF8,
+      0x00,
+      0x00,
+      0x1F,
+      0x07,
+      0xE0,
+      0xFF,
+      0xFF,
+    ]);
+    expect(fake.progress, 1);
   }, skip: skip);
 
   test('Attack Shark X11 sends the lighting report checked on the mouse', () {
@@ -364,6 +459,8 @@ class _FakeDevice {
     List<Map<String, Object>>? endpoints,
     Map<String, Object?> settings = const {},
     Map<String, Object?> info = const {'vid': 1, 'pid': 2},
+    this.answers = const {},
+    this.frames = const [],
   }) : _reads = [...reads],
        _endpoints = endpoints ?? [_endpoint()] {
     _rt = JsRuntime(_host);
@@ -378,6 +475,13 @@ class _FakeDevice {
   final writes = <List<int>>[];
   final features = <List<int>>[];
   List<Object?>? battery;
+  num? progress;
+
+  /// Feature report answers by the command last sent (its first byte).
+  final Map<int, List<int>> answers;
+
+  /// Screen frames the plugin reads with dev.frame(i).
+  final List<List<int>> frames;
 
   Object? _host(String method, List<dynamic> a) {
     List<int> bytes(Object? v) => [
@@ -399,9 +503,31 @@ class _FakeDevice {
       case 'battery':
         battery = [a[0], a[1]];
         return null;
+      case 'getFeature':
+        final last = features.isEmpty ? null : features.last;
+        return last == null || last.length < 2
+            ? <int>[]
+            : answers[last[1]] ?? <int>[];
+      case 'frame':
+        return frames[(a[0] as num).toInt()];
+      case 'progress':
+        progress = a[0] as num;
+        return null;
+      case 'localTime':
+        return [2026, 10, 23, 16, 30, 5];
     }
     return null;
   }
+
+  Map<String, Object?> layout() =>
+      (jsonDecode(_rt.eval('__oc.layout()') as String) as Map)
+          .cast<String, Object?>();
+
+  bool screen(int width, int height, List<int> delays) =>
+      _rt.eval(
+        '__oc.screen(${jsonEncode({'width': width, 'height': height, 'frames': frames.length, 'delays': delays})})',
+      ) ==
+      true;
 
   bool start() {
     final index = _rt.evalJson('__oc.pickEndpoint(${jsonEncode(_endpoints)})');
