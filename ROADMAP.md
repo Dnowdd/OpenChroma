@@ -32,13 +32,19 @@ com o SignalRGB ou com o OpenRGB instalado.
 - [x] Plugin novo: Attack Shark X11 (luz, efeitos do mouse e bateria, no
       cabo e pelo receptor 2.4 GHz), protocolo aprendido do app oficial e
       testado no mouse.
-- [ ] Migrar mais drivers populares para plugins (Razer, Corsair, SteelSeries,
-      HyperX), principalmente para ter a bateria dos modelos sem fio.
-      **Precisa do aparelho para testar**: os drivers embutidos já acendem
-      esses modelos, e um plugin sem teste pode piorar o que funciona.
-- [ ] Teclado ROYUAN tecla por tecla: o único comando por tecla conhecido
-      grava uma imagem na memória do teclado. **Precisa do app oficial do
-      teclado** (não do mouse) para descobrir um modo ao vivo.
+- [x] Todos os drivers de Windows do OpenRGB embutidos (~2.160 modelos de
+      189 famílias, incluindo Razer, Corsair, SteelSeries, Logitech e HyperX),
+      menos os 4 da seção 2.
+- [ ] Bateria dos mouses e headsets sem fio da Razer, Corsair, SteelSeries e
+      HyperX (a luz já funciona pelos drivers embutidos; o OpenRGB não lê
+      bateria). **Precisa do aparelho para testar.**
+- [x] Attack Shark K86 tecla por tecla, com a posição real de cada tecla:
+      efeitos parados aparecem tecla por tecla (gravados na imagem 3 do
+      teclado) e os que se mexem vão como uma cor só, porque o teclado não
+      recebe cor por tecla ao vivo (nem o app oficial faz isso). As 3 imagens
+      do teclado também aparecem como efeitos dele.
+- [x] Tela do K86: mandar imagem ou GIF (aba Tela no dispositivo), e o
+      relógio do teclado acertado sozinho.
 
 ## 2. Dispositivos que ainda não funcionam
 
@@ -68,6 +74,9 @@ com o SignalRGB ou com o OpenRGB instalado.
 
 ## 5. App
 
+- [ ] **Macros universais**: gravar e disparar macros de teclado e mouse
+      pelo próprio app, para qualquer marca, sem depender da memória de cada
+      aparelho.
 - [ ] **Atualização automática**: avisar e baixar a versão nova do GitHub.
 - [ ] **Assinatura de código** do `.exe` e do instalador, para o Windows não
       mostrar o aviso do SmartScreen ("o Windows protegeu seu computador").
