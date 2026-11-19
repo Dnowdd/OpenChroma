@@ -58,7 +58,7 @@ plugin({
 | `endpoint` | não | Qual coleção HID abrir: um objeto com os campos que precisam bater (`interface`, `usagePage`, `usage`, `collection`) ou uma função `(endpoints) => índice` (-1 recusa). Sem ele, a primeira coleção. |
 | `zones` | sim | Grupos de LEDs, na ordem das cores: `{ name, leds }` (uma fileira) ou `{ name, width, height, map }` (matriz; `map` tem `width × height` posições com o índice do LED na zona ou `-1`). Pode ser uma função `(dev) => zonas`, chamada depois do `start`. |
 | `modes` | não | Efeitos do próprio hardware: `[{ id, name, speed, brightness, colors, random }]`. O usuário escolhe na tela do dispositivo. Só `id` e `name` são obrigatórios; os outros campos mostram controles para o efeito (veja [Efeitos do hardware](#efeitos-do-hardware)). Também pode ser uma função. |
-| `screen` | não | A tela do aparelho, se tiver: `{ width, height, maxFrames }` (`maxFrames` é quantos quadros ela guarda; padrão 100). Mostra a aba Tela no dispositivo. Também pode ser uma função. |
+| `screen` | não | A tela do aparelho, se tiver: `{ width, height, maxFrames, round }` (`maxFrames` é quantos quadros ela guarda, padrão 100; `round: true` para telas redondas). Mostra a aba Tela no dispositivo. Também pode ser uma função. |
 | `settings` | não | Opções mostradas no app: `{ nome: { label, type, default, min, max, values, description } }`, com `type` `number`, `boolean`, `color` ou `combobox`. |
 | `fps` | não | Quadros por segundo de `render` (padrão 30, máximo 60). |
 | `pollMs` | não | Intervalo de `poll` em milissegundos (padrão 1000). |

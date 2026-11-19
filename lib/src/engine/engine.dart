@@ -21,7 +21,7 @@ import '../system/processes.dart';
 import '../paths.dart';
 import 'screen_image.dart';
 
-export 'screen_image.dart' show ScreenSpec;
+export 'screen_image.dart' show ScreenSpec, ScreenEdit, ScreenText;
 
 /// Canvas size effects draw on; layout coordinates use this space.
 const canvasWidth = 320.0;
@@ -1276,19 +1276,17 @@ class Engine extends ChangeNotifier {
     return path != null && File(path).existsSync() ? path : null;
   }
 
-  /// Fills or fits the image when sending it to a screen.
-  bool screenFill(DeviceInstance d) =>
-      _deviceSettings(d.key)['screenFill'] as bool? ?? true;
-
-  void setScreenFill(DeviceInstance d, bool fill) {
-    _deviceSettings(d.key)['screenFill'] = fill;
-    _save();
-    notifyListeners();
-  }
+  /// How the image last sent to [d]'s screen was laid out.
+  ScreenEdit screenEdit(DeviceInstance d) =>
+      ScreenEdit.fromJson(_deviceSettings(d.key)['screenEdit']);
 
   /// Sends the picture or animation at [path] to [d]'s screen, where the
   /// device keeps it. True when the device took it.
-  Future<bool> sendToScreen(DeviceInstance d, String path) async {
+  Future<bool> sendToScreen(
+    DeviceInstance d,
+    String path, {
+    ScreenEdit edit = const ScreenEdit(),
+  }) async {
     final spec = d.screen;
     final port = d.port;
     if (spec == null || port == null || d._screenDone != null) return false;
@@ -1297,7 +1295,7 @@ class Engine extends ChangeNotifier {
       ..screenProgress = 0;
     notifyListeners();
     try {
-      final image = await loadScreenImage(path, spec, fill: screenFill(d));
+      final image = await loadScreenImage(path, spec, edit: edit);
       if (image.frames.isEmpty) throw const FormatException('imagem vazia');
       final done = d._screenDone = Completer<bool>();
       port.send({
@@ -1319,8 +1317,11 @@ class Engine extends ChangeNotifier {
         );
         final old = screenImagePath(d);
         if (old != null && old != copy) File(old).deleteSync();
-        File(path).copySync(copy);
-        _deviceSettings(d.key)['screenImage'] = copy;
+        if (!p.equals(path, copy)) File(path).copySync(copy);
+        _deviceSettings(d.key)
+          ..['screenImage'] = copy
+          ..['screenEdit'] = edit.toJson()
+          ..remove('screenFill');
         _save();
       } else {
         d.screenError = 'O dispositivo não aceitou a imagem.';

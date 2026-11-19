@@ -95,7 +95,7 @@ plugin({
   ],
   serial: { baud: 1000000 },
   zones: [],
-  screen: { width: SIZE, height: SIZE, maxFrames: 100 },
+  screen: { width: SIZE, height: SIZE, maxFrames: 100, round: true },
   settings: {
     quality: { label: 'JPEG quality', type: 'number', default: 80, min: 40, max: 100 },
     direction: {
