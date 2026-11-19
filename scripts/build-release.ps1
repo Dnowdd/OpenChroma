@@ -109,6 +109,14 @@ if (-not $NoInstaller) {
       Write-Host '  Downloading the WebView2 bootstrapper'
       Invoke-WebRequest 'https://go.microsoft.com/fwlink/p/?LinkId=2124703' -OutFile $webview -UseBasicParsing
     }
+    $pawnio = Join-Path $redist 'PawnIO_setup.exe'
+    if (-not (Test-Path $pawnio)) {
+      New-Item -ItemType Directory -Force $redist | Out-Null
+      Write-Host '  Downloading the PawnIO setup'
+      Invoke-WebRequest 'https://github.com/namazso/PawnIO.Setup/releases/latest/download/PawnIO_setup.exe' -OutFile $pawnio -UseBasicParsing
+    }
+    $sig = Get-AuthenticodeSignature $pawnio
+    if ($sig.Status -ne 'Valid') { throw "PawnIO_setup.exe signature is $($sig.Status)." }
     & $iscc /Q "/DAppVersion=$Version" "/DSourceDir=$app" "/DOutputDir=$dist" (Join-Path $root 'installer\openchroma.iss')
     if ($LASTEXITCODE -ne 0) { throw 'Inno Setup failed.' }
     $setup = Join-Path $dist "OpenChroma-$Version-setup.exe"

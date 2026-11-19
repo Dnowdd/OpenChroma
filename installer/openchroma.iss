@@ -54,12 +54,25 @@ RestartApplications=no
 Name: "ptbr"; MessagesFile: "compiler:Languages\BrazilianPortuguese.isl"
 Name: "en"; MessagesFile: "compiler:Default.isl"
 
+[CustomMessages]
+ptbr.StartWithWindows=Iniciar o OpenChroma com o Windows (na bandeja)
+en.StartWithWindows=Start OpenChroma with Windows (in the tray)
+ptbr.StartupGroup=Inicialização:
+en.StartupGroup=Startup:
+ptbr.InstallPawnIO=Instalar o driver PawnIO (RGB da memória RAM, ventoinhas da placa-mãe e temperatura da CPU)
+en.InstallPawnIO=Install the PawnIO driver (RAM lighting, motherboard fans and CPU temperature)
+ptbr.DriversGroup=Drivers:
+en.DriversGroup=Drivers:
+
 [Tasks]
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"
+Name: "startup"; Description: "{cm:StartWithWindows}"; GroupDescription: "{cm:StartupGroup}"
+Name: "pawnio"; Description: "{cm:InstallPawnIO}"; GroupDescription: "{cm:DriversGroup}"; Check: not HasPawnIO
 
 [Files]
 Source: "{#SourceDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "redist\MicrosoftEdgeWebview2Setup.exe"; Flags: dontcopy noencryption
+Source: "redist\PawnIO_setup.exe"; Flags: dontcopy noencryption
 
 [Icons]
 Name: "{autoprograms}\{#AppName}"; Filename: "{app}\{#AppExe}"
@@ -73,6 +86,9 @@ Filename: "{app}\{#AppExe}"; Description: "{cm:LaunchProgram,{#AppName}}"; Flags
 Filename: "schtasks.exe"; Parameters: "/Delete /TN ""OpenChroma"" /F"; Flags: runhidden; RunOnceId: "DeleteTask"
 
 [Registry]
+; Same value the app's "Start with Windows" switch writes (lib/src/system/
+; launch_settings.dart), so the switch shows it as on.
+Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: string; ValueName: "OpenChroma"; ValueData: """{app}\{#AppExe}"" --hidden"; Tasks: startup
 ; Settings the app writes, removed with it.
 Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: none; ValueName: "OpenChroma"; Flags: uninsdeletevalue dontcreatekey
 Root: HKCU; Subkey: "Software\Microsoft\Windows NT\CurrentVersion\AppCompatFlags\Layers"; ValueType: none; ValueName: "{app}\{#AppExe}"; Flags: uninsdeletevalue dontcreatekey
@@ -94,10 +110,40 @@ begin
     (RegQueryStringValue(HKCU, WebView2Key, 'pv', Version) and (Version <> '') and (Version <> '0.0.0.0'));
 end;
 
+const
+  PawnIOKey = 'SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\PawnIO';
+  ErrorSuccessRebootRequired = 3010;
+
+function HasPawnIO(): Boolean;
+var
+  Version: String;
+begin
+  Result :=
+    (RegQueryStringValue(HKLM64, PawnIOKey, 'DisplayVersion', Version) and (Version <> '')) or
+    (RegQueryStringValue(HKLM32, PawnIOKey, 'DisplayVersion', Version) and (Version <> ''));
+end;
+
+// The PawnIO setup is redistributable unmodified only: never patch or repack it.
+procedure InstallPawnIO();
+var
+  Code: Integer;
+begin
+  WizardForm.StatusLabel.Caption := 'Instalando o driver PawnIO...';
+  ExtractTemporaryFile('PawnIO_setup.exe');
+  if not ShellExec('runas', ExpandConstant('{tmp}\PawnIO_setup.exe'), '-install -silent', '',
+                   SW_HIDE, ewWaitUntilTerminated, Code)
+     or ((Code <> 0) and (Code <> ErrorSuccessRebootRequired)) or not HasPawnIO() then
+    MsgBox('O PawnIO não foi instalado. Sem ele, o RGB da memória RAM, as ventoinhas '
+      + 'da placa-mãe e a temperatura da CPU não funcionam. Instale depois em https://pawnio.eu',
+      mbInformation, MB_OK);
+end;
+
 procedure CurStepChanged(CurStep: TSetupStep);
 var
   Code: Integer;
 begin
+  if (CurStep = ssPostInstall) and WizardIsTaskSelected('pawnio') and not HasPawnIO() then
+    InstallPawnIO();
   if (CurStep = ssPostInstall) and not HasWebView2() then
   begin
     WizardForm.StatusLabel.Caption := 'Instalando o Microsoft WebView2...';
