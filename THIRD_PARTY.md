@@ -17,6 +17,7 @@ distribuído como um todo segue a GPL-2.0.
 | hidapi (build do OpenRGB com hotplug) | `third_party/openrgb/dependencies/hidapi-hotplug-win` | BSD (uma das licenças oferecidas pelo hidapi) |
 | libusb 1.0.27 | `third_party/openrgb/dependencies/libusb-1.0.27` | LGPL-2.1-or-later |
 | PawnIOLib e módulos PawnIO | `third_party/openrgb/dependencies/PawnIO`, `assets/pawnio` | LGPL-2.1-or-later |
+| Instalador oficial do driver PawnIO (`PawnIO_setup.exe`, sem modificações), dentro do instalador do OpenChroma | baixado pelo `scripts/build-release.ps1` em `installer/redist` | © namazso; "This installer can be redistributed unmodified." |
 | nlohmann/json | `third_party/openrgb/dependencies/json` | MIT |
 | CRCpp | `third_party/openrgb/dependencies/CRCpp` | BSD-3-Clause |
 | stb_image_write | `third_party/openrgb/dependencies/stb` | MIT / domínio público |

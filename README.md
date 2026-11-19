@@ -75,9 +75,10 @@ Requisitos:
 - [Microsoft WebView2](https://developer.microsoft.com/microsoft-edge/webview2/)
   para os efeitos. Já vem no Windows 11; o instalador cuida disso no
   Windows 10.
-- Opcional: o driver [PawnIO](https://pawnio.eu) para ler a temperatura da
-  CPU e controlar as ventoinhas da placa-mãe. Essas duas funções também
-  precisam do modo administrador (tem um botão para isso no app).
+- O driver [PawnIO](https://pawnio.eu) para o RGB da memória RAM e das placas
+  de vídeo, a temperatura da CPU e as ventoinhas da placa-mãe. O instalador
+  traz o setup oficial e o instala em segundo plano. Essas funções também precisam
+  do modo administrador (tem um botão para isso no app).
 
 Feche outros programas de RGB (iCUE, G HUB, RGB Fusion, OpenRGB…) antes de
 usar: dois programas escrevendo nos mesmos LEDs fazem as cores piscarem. O
