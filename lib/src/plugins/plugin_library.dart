@@ -25,6 +25,7 @@ class PluginInfo {
     required this.devices,
     required this.settings,
     required this.bundled,
+    this.serialBaud,
     this.stamp = 0,
     this.error,
   });
@@ -40,6 +41,9 @@ class PluginInfo {
 
   /// Ships with the app (else the user added it).
   final bool bundled;
+
+  /// Baud rate when the devices are serial ports instead of HID.
+  final int? serialBaud;
 
   /// Hash of the file's source, to tell when it changed.
   final int stamp;
@@ -92,6 +96,9 @@ PluginInfo readPlugin(String path, {required bool bundled}) {
             '${e.key}': (e.value as Map).cast<String, dynamic>(),
       },
       bundled: bundled,
+      serialBaud: d['serial'] is Map
+          ? _int((d['serial'] as Map)['baud'])
+          : null,
       stamp: source.hashCode,
     );
   } catch (e) {

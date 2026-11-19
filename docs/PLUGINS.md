@@ -54,6 +54,7 @@ plugin({
 | `vendor` | não | Fabricante. |
 | `type` | não | `keyboard`, `mouse`, `headset`, `mousepad`, `motherboard`, `gpu`, `ram`, `ledstrip`, `cooler`, `gamepad`, `speakers`, `microphone`, `case` ou `other`. Define o desenho do dispositivo no app. |
 | `devices` | sim | Lista de `{ vid, pid, name }` atendidos. |
+| `serial` | não | `{ baud }` quando os aparelhos são portas seriais USB (COMx) e não HID: o app acha a porta pelo VID:PID, abre em 8N1 sem controle de fluxo e `dev.write`/`dev.read` passam a mandar e ler bytes crus. `endpoint` não se aplica. |
 | `endpoint` | não | Qual coleção HID abrir: um objeto com os campos que precisam bater (`interface`, `usagePage`, `usage`, `collection`) ou uma função `(endpoints) => índice` (-1 recusa). Sem ele, a primeira coleção. |
 | `zones` | sim | Grupos de LEDs, na ordem das cores: `{ name, leds }` (uma fileira) ou `{ name, width, height, map }` (matriz; `map` tem `width × height` posições com o índice do LED na zona ou `-1`). Pode ser uma função `(dev) => zonas`, chamada depois do `start`. |
 | `modes` | não | Efeitos do próprio hardware: `[{ id, name, speed, brightness, colors, random }]`. O usuário escolhe na tela do dispositivo. Só `id` e `name` são obrigatórios; os outros campos mostram controles para o efeito (veja [Efeitos do hardware](#efeitos-do-hardware)). Também pode ser uma função. |
@@ -126,6 +127,7 @@ Quando `zones`, `modes` ou `screen` são funções, elas rodam depois do `start`
 | `dev.setting(nome)` | Valor atual de uma opção. |
 | `dev.setBattery(percentual, carregando)` | Mostra a bateria no app. |
 | `dev.frame(i)` | Quadro `i` da imagem que vai para a tela: `[r, g, b, ...]` linha por linha, já no tamanho de `screen`. |
+| `dev.jpeg(i, qualidade)` | O quadro `i` já codificado em JPEG (qualidade de 10 a 100, padrão 85), para telas que recebem JPEG. |
 | `dev.progress(x)` | Andamento de um envio demorado, de 0 a 1 (aparece na aba Tela). |
 | `dev.localTime()` | A hora local do PC: `[ano, mês, dia, hora, minuto, segundo]`. O `Date` do JavaScript aqui só conhece UTC. |
 

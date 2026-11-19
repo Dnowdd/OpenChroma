@@ -4,9 +4,11 @@ import 'dart:io';
 import 'dart:isolate';
 import 'dart:typed_data';
 
+import 'package:image/image.dart' as img;
 import 'package:path/path.dart' as p;
 
 import '../hid/hid_ffi.dart';
+import '../hid/serial_ffi.dart';
 import 'js_runtime.dart';
 
 /// Arguments for [pluginWorkerMain].
@@ -17,6 +19,7 @@ class PluginWorkerArgs {
     required this.endpoints,
     required this.settings,
     required this.deviceName,
+    this.serialBaud,
   });
 
   final SendPort sendPort;
@@ -24,6 +27,9 @@ class PluginWorkerArgs {
   final List<Map<String, Object>> endpoints;
   final Map<String, Object?> settings;
   final String deviceName;
+
+  /// Set for plugins that talk to a serial port instead of HID.
+  final int? serialBaud;
 }
 
 /// Runs one plugin for one physical device, in its own isolate.
@@ -48,8 +54,17 @@ Future<void> pluginWorkerMain(PluginWorkerArgs args) async {
   // (RGB bytes, row by row).
   Map? pendingScreen;
   List<Uint8List> screenFrames = const [];
+  var screenWidth = 0, screenHeight = 0;
+  SerialHandle? serial;
 
   void log(String msg) => out.send({'t': 'log', 'msg': msg});
+
+  SerialHandle port() {
+    final ep = current ?? (throw PluginError('nenhuma porta escolhida'));
+    return serial ??=
+        SerialHandle.open(ep.path, args.serialBaud!) ??
+        (throw PluginError('não foi possível abrir ${ep.path}'));
+  }
 
   HidHandle handle() {
     final ep = current ?? (throw PluginError('nenhuma interface escolhida'));
@@ -63,9 +78,14 @@ Future<void> pluginWorkerMain(PluginWorkerArgs args) async {
     List<int> bytes(Object? v) => v is List ? v.map(n).toList() : <int>[];
     switch (method) {
       case 'write':
-        return handle().write(bytes(a[0]));
+        return args.serialBaud != null
+            ? port().write(bytes(a[0]))
+            : handle().write(bytes(a[0]));
       case 'read':
-        return handle().read(n(a[0]), n(a[1])).toList();
+        return (args.serialBaud != null
+                ? port().read(n(a[0]), n(a[1]))
+                : handle().read(n(a[0]), n(a[1])))
+            .toList();
       case 'sendFeature':
         return handle().sendFeature(bytes(a[0]));
       case 'getFeature':
@@ -73,7 +93,9 @@ Future<void> pluginWorkerMain(PluginWorkerArgs args) async {
       case 'getInputReport':
         return handle().getInputReport([n(a[0])], n(a[1])).toList();
       case 'clearInput':
-        handle().clearReadBuffer();
+        args.serialBaud != null
+            ? port().clearReadBuffer()
+            : handle().clearReadBuffer();
         return null;
       case 'endpoints':
         return [for (final e in endpoints) e.toPluginEndpoint()];
@@ -99,6 +121,20 @@ Future<void> pluginWorkerMain(PluginWorkerArgs args) async {
         return i >= 0 && i < screenFrames.length
             ? screenFrames[i].toList()
             : <int>[];
+      case 'jpeg':
+        final i = n(a[0]);
+        if (i < 0 || i >= screenFrames.length) return <int>[];
+        final frame = img.Image.fromBytes(
+          width: screenWidth,
+          height: screenHeight,
+          bytes: screenFrames[i].buffer,
+          numChannels: 3,
+        );
+        return img.encodeJpg(
+          frame,
+          quality: n(a[1]).clamp(10, 100),
+          chroma: img.JpegChroma.yuv420,
+        );
       case 'localTime':
         final t = DateTime.now();
         return [t.year, t.month, t.day, t.hour, t.minute, t.second];
@@ -199,6 +235,8 @@ Future<void> pluginWorkerMain(PluginWorkerArgs args) async {
       if (image != null) {
         pendingScreen = null;
         screenFrames = (image['frames'] as List).cast<Uint8List>();
+        screenWidth = image['width'] as int;
+        screenHeight = image['height'] as int;
         var ok = false;
         try {
           ok =

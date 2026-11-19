@@ -47,6 +47,8 @@ var __oc = (function () {
     /** Frame [index] of the image being sent to the screen: [r, g, b, ...]
      * row by row, screen.width x screen.height. */
     frame: function (index) { return h('frame', index | 0) || []; },
+    /** Frame [index] encoded as a JPEG (quality 10-100, default 85). */
+    jpeg: function (index, quality) { return new Uint8Array(h('jpeg', index | 0, quality === undefined ? 85 : quality | 0) || []); },
     /** The PC's local time as [year, month, day, hour, minute, second]
      * (JavaScript's Date here only knows UTC). */
     localTime: function () { return h('localTime'); },

@@ -13,6 +13,7 @@ import '../effects/effect_library.dart';
 import '../effects/ocfx_runtime.dart';
 import '../drivers/native_drivers.dart';
 import '../hid/hid_ffi.dart';
+import '../hid/serial_ffi.dart';
 import '../plugins/plugin_library.dart';
 import '../plugins/plugin_worker.dart';
 import '../system/batteries.dart';
@@ -1065,7 +1066,15 @@ class Engine extends ChangeNotifier {
     _scanningPlugins = true;
     try {
       // Enumerating opens every HID collection; keep it off the UI isolate.
-      final endpoints = await Isolate.run(hidEnumerate);
+      final serialModels = {
+        for (final e in _pluginModels.entries)
+          if (e.value.$1.serialBaud != null) e.key,
+      };
+      final endpoints = [
+        ...await Isolate.run(hidEnumerate),
+        if (serialModels.isNotEmpty)
+          ...await Isolate.run(serialEnumerateTask(serialModels)),
+      ];
       if (_shuttingDown) return;
       final groups = <String, List<HidEndpointInfo>>{};
       for (final e in endpoints) {
@@ -1099,7 +1108,7 @@ class Engine extends ChangeNotifier {
             'type': plugin.type,
             'serial': first.serial,
             'location':
-                'HID ${first.vendorId.toRadixString(16).padLeft(4, '0')}:'
+                '${plugin.serialBaud != null ? '${first.path} ' : 'HID '}${first.vendorId.toRadixString(16).padLeft(4, '0')}:'
                 '${first.productId.toRadixString(16).padLeft(4, '0')}',
           }),
           source: DeviceSource.plugin,
@@ -1145,6 +1154,7 @@ class Engine extends ChangeNotifier {
         endpoints: [for (final e in endpoints) e.toJson()],
         settings: values,
         deviceName: d.device.name,
+        serialBaud: d.plugin!.serialBaud,
       ),
       debugName: 'plugin ${d.key}',
       onError: inbox.sendPort,
