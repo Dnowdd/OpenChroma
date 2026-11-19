@@ -61,10 +61,14 @@ class ScreenPreview extends StatefulWidget {
     required this.spec,
     required this.frames,
     required this.edit,
+    this.readSensor,
   });
   final ScreenSpec spec;
   final PreviewFrames? frames;
   final ScreenEdit edit;
+
+  /// Current live values for the preview (a sample when null or unknown).
+  final double? Function(String key)? readSensor;
 
   @override
   State<ScreenPreview> createState() => _ScreenPreviewState();
@@ -72,7 +76,26 @@ class ScreenPreview extends StatefulWidget {
 
 class _ScreenPreviewState extends State<ScreenPreview> {
   Timer? _timer;
+  Timer? _live;
   int _index = 0;
+
+  void _watchLive() {
+    final on = widget.edit.sources.isNotEmpty;
+    if (on && _live == null) {
+      _live = Timer.periodic(const Duration(seconds: 1), (_) {
+        if (mounted) setState(() {});
+      });
+    } else if (!on) {
+      _live?.cancel();
+      _live = null;
+    }
+  }
+
+  String _value(ScreenText t) {
+    final v = widget.readSensor?.call(t.source!);
+    if (v != null) return '${v.round()}';
+    return '8' * math.min(ScreenSource.byKey(t.source)?.digits ?? 2, 2);
+  }
 
   (int, int) get _range {
     final n = widget.frames?.length ?? 0;
@@ -101,11 +124,13 @@ class _ScreenPreviewState extends State<ScreenPreview> {
   void initState() {
     super.initState();
     _schedule();
+    _watchLive();
   }
 
   @override
   void didUpdateWidget(ScreenPreview old) {
     super.didUpdateWidget(old);
+    _watchLive();
     if (old.frames != widget.frames ||
         old.edit.first != widget.edit.first ||
         old.edit.last != widget.edit.last) {
@@ -117,6 +142,7 @@ class _ScreenPreviewState extends State<ScreenPreview> {
   @override
   void dispose() {
     _timer?.cancel();
+    _live?.cancel();
     super.dispose();
   }
 
@@ -140,7 +166,7 @@ class _ScreenPreviewState extends State<ScreenPreview> {
           child: ClipPath(
             clipper: _ScreenClip(spec.round),
             child: CustomPaint(
-              painter: _EditPainter(widget.edit, image),
+              painter: _EditPainter(widget.edit, image, _value),
               size: Size.infinite,
             ),
           ),
@@ -168,17 +194,17 @@ class _ScreenClip extends CustomClipper<Path> {
 }
 
 class _EditPainter extends CustomPainter {
-  const _EditPainter(this.edit, this.image);
+  const _EditPainter(this.edit, this.image, this.liveValue);
   final ScreenEdit edit;
   final ui.Image? image;
+  final String Function(ScreenText t) liveValue;
 
   @override
   void paint(Canvas canvas, Size size) =>
-      edit.paint(canvas, size.width, size.height, image);
+      edit.paint(canvas, size.width, size.height, image, liveValue: liveValue);
 
   @override
-  bool shouldRepaint(_EditPainter old) =>
-      old.edit != edit || old.image != image;
+  bool shouldRepaint(_EditPainter old) => true;
 }
 
 /// Opens the editor for the image at [path]; the edit to send, or null.
@@ -187,17 +213,29 @@ Future<ScreenEdit?> showScreenEditor(
   required ScreenSpec spec,
   required String path,
   ScreenEdit? initial,
+  double? Function(String key)? readSensor,
 }) => showDialog<ScreenEdit>(
   context: context,
   barrierDismissible: false,
-  builder: (_) => _ScreenEditor(spec: spec, path: path, initial: initial),
+  builder: (_) => _ScreenEditor(
+    spec: spec,
+    path: path,
+    initial: initial,
+    readSensor: readSensor,
+  ),
 );
 
 class _ScreenEditor extends StatefulWidget {
-  const _ScreenEditor({required this.spec, required this.path, this.initial});
+  const _ScreenEditor({
+    required this.spec,
+    required this.path,
+    this.initial,
+    this.readSensor,
+  });
   final ScreenSpec spec;
   final String path;
   final ScreenEdit? initial;
+  final double? Function(String key)? readSensor;
 
   @override
   State<_ScreenEditor> createState() => _ScreenEditorState();
@@ -364,6 +402,7 @@ class _ScreenEditorState extends State<_ScreenEditor> {
                                             spec: spec,
                                             frames: f,
                                             edit: _edit,
+                                            readSensor: widget.readSensor,
                                           ),
                                         ),
                                       ),
@@ -395,7 +434,9 @@ class _ScreenEditorState extends State<_ScreenEditor> {
                     label: 'Enviar para a tela',
                     icon: Icons.upload_rounded,
                     variant: OcButtonVariant.primary,
-                    onPressed: f == null
+                    onPressed:
+                        f == null ||
+                            _edit.sources.length > widget.spec.liveValues
                         ? null
                         : () => Navigator.pop(context, _edit),
                   ),
@@ -501,6 +542,18 @@ class _ScreenEditorState extends State<_ScreenEditor> {
             ),
           ],
         ),
+        if (widget.spec.liveValues > 0)
+          Padding(
+            padding: const EdgeInsets.only(top: 4),
+            child: Text(
+              'Valores ao vivo: ${_edit.sources.length} de '
+              '${widget.spec.liveValues}. A tela atualiza a cada segundo '
+              'enquanto o app estiver aberto.',
+              style: _edit.sources.length > widget.spec.liveValues
+                  ? OcText.caption.copyWith(color: Oc.danger)
+                  : OcText.caption,
+            ),
+          ),
         const SizedBox(height: 8),
         for (var i = 0; i < _edit.texts.length; i++) _textCard(i),
       ],
@@ -528,17 +581,22 @@ class _ScreenEditorState extends State<_ScreenEditor> {
             Row(
               children: [
                 Expanded(
-                  child: TextField(
-                    controller: _fields[i],
-                    style: OcText.body,
-                    decoration: const InputDecoration(
-                      isDense: true,
-                      border: InputBorder.none,
-                      hintText: 'Texto',
-                    ),
-                    onTap: () => setState(() => _selected = i),
-                    onChanged: (v) => _setText(i, t.copyWith(text: v)),
-                  ),
+                  child: t.live
+                      ? Text(
+                          ScreenSource.byKey(t.source)?.label ?? '',
+                          style: OcText.body,
+                        )
+                      : TextField(
+                          controller: _fields[i],
+                          style: OcText.body,
+                          decoration: const InputDecoration(
+                            isDense: true,
+                            border: InputBorder.none,
+                            hintText: 'Texto',
+                          ),
+                          onTap: () => setState(() => _selected = i),
+                          onChanged: (v) => _setText(i, t.copyWith(text: v)),
+                        ),
                 ),
                 OcIconButton(
                   icon: t.bold
@@ -570,10 +628,46 @@ class _ScreenEditorState extends State<_ScreenEditor> {
                 ),
               ],
             ),
+            if (widget.spec.liveValues > 0)
+              Padding(
+                padding: const EdgeInsets.only(top: 4, right: 6),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        t.live
+                            ? 'Ao vivo · coloque a unidade '
+                                  '(${ScreenSource.byKey(t.source)?.unit}) '
+                                  'num texto fixo'
+                            : 'Mostrar',
+                        style: OcText.caption,
+                      ),
+                    ),
+                    OcSelect(
+                      width: 190,
+                      value: t.source ?? '',
+                      options: [
+                        '',
+                        for (final src in ScreenSource.all) src.key,
+                      ],
+                      labelOf: (k) => k.isEmpty
+                          ? 'Texto fixo'
+                          : ScreenSource.byKey(k)!.label,
+                      onChanged: (k) => _setText(
+                        i,
+                        t.copyWith(
+                          source: () => k.isEmpty ? null : k,
+                          size: k.isEmpty ? t.size : math.min(t.size, .18),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             OcSlider(
               value: t.size * 100,
               min: 3,
-              max: 30,
+              max: t.live ? 18 : 30,
               suffix: '%',
               onChanged: (v) => _setText(i, t.copyWith(size: v / 100)),
             ),

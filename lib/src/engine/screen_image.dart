@@ -10,6 +10,7 @@ class ScreenSpec {
     this.height, {
     this.maxFrames = 100,
     this.round = false,
+    this.liveValues = 0,
   });
 
   static ScreenSpec? fromJson(Object? j) {
@@ -22,6 +23,7 @@ class ScreenSpec {
       h,
       maxFrames: (j['maxFrames'] as num?)?.toInt() ?? 100,
       round: j['round'] == true,
+      liveValues: (j['liveValues'] as num?)?.toInt() ?? 0,
     );
   }
 
@@ -33,6 +35,9 @@ class ScreenSpec {
 
   /// The screen is a circle inscribed in [width] x [height].
   final bool round;
+
+  /// How many live values the screen draws itself (0: none).
+  final int liveValues;
 }
 
 /// A text drawn over the image, placed and sized relative to the screen.
@@ -44,6 +49,7 @@ class ScreenText {
     this.size = .1,
     this.color = 0xFFFFFFFF,
     this.bold = true,
+    this.source,
   });
 
   factory ScreenText.fromJson(Map j) => ScreenText(
@@ -53,6 +59,7 @@ class ScreenText {
     size: (j['size'] as num?)?.toDouble() ?? .1,
     color: (j['color'] as num?)?.toInt() ?? 0xFFFFFFFF,
     bold: j['bold'] != false,
+    source: j['source'] as String?,
   );
 
   final String text;
@@ -65,6 +72,12 @@ class ScreenText {
   final int color;
   final bool bold;
 
+  /// A live value ([ScreenSource.key]) the screen draws itself, instead of
+  /// [text] drawn into the frames.
+  final String? source;
+
+  bool get live => source != null;
+
   ScreenText copyWith({
     String? text,
     double? x,
@@ -72,6 +85,7 @@ class ScreenText {
     double? size,
     int? color,
     bool? bold,
+    String? Function()? source,
   }) => ScreenText(
     text: text ?? this.text,
     x: x ?? this.x,
@@ -79,6 +93,7 @@ class ScreenText {
     size: size ?? this.size,
     color: color ?? this.color,
     bold: bold ?? this.bold,
+    source: source != null ? source() : this.source,
   );
 
   Map<String, Object> toJson() => {
@@ -88,14 +103,45 @@ class ScreenText {
     'size': size,
     'color': color,
     'bold': bold,
+    'source': ?source,
   };
 
-  ui.TextStyle uiStyle(double screenHeight) => ui.TextStyle(
-    color: ui.Color(color),
-    fontSize: size * screenHeight,
-    fontWeight: bold ? ui.FontWeight.w700 : ui.FontWeight.w400,
-    shadows: const [ui.Shadow(color: ui.Color(0xAA000000), blurRadius: 4)],
-  );
+  ui.TextStyle uiStyle(double screenHeight, {bool shadow = true}) =>
+      ui.TextStyle(
+        color: ui.Color(color),
+        fontSize: size * screenHeight,
+        fontWeight: bold ? ui.FontWeight.w700 : ui.FontWeight.w400,
+        shadows: shadow
+            ? const [ui.Shadow(color: ui.Color(0xAA000000), blurRadius: 4)]
+            : null,
+      );
+}
+
+/// A live value a screen can show.
+class ScreenSource {
+  const ScreenSource(this.key, this.label, this.unit, this.digits);
+  final String key;
+  final String label;
+  final String unit;
+
+  /// The most digits the value takes, to size its box.
+  final int digits;
+
+  static const all = [
+    ScreenSource('cpu.temp', 'Temperatura da CPU', '°C', 3),
+    ScreenSource('cpu.usage', 'Uso da CPU', '%', 3),
+    ScreenSource('cpu.clock', 'Clock da CPU', 'MHz', 4),
+    ScreenSource('cpu.power', 'Consumo da CPU', 'W', 3),
+    ScreenSource('gpu.temp', 'Temperatura da GPU', '°C', 3),
+    ScreenSource('gpu.usage', 'Uso da GPU', '%', 3),
+    ScreenSource('gpu.clock', 'Clock da GPU', 'MHz', 4),
+    ScreenSource('gpu.power', 'Consumo da GPU', 'W', 3),
+    ScreenSource('gpu.fan', 'Ventoinha da GPU', '%', 3),
+    ScreenSource('ram.usage', 'Uso da RAM', '%', 3),
+  ];
+
+  static ScreenSource? byKey(String? key) =>
+      all.where((s) => s.key == key).firstOrNull;
 }
 
 /// How an image is laid on a screen before it is sent.
@@ -182,8 +228,21 @@ class ScreenEdit {
     );
   }
 
-  /// Draws one frame of the edited screen at [w] x [h].
-  void paint(ui.Canvas canvas, double w, double h, ui.Image? image) {
+  /// The live values to keep updated on the screen, in channel order.
+  List<String> get sources => {
+    for (final t in texts)
+      if (t.source != null) t.source!,
+  }.toList();
+
+  /// Draws one frame of the edited screen at [w] x [h]. Live texts show
+  /// [liveValue] (they are left out when it is null: the screen draws them).
+  void paint(
+    ui.Canvas canvas,
+    double w,
+    double h,
+    ui.Image? image, {
+    String? Function(ScreenText t)? liveValue,
+  }) {
     canvas.drawRect(
       ui.Rect.fromLTWH(0, 0, w, h),
       ui.Paint()..color = ui.Color(background),
@@ -198,11 +257,12 @@ class ScreenEdit {
       );
     }
     for (final t in texts) {
-      if (t.text.trim().isEmpty) continue;
+      final text = t.live ? liveValue?.call(t) : t.text;
+      if (text == null || text.trim().isEmpty) continue;
       final b =
           ui.ParagraphBuilder(ui.ParagraphStyle(textAlign: ui.TextAlign.center))
-            ..pushStyle(t.uiStyle(h))
-            ..addText(t.text);
+            ..pushStyle(t.uiStyle(h, shadow: !t.live))
+            ..addText(text);
       final para = b.build()..layout(ui.ParagraphConstraints(width: w * 2));
       canvas.drawParagraph(
         para,
@@ -299,4 +359,126 @@ Future<Uint8List> _render(
     rgb[q + 2] = rgba[p + 2];
   }
   return rgb;
+}
+
+/// A live value the screen draws itself: its box, color, value channel and
+/// the digits it is drawn with ("0"-"9", "." and "-"), as one opacity byte
+/// per pixel, one glyph after the other.
+class ScreenWidget {
+  const ScreenWidget({
+    required this.x,
+    required this.y,
+    required this.width,
+    required this.height,
+    required this.color,
+    required this.channel,
+    required this.glyphHeight,
+    required this.glyphWidths,
+    required this.glyphs,
+  });
+
+  final int x, y, width, height;
+
+  /// RGB565.
+  final int color;
+
+  /// 1-based index into the values sent each second.
+  final int channel;
+  final int glyphHeight;
+  final List<int> glyphWidths;
+  final Uint8List glyphs;
+
+  Map<String, Object> toJson() => {
+    'x': x,
+    'y': y,
+    'width': width,
+    'height': height,
+    'color': color,
+    'channel': channel,
+    'glyphHeight': glyphHeight,
+    'glyphWidths': glyphWidths,
+  };
+}
+
+const screenGlyphs = '0123456789.-';
+
+/// The tallest digits drawn so far on a screen (the SmartMonitor app's own
+/// themes stay under it).
+const maxGlyphHeight = 120;
+
+/// The screen widgets for [edit]'s live texts.
+Future<List<ScreenWidget>> renderScreenWidgets(
+  ScreenSpec spec,
+  ScreenEdit edit,
+) async {
+  final sources = edit.sources;
+  final out = <ScreenWidget>[];
+  final h = spec.height.toDouble();
+  for (final t in edit.texts) {
+    final source = ScreenSource.byKey(t.source);
+    if (source == null) continue;
+    var fontSize = t.size * h;
+    ui.TextStyle styleOf(double size) => ui.TextStyle(
+      color: const ui.Color(0xFFFFFFFF),
+      fontSize: size,
+      fontWeight: t.bold ? ui.FontWeight.w700 : ui.FontWeight.w400,
+    );
+    var style = styleOf(fontSize);
+    ui.Paragraph layout(String c) {
+      final b = ui.ParagraphBuilder(ui.ParagraphStyle())
+        ..pushStyle(style)
+        ..addText(c);
+      return b.build()..layout(const ui.ParagraphConstraints(width: 2000));
+    }
+
+    final tall = layout('0').height;
+    if (tall > maxGlyphHeight) {
+      fontSize *= maxGlyphHeight / tall;
+      style = styleOf(fontSize);
+    }
+    final gh = layout('0').height.ceil().clamp(1, maxGlyphHeight);
+    final widths = <int>[];
+    final bytes = BytesBuilder(copy: false);
+    for (final c in screenGlyphs.split('')) {
+      final para = layout(c);
+      final gw = (para.maxIntrinsicWidth.ceil() + 2).clamp(1, 255);
+      final recorder = ui.PictureRecorder();
+      final canvas = ui.Canvas(recorder);
+      final white = ui.ParagraphBuilder(ui.ParagraphStyle())
+        ..pushStyle(style)
+        ..addText(c);
+      canvas.drawParagraph(
+        white.build()..layout(const ui.ParagraphConstraints(width: 2000)),
+        const ui.Offset(1, 0),
+      );
+      final img = await recorder.endRecording().toImage(gw, gh);
+      final rgba = (await img.toByteData())!.buffer.asUint8List();
+      img.dispose();
+      final alpha = Uint8List(gw * gh);
+      for (var i = 0; i < alpha.length; i++) {
+        alpha[i] = rgba[i * 4 + 3];
+      }
+      widths.add(gw);
+      bytes.add(alpha);
+    }
+    final digit = widths[0];
+    final w = math.min(255, digit * source.digits + 2);
+    final cx = t.x * spec.width, cy = t.y * spec.height;
+    final c = t.color;
+    final r = (c >> 16) & 0xFF, g = (c >> 8) & 0xFF, b = c & 0xFF;
+    out.add(
+      ScreenWidget(
+        x: (cx - w / 2).round().clamp(0, spec.width - w),
+        y: (cy - gh / 2).round().clamp(0, spec.height - gh),
+        width: w,
+        height: gh,
+        color: (r >> 3) << 11 | (g >> 2) << 5 | b >> 3,
+        channel: sources.indexOf(source.key) + 1,
+        glyphHeight: gh,
+        glyphWidths: widths,
+        glyphs: bytes.takeBytes(),
+      ),
+    );
+  }
+  return out;
 }

@@ -42,7 +42,28 @@ Future<void> main(List<String> args) async {
       monitor.snapshot?.gpus.where((g) => !g.integrated).firstOrNull?.temp ??
           monitor.snapshot?.gpus.firstOrNull?.temp,
   };
-  engine.addListener(() => monitor.setActive(engine, engine.reactive));
+  engine.readSensor = (key) {
+    final s = monitor.snapshot;
+    if (s == null) return null;
+    final gpu =
+        s.gpus.where((g) => !g.integrated).firstOrNull ?? s.gpus.firstOrNull;
+    return switch (key) {
+      'cpu.temp' => s.cpu.temp,
+      'cpu.usage' => s.cpu.usage,
+      'cpu.clock' => s.cpu.clock,
+      'cpu.power' => s.cpu.power,
+      'gpu.temp' => gpu?.temp,
+      'gpu.usage' => gpu?.usage,
+      'gpu.clock' => gpu?.clock,
+      'gpu.power' => gpu?.power,
+      'gpu.fan' => gpu?.fan,
+      'ram.usage' => s.memory.percent,
+      _ => null,
+    };
+  };
+  engine.addListener(
+    () => monitor.setActive(engine, engine.reactive || engine.needsSensors),
+  );
   final alerts = AlertService(monitor: monitor, fans: fans, engine: engine);
   final ai = AiService();
   final assistant = Assistant(

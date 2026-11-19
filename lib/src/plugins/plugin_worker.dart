@@ -55,6 +55,8 @@ Future<void> pluginWorkerMain(PluginWorkerArgs args) async {
   Map? pendingScreen;
   List<Uint8List> screenFrames = const [];
   var screenWidth = 0, screenHeight = 0;
+  List<Uint8List> widgetGlyphs = const [];
+  List? pendingValues;
   SerialHandle? serial;
 
   void log(String msg) => out.send({'t': 'log', 'msg': msg});
@@ -78,9 +80,15 @@ Future<void> pluginWorkerMain(PluginWorkerArgs args) async {
     List<int> bytes(Object? v) => v is List ? v.map(n).toList() : <int>[];
     switch (method) {
       case 'write':
-        return args.serialBaud != null
-            ? port().write(bytes(a[0]))
-            : handle().write(bytes(a[0]));
+        if (args.serialBaud == null) return handle().write(bytes(a[0]));
+        final data = bytes(a[0]);
+        final written = port().write(data);
+        if (written >= 0) return written;
+        // A device that restarts (a cooler applying a new theme) leaves the
+        // open handle dead; a fresh one works again.
+        serial?.close();
+        serial = null;
+        return port().write(data);
       case 'read':
         return (args.serialBaud != null
                 ? port().read(n(a[0]), n(a[1]))
@@ -135,6 +143,11 @@ Future<void> pluginWorkerMain(PluginWorkerArgs args) async {
           quality: n(a[1]).clamp(10, 100),
           chroma: img.JpegChroma.yuv420,
         );
+      case 'widgetGlyphs':
+        final i = n(a[0]);
+        return i >= 0 && i < widgetGlyphs.length
+            ? widgetGlyphs[i]
+            : Uint8List(0);
       case 'localTime':
         final t = DateTime.now();
         return [t.year, t.month, t.day, t.hour, t.minute, t.second];
@@ -176,6 +189,8 @@ Future<void> pluginWorkerMain(PluginWorkerArgs args) async {
         pendingSettings.add(MapEntry(m['name'] as String, m['value']));
       case 'screen':
         pendingScreen = m;
+      case 'values':
+        pendingValues = m['values'] as List;
       case 'stop':
         running = false;
         if (!stop.isCompleted) stop.complete();
@@ -237,19 +252,27 @@ Future<void> pluginWorkerMain(PluginWorkerArgs args) async {
         screenFrames = (image['frames'] as List).cast<Uint8List>();
         screenWidth = image['width'] as int;
         screenHeight = image['height'] as int;
+        widgetGlyphs = ((image['widgetGlyphs'] as List?) ?? const [])
+            .cast<Uint8List>();
         var ok = false;
         try {
           ok =
               rt.eval(
-                '__oc.screen(${jsonEncode({'width': image['width'], 'height': image['height'], 'frames': screenFrames.length, 'delays': image['delays']})})',
+                '__oc.screen(${jsonEncode({'width': image['width'], 'height': image['height'], 'frames': screenFrames.length, 'delays': image['delays'], 'widgets': image['widgets'] ?? const []})})',
               ) ==
               true;
         } on PluginError catch (e) {
           log('tela: $e');
         }
         screenFrames = const [];
+        widgetGlyphs = const [];
         out.send({'t': 'screenDone', 'ok': ok});
         // A long upload: frames and settings queued meanwhile go on below.
+      }
+      final values = pendingValues;
+      if (values != null) {
+        pendingValues = null;
+        safe('__oc.values(${jsonEncode(values)})');
       }
       if (modeChanged) {
         modeChanged = false;

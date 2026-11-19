@@ -21,7 +21,8 @@ import '../system/processes.dart';
 import '../paths.dart';
 import 'screen_image.dart';
 
-export 'screen_image.dart' show ScreenSpec, ScreenEdit, ScreenText;
+export 'screen_image.dart'
+    show ScreenSpec, ScreenEdit, ScreenText, ScreenSource;
 
 /// Canvas size effects draw on; layout coordinates use this space.
 const canvasWidth = 320.0;
@@ -291,6 +292,14 @@ class Engine extends ChangeNotifier {
   /// monitor by main.dart).
   double? Function(ReactiveSource source)? readTemperature;
 
+  /// Reads a live value for device screens ([ScreenSource.key]).
+  double? Function(String key)? readSensor;
+
+  /// Some device screen shows live values, so the sensors must be read.
+  bool get needsSensors => devices.values.any(
+    (d) => d.screen != null && screenEdit(d).sources.isNotEmpty,
+  );
+
   late final String dataDir = openChromaDataDir();
 
   List<EffectInfo> effects = [];
@@ -316,6 +325,7 @@ class Engine extends ChangeNotifier {
   Timer? _tick;
   Timer? _rescan;
   Timer? _batteryCheck;
+  Timer? _screenValues;
   Timer? _devicePoll;
   Timer? _saveDebounce;
 
@@ -371,6 +381,10 @@ class Engine extends ChangeNotifier {
       (_) => _checkProcesses(),
     );
     _checkBatteries();
+    _screenValues = Timer.periodic(
+      const Duration(seconds: 1),
+      (_) => _sendScreenValues(),
+    );
     _batteryCheck = Timer.periodic(
       const Duration(minutes: 1),
       (_) => _checkBatteries(),
@@ -1248,6 +1262,7 @@ class Engine extends ChangeNotifier {
       case 'log':
         d.logs.add(m['msg'] as String);
         if (d.logs.length > 200) d.logs.removeAt(0);
+        _writePluginLog(d, m['msg'] as String);
         if (kDebugMode) debugPrint('[${d.name}] ${m['msg']}');
       case 'error':
         d.status = 'error';
@@ -1295,8 +1310,15 @@ class Engine extends ChangeNotifier {
       ..screenProgress = 0;
     notifyListeners();
     try {
+      if (edit.sources.length > spec.liveValues) {
+        d.screenError = spec.liveValues == 0
+            ? 'Esta tela não mostra valores ao vivo.'
+            : 'Esta tela mostra até ${spec.liveValues} valores ao vivo diferentes.';
+        return false;
+      }
       final image = await loadScreenImage(path, spec, edit: edit);
       if (image.frames.isEmpty) throw const FormatException('imagem vazia');
+      final widgets = await renderScreenWidgets(spec, edit);
       final done = d._screenDone = Completer<bool>();
       port.send({
         't': 'screen',
@@ -1304,6 +1326,8 @@ class Engine extends ChangeNotifier {
         'height': spec.height,
         'frames': image.frames,
         'delays': image.delaysMs,
+        'widgets': [for (final w in widgets) w.toJson()],
+        'widgetGlyphs': [for (final w in widgets) w.glyphs],
       });
       final ok = await done.future;
       if (ok) {
@@ -1334,6 +1358,40 @@ class Engine extends ChangeNotifier {
       d.screenProgress = null;
       d._screenDone = null;
       notifyListeners();
+    }
+  }
+
+  /// Keeps plugin messages in %APPDATA%\OpenChroma\logs, one file per
+  /// device, so they can be read after the fact.
+  void _writePluginLog(DeviceInstance d, String msg) {
+    try {
+      final dir = Directory(p.join(dataDir, 'logs'))
+        ..createSync(recursive: true);
+      final name = d.key.replaceAll(RegExp(r'[^A-Za-z0-9]+'), '_');
+      final file = File(p.join(dir.path, '$name.log'));
+      if (file.existsSync() && file.lengthSync() > 512 * 1024) {
+        file.writeAsStringSync('');
+      }
+      file.writeAsStringSync(
+        '${DateTime.now().toIso8601String()} $msg\n',
+        mode: FileMode.append,
+      );
+    } catch (_) {}
+  }
+
+  /// Sends each screen the live values its image shows.
+  void _sendScreenValues() {
+    final read = readSensor;
+    if (read == null) return;
+    for (final d in devices.values) {
+      final port = d.port;
+      if (d.screen == null || port == null || d._screenDone != null) continue;
+      final sources = screenEdit(d).sources;
+      if (sources.isEmpty) continue;
+      port.send({
+        't': 'values',
+        'values': [for (final s in sources) read(s)?.round()],
+      });
     }
   }
 
@@ -1965,6 +2023,7 @@ class Engine extends ChangeNotifier {
     _devicePoll?.cancel();
     _pluginScan?.cancel();
     _batteryCheck?.cancel();
+    _screenValues?.cancel();
     _pluginWatch?.cancel();
     _pluginReloadDelay?.cancel();
     audio.setSource(AudioSource.off);

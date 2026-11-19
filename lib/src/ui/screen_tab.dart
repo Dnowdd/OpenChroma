@@ -54,6 +54,7 @@ class _ScreenTabState extends State<ScreenTab> {
       spec: device.screen!,
       path: path,
       initial: initial,
+      readSensor: engine.readSensor,
     );
     if (edit == null) return;
     if (await engine.sendToScreen(device, path, edit: edit)) {
@@ -103,6 +104,7 @@ class _ScreenTabState extends State<ScreenTab> {
                     spec: spec,
                     frames: _frames,
                     edit: engine.screenEdit(device),
+                    readSensor: engine.readSensor,
                   ),
           ),
         ),

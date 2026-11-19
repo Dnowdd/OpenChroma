@@ -49,6 +49,9 @@ var __oc = (function () {
     frame: function (index) { return h('frame', index | 0) || []; },
     /** Frame [index] encoded as a JPEG (quality 10-100, default 85). */
     jpeg: function (index, quality) { return new Uint8Array(h('jpeg', index | 0, quality === undefined ? 85 : quality | 0) || []); },
+    /** Glyphs of live widget [index] ("0"-"9", ".", "-"), one opacity byte
+     * per pixel, glyph after glyph, as image.widgets[index] describes. */
+    widgetGlyphs: function (index) { return new Uint8Array(h('widgetGlyphs', index | 0) || []); },
     /** The PC's local time as [year, month, day, hour, minute, second]
      * (JavaScript's Date here only knows UTC). */
     localTime: function () { return h('localTime'); },
@@ -109,6 +112,8 @@ var __oc = (function () {
     /** Shows an image on the device's screen; false when it failed. */
     screen: function (image) { return call('showImage', [image]) === true; },
     poll: function () { call('poll'); },
+    /** Live values for the screen's widgets, by channel (null when unknown). */
+    values: function (v) { call('values', [v]); },
     stop: function () { call('stop'); },
     fps: function () { return def.fps || 30; },
     pollMs: function () { return def.pollMs || 1000; }

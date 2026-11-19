@@ -58,7 +58,7 @@ plugin({
 | `endpoint` | não | Qual coleção HID abrir: um objeto com os campos que precisam bater (`interface`, `usagePage`, `usage`, `collection`) ou uma função `(endpoints) => índice` (-1 recusa). Sem ele, a primeira coleção. |
 | `zones` | sim | Grupos de LEDs, na ordem das cores: `{ name, leds }` (uma fileira) ou `{ name, width, height, map }` (matriz; `map` tem `width × height` posições com o índice do LED na zona ou `-1`). Pode ser uma função `(dev) => zonas`, chamada depois do `start`. |
 | `modes` | não | Efeitos do próprio hardware: `[{ id, name, speed, brightness, colors, random }]`. O usuário escolhe na tela do dispositivo. Só `id` e `name` são obrigatórios; os outros campos mostram controles para o efeito (veja [Efeitos do hardware](#efeitos-do-hardware)). Também pode ser uma função. |
-| `screen` | não | A tela do aparelho, se tiver: `{ width, height, maxFrames, round }` (`maxFrames` é quantos quadros ela guarda, padrão 100; `round: true` para telas redondas). Mostra a aba Tela no dispositivo. Também pode ser uma função. |
+| `screen` | não | A tela do aparelho, se tiver: `{ width, height, maxFrames, round }` (`maxFrames` é quantos quadros ela guarda, padrão 100; `round: true` para telas redondas; `liveValues: n` se a tela desenha sozinha até `n` valores ao vivo, como temperatura da CPU). Mostra a aba Tela no dispositivo. Também pode ser uma função. |
 | `settings` | não | Opções mostradas no app: `{ nome: { label, type, default, min, max, values, description } }`, com `type` `number`, `boolean`, `color` ou `combobox`. |
 | `fps` | não | Quadros por segundo de `render` (padrão 30, máximo 60). |
 | `pollMs` | não | Intervalo de `poll` em milissegundos (padrão 1000). |
@@ -75,7 +75,8 @@ para guardar estado nele (`this.ultimaCor = ...`).
 | `mode(dev, id, opções)` | O usuário escolheu um efeito do hardware (`id` de `modes`) ou mudou as opções dele, ou `null` para voltar às cores do app. |
 | `poll(dev)` | A cada `pollMs`: ler bateria, estado etc. |
 | `settingChanged(dev, nome, valor)` | O usuário mudou uma opção. |
-| `showImage(dev, imagem)` | O usuário mandou uma imagem ou GIF para a tela: `{ width, height, frames, delays }`, com o número de quadros e quanto cada um dura (ms). Pegue cada quadro com `dev.frame(i)` e avise o andamento com `dev.progress(x)`. Retorne `true` se o aparelho aceitou. |
+| `showImage(dev, imagem)` | O usuário mandou uma imagem ou GIF para a tela: `{ width, height, frames, delays }`, com o número de quadros e quanto cada um dura (ms). Pegue cada quadro com `dev.frame(i)` e avise o andamento com `dev.progress(x)`. Os valores ao vivo vêm em `widgets`: `{ x, y, width, height, color (RGB565), channel, glyphHeight, glyphWidths }`, com os glifos de "0" a "9", "." e "-" em `dev.widgetGlyphs(i)`. Retorne `true` se o aparelho aceitou. |
+| `values(dev, valores)` | A cada segundo, quando a imagem da tela tem valores ao vivo: um número (ou `null`) por canal, na ordem de `imagem.widgets[i].channel`. |
 | `stop(dev)` | O app vai fechar ou o dispositivo foi desativado. |
 
 ## Efeitos do hardware
@@ -128,6 +129,7 @@ Quando `zones`, `modes` ou `screen` são funções, elas rodam depois do `start`
 | `dev.setBattery(percentual, carregando)` | Mostra a bateria no app. |
 | `dev.frame(i)` | Quadro `i` da imagem que vai para a tela: `[r, g, b, ...]` linha por linha, já no tamanho de `screen`. |
 | `dev.jpeg(i, qualidade)` | O quadro `i` já codificado em JPEG (qualidade de 10 a 100, padrão 85), para telas que recebem JPEG. |
+| `dev.widgetGlyphs(i)` | Os glifos do valor ao vivo `i`: um byte de opacidade por pixel, glifo após glifo, linha por linha. |
 | `dev.progress(x)` | Andamento de um envio demorado, de 0 a 1 (aparece na aba Tela). |
 | `dev.localTime()` | A hora local do PC: `[ano, mês, dia, hora, minuto, segundo]`. O `Date` do JavaScript aqui só conhece UTC. |
 
