@@ -10,12 +10,15 @@
 #include <windows.h>
 
 #include <atomic>
+#include <condition_variable>
 #include <cstdint>
 #include <cstring>
 #include <mutex>
 #include <set>
 #include <string>
 #include <thread>
+#include <unordered_map>
+#include <vector>
 
 #include "DetectionManager.h"
 #include "ResourceManager.h"
@@ -30,6 +33,14 @@ std::atomic<bool> g_initialized{false};
 std::mutex g_mutex;
 // Controllers already switched to their direct (per-LED) mode.
 std::set<RGBController*> g_direct;
+
+// Colors waiting for the writer thread, newest per controller. A device
+// thread holds the controller's lock for its whole (slow, on SMBus) write,
+// so setting colors from the app's UI thread would stall it.
+std::mutex g_pending_mutex;
+std::condition_variable g_pending_cv;
+std::unordered_map<RGBController*, std::vector<std::uint8_t>> g_pending;
+bool g_writer_stop = false;
 
 const char* TypeName(device_type t) {
   switch (t) {
@@ -149,7 +160,36 @@ nlohmann::json Describe(RGBController* c) {
   return j;
 }
 
+void WriterLoop() {
+  for (;;) {
+    std::unordered_map<RGBController*, std::vector<std::uint8_t>> batch;
+    {
+      std::unique_lock<std::mutex> lock(g_pending_mutex);
+      g_pending_cv.wait(lock, [] { return g_writer_stop || !g_pending.empty(); });
+      if (g_writer_stop) return;
+      batch.swap(g_pending);
+    }
+    for (auto& [c, rgb] : batch) {
+      {
+        std::lock_guard<std::mutex> lock(g_mutex);
+        if (!Known(c)) continue;
+      }
+      c->WaitForDeviceUpdate();
+      std::lock_guard<std::mutex> lock(g_mutex);
+      if (!Known(c)) continue;
+      EnsureDirect(c);
+      const unsigned int leds = c->GetLEDCount();
+      const unsigned int n = static_cast<unsigned int>(rgb.size() / 3);
+      for (unsigned int i = 0; i < leds && i < n; i++) {
+        c->SetColor(i, ToRGBColor(rgb[i * 3], rgb[i * 3 + 1], rgb[i * 3 + 2]));
+      }
+      c->UpdateLEDs();
+    }
+  }
+}
+
 }  // namespace
+
 
 // Starts device detection in the background. [config_dir] (UTF-8) is where
 // the drivers keep their settings and logs.
@@ -161,6 +201,7 @@ OCD_API int OcdStart(const char* config_dir) {
     ResourceManager::get()->Initialize(false, true, false, false, false);
     g_initialized = true;
   }).detach();
+  std::thread(WriterLoop).detach();
   return 1;
 }
 
@@ -196,17 +237,14 @@ OCD_API int OcdState(char* buf, int cap) {
 // Sets every LED of controller [id] from [rgb] (3 bytes per LED, in the
 // controller's LED order) and queues the hardware update.
 OCD_API void OcdSetLeds(std::uint64_t id, const std::uint8_t* rgb, int count) {
-  if (!g_initialized || !rgb) return;
-  std::lock_guard<std::mutex> lock(g_mutex);
+  if (!g_initialized || !rgb || count <= 0) return;
   auto* c = reinterpret_cast<RGBController*>(static_cast<std::uintptr_t>(id));
-  if (!Known(c)) return;
-  EnsureDirect(c);
-  const unsigned int leds = c->GetLEDCount();
-  const unsigned int n = count < 0 ? 0 : static_cast<unsigned int>(count);
-  for (unsigned int i = 0; i < leds && i < n; i++) {
-    c->SetColor(i, ToRGBColor(rgb[i * 3], rgb[i * 3 + 1], rgb[i * 3 + 2]));
+  {
+    std::lock_guard<std::mutex> lock(g_pending_mutex);
+    if (g_writer_stop) return;
+    g_pending[c].assign(rgb, rgb + static_cast<std::size_t>(count) * 3);
   }
-  c->UpdateLEDs();
+  g_pending_cv.notify_one();
 }
 
 // Applies driver-specific options: [json] is a UTF-8 JSON object of
@@ -331,6 +369,12 @@ OCD_API void OcdRescan() {
 // the hardware keeps that color after the app exits.
 OCD_API void OcdShutdown(std::uint8_t r, std::uint8_t g, std::uint8_t b) {
   if (!g_initialized) return;
+  {
+    std::lock_guard<std::mutex> lock(g_pending_mutex);
+    g_writer_stop = true;
+    g_pending.clear();
+  }
+  g_pending_cv.notify_one();
   std::lock_guard<std::mutex> lock(g_mutex);
   for (RGBController* c : ResourceManager::get()->GetRGBControllers()) {
     if (!g_direct.count(c)) continue;
