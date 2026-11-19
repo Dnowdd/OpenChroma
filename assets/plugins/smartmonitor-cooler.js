@@ -22,6 +22,11 @@
 //   the numbers stay hidden when both come at once, without either, or
 //   when the 'n' values are zero. Static images (0x93)
 //   cannot be wider than 255 pixels, so texts are drawn into the frames.
+// - the 'f' packet also carries the screen brightness (1-100) and, with the
+//   weekday, an off timer (weekday + minutes * 8). A few packets with 1 and
+//   then silence make the screen blink and go dark, and it stays dark while
+//   nothing more is sent (more packets light it again); a few with 30 light
+//   it, and 0 keeps it as it is.
 //   Live numbers vanish when the whole theme passes about 2 MB (themes up
 //   to 1.9 MB showed them, 2.2 MB did not), so such themes are kept smaller.
 //
@@ -36,6 +41,8 @@ var MAX_LIVE_THEME = 1900000;
 var MIN_QUALITY = 40;
 var CHANNELS = 5;
 var MAX_WIDGETS = 60;
+var WAKE_PACKETS = 3;
+var SLEEP_PACKETS = 1;
 
 function be16(v) { return [(v >> 8) & 0xff, v & 0xff]; }
 function be32(v) { return [(v >>> 24) & 0xff, (v >> 16) & 0xff, (v >> 8) & 0xff, v & 0xff]; }
@@ -111,10 +118,11 @@ function seal(packet) {
   return packet.concat(be16(crc16(packet)));
 }
 
-function valuePackets(dev, values) {
+function valuePackets(dev, values, offTimer, brightness) {
   var t = dev.localTime();
   var day = new Date(Date.UTC(t[0], t[1] - 1, t[2])).getUTCDay() || 7;
-  var f = [0x66, 0, 0, 1, (t[0] + 0x30) & 0xff, t[1], t[2], t[3], t[4], t[5], day, 0];
+  var f = [0x66, 0, 0, 1, (t[0] + 0x30) & 0xff, t[1], t[2], t[3], t[4], t[5],
+    day + offTimer * 8, brightness];
   for (var i = 0; i < CHANNELS; i++) {
     var v = values[i] == null ? 0 : Math.max(-32768, Math.min(32767, Math.round(values[i])));
     f.push(i + 1, (v >> 8) & 0xff, v & 0xff);
@@ -157,15 +165,17 @@ plugin({
   zones: [],
   screen: { width: SIZE, height: SIZE, maxFrames: 100, round: true, liveValues: CHANNELS },
   settings: {
-    quality: { label: 'JPEG quality', type: 'number', default: 80, min: 40, max: 100 },
+    screenOn: { label: 'Tela ligada', type: 'boolean', default: true },
+    brightness: { label: 'Brilho da tela', type: 'number', default: 100, min: 1, max: 100 },
+    quality: { label: 'Qualidade do JPEG', type: 'number', default: 80, min: 40, max: 100 },
     direction: {
-      label: 'Screen rotation',
+      label: 'Rotação da tela',
       type: 'combobox',
       default: '0°',
       values: ['0°', '90°', '180°', '270°']
     }
   },
-  pollMs: 5000,
+  pollMs: 1000,
 
   start: function (dev) {
     try {
@@ -244,8 +254,32 @@ plugin({
   },
 
   values: function (dev, values) {
+    this.liveValues = values;
+  },
+
+  settingChanged: function (dev, name, value) {
+    if (name !== 'screenOn') return;
+    this.wake = value ? WAKE_PACKETS : 0;
+    this.sleep = value ? 0 : SLEEP_PACKETS;
+  },
+
+  poll: function (dev) {
+    var on = dev.setting('screenOn') !== false;
+    if (this.wake === undefined) {
+      this.wake = on ? WAKE_PACKETS : 0;
+      this.sleep = on ? 0 : SLEEP_PACKETS;
+    }
+    if (!on && this.sleep <= 0) return;
     this.valueTick = !this.valueTick;
-    var packet = valuePackets(dev, values)[this.valueTick ? 0 : 1];
+    var offTimer = 0;
+    if (on && this.wake > 0) offTimer = 30;
+    if (!on) offTimer = 1;
+    var sendF = this.valueTick || offTimer !== 0;
+    if (sendF && this.wake > 0) this.wake--;
+    if (!on) this.sleep--;
+    var packets = valuePackets(dev, this.liveValues || [], offTimer,
+      Math.max(1, Math.min(100, dev.setting('brightness') || 100)));
+    var packet = packets[sendF ? 0 : 1];
     var sent;
     try {
       sent = dev.write(packet);
@@ -254,7 +288,7 @@ plugin({
     }
     if (this.valueLogs > 0) {
       this.valueLogs--;
-      dev.log('values ' + JSON.stringify(values) + ' sent ' + sent + ': ' + hex(packet));
+      dev.log('values ' + JSON.stringify(this.liveValues || []) + ' sent ' + sent + ': ' + hex(packet));
     }
   }
 });
