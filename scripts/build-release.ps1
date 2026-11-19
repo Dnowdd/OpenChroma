@@ -58,6 +58,10 @@ if (-not $SkipBuild) {
   # Start the bundle from scratch so DLLs of removed plugins do not linger
   # (the drivers DLL is rebuilt in its own folder and copied back).
   if (Test-Path $release) { Remove-Item $release -Recurse -Force }
+  # analyze/test recreate windows\flutter\ephemeral without the C++ wrapper
+  # sources, and a stale unpack stamp stops the build from copying them back.
+  Get-ChildItem (Join-Path $root '.dart_tool\flutter_build') -Recurse -Filter 'unpack_windows.stamp' -ErrorAction SilentlyContinue |
+    Remove-Item -Force
   flutter build windows --release --build-name=$Version "--dart-define=OC_VERSION=$Version"
   if ($LASTEXITCODE -ne 0) { throw 'flutter build failed.' }
 }
