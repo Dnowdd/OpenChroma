@@ -13,7 +13,17 @@
 //   After every 256 blocks the cooler answers 'C' (0x43) when it is ready,
 //   or NAK (0x15). An "end" header closes the file and the cooler answers
 //   'C' once it shows it. Themes over 4 MB break the cooler's screen (the
-//   app refuses them), so frames get a lower quality or are dropped to fit.
+//   app refuses them), so frames get a lower quality or are dropped to fit;
+// - live numbers are 0x92 records: id, value channel (1-5), box, RGB565
+//   color and the glyphs "0"-"9", ".", "-" (one opacity byte per pixel)
+//   stored after the frames, which start at an even offset. Each second the
+//   PC sends either an 'f' packet (time and exactly five channel values) or
+//   an 'n' packet (20 ids with non-zero values), taking turns like the app;
+//   the numbers stay hidden when both come at once, without either, or
+//   when the 'n' values are zero. Static images (0x93)
+//   cannot be wider than 255 pixels, so texts are drawn into the frames.
+//   Live numbers vanish when the whole theme passes about 2 MB (themes up
+//   to 1.9 MB showed them, 2.2 MB did not), so such themes are kept smaller.
 //
 // SPDX-License-Identifier: GPL-2.0-or-later
 
@@ -22,7 +32,10 @@ var BLOCK = 4096;
 var ACK = 0x43;
 var NAK = 0x15;
 var MAX_THEME = 4 * 1024 * 1024;
+var MAX_LIVE_THEME = 1900000;
 var MIN_QUALITY = 40;
+var CHANNELS = 5;
+var MAX_WIDGETS = 60;
 
 function be16(v) { return [(v >> 8) & 0xff, v & 0xff]; }
 function be32(v) { return [(v >>> 24) & 0xff, (v >> 16) & 0xff, (v >> 8) & 0xff, v & 0xff]; }
@@ -40,9 +53,12 @@ function put(buf, at, bytes) {
   for (var i = 0; i < bytes.length; i++) buf[at + i] = bytes[i];
 }
 
-function buildTheme(jpegs, direction) {
-  var total = BLOCK;
-  for (var i = 0; i < jpegs.length; i++) total += 4 + jpegs[i].length;
+function buildTheme(jpegs, direction, widgets, glyphs) {
+  var start = BLOCK;
+  for (var i = 0; i < jpegs.length; i++) start += 4 + jpegs[i].length;
+  var data = start + (start % 2);
+  var total = data;
+  for (var g = 0; g < glyphs.length; g++) total += glyphs[g].length;
   var file = new Uint8Array(total);
   file[0] = 0x96;
   file[1] = direction;
@@ -50,10 +66,9 @@ function buildTheme(jpegs, direction) {
   file[bg] = 0x81;
   put(file, bg + 7, be16(SIZE));
   put(file, bg + 9, be16(SIZE));
-  put(file, bg + 0x0c, [0xf7, 0x9e]);
   put(file, bg + 0x0e, be32(BLOCK));
   put(file, bg + 0x12, be16(jpegs.length));
-  put(file, bg + 0x14, be32(1));
+  put(file, bg + 0x14, [0, 0, 1, 1]);
   put(file, bg + 0x18, be32(total));
   var at = BLOCK;
   for (var j = 0; j < jpegs.length; j++) {
@@ -61,7 +76,52 @@ function buildTheme(jpegs, direction) {
     put(file, at + 4, jpegs[j]);
     at += 4 + jpegs[j].length;
   }
+  at = data;
+  for (var k = 0; k < widgets.length && k < MAX_WIDGETS; k++) {
+    var w = widgets[k], r = 0x80 + k * 0x40;
+    file[r] = 0x92;
+    file[r + 1] = k + 1;
+    file[r + 2] = w.channel;
+    put(file, r + 3, be16(w.x));
+    put(file, r + 5, be16(w.y));
+    put(file, r + 7, be16(w.width));
+    put(file, r + 9, be16(w.height));
+    file[r + 11] = 1;
+    put(file, r + 12, be16(w.color));
+    file[r + 15] = 0xff;
+    put(file, r + 16, be32(at));
+    put(file, r + 20, be16(w.glyphHeight));
+    for (var c = 0; c < 12; c++) put(file, r + 22 + c * 2, be16(w.glyphWidths[c]));
+    put(file, at, glyphs[k]);
+    at += glyphs[k].length;
+  }
   return file;
+}
+
+function hex(bytes) {
+  var out = [];
+  for (var i = 0; i < bytes.length; i++) out.push((bytes[i] < 16 ? '0' : '') + bytes[i].toString(16));
+  return out.join(' ');
+}
+
+function seal(packet) {
+  var length = packet.length + 2;
+  packet[1] = (length >> 8) & 0xff;
+  packet[2] = length & 0xff;
+  return packet.concat(be16(crc16(packet)));
+}
+
+function valuePackets(dev, values) {
+  var t = dev.localTime();
+  var day = new Date(Date.UTC(t[0], t[1] - 1, t[2])).getUTCDay() || 7;
+  var f = [0x66, 0, 0, 1, (t[0] + 0x30) & 0xff, t[1], t[2], t[3], t[4], t[5], day, 0];
+  for (var i = 0; i < CHANNELS; i++) {
+    var v = values[i] == null ? 0 : Math.max(-32768, Math.min(32767, Math.round(values[i])));
+    f.push(i + 1, (v >> 8) & 0xff, v & 0xff);
+  }
+  var n = [0x6e, 0, 0];
+  for (var id = 0; id < 20; id++) n.push(id, 0, 100 + id);
+  return [seal(f), seal(n)];
 }
 
 function header(name, index, length, crc) {
@@ -95,7 +155,7 @@ plugin({
   ],
   serial: { baud: 1000000 },
   zones: [],
-  screen: { width: SIZE, height: SIZE, maxFrames: 100, round: true },
+  screen: { width: SIZE, height: SIZE, maxFrames: 100, round: true, liveValues: CHANNELS },
   settings: {
     quality: { label: 'JPEG quality', type: 'number', default: 80, min: 40, max: 100 },
     direction: {
@@ -108,14 +168,24 @@ plugin({
   pollMs: 5000,
 
   start: function (dev) {
-    dev.clearInput();
+    try {
+      dev.clearInput();
+    } catch (e) {
+      dev.log('port busy, will retry when needed: ' + e.message);
+    }
     return true;
   },
 
   showImage: function (dev, image) {
     var quality = dev.setting('quality') || 80;
     var dir = ['0°', '90°', '180°', '270°'].indexOf(dev.setting('direction'));
-    var budget = MAX_THEME - BLOCK;
+    var widgets = image.widgets || [];
+    var glyphs = [], glyphBytes = 0;
+    for (var g = 0; g < widgets.length; g++) {
+      glyphs.push(dev.widgetGlyphs(g));
+      glyphBytes += glyphs[g].length;
+    }
+    var budget = (widgets.length ? MAX_LIVE_THEME : MAX_THEME) - BLOCK - glyphBytes - 2;
     var probe = dev.jpeg(0, quality).length;
     if (!probe) return false;
     while (quality > MIN_QUALITY && (probe + 4) * image.frames > budget * 0.9) {
@@ -136,7 +206,13 @@ plugin({
       dev.progress(0.2 * (k + 1) / keep);
     }
     dev.log(jpegs.length + ' of ' + image.frames + ' frames at quality ' + quality + ', ' + Math.round((total + BLOCK) / 1024) + ' KB');
-    var file = buildTheme(jpegs, dir < 0 ? 0 : dir);
+    var file = buildTheme(jpegs, dir < 0 ? 0 : dir, widgets, glyphs);
+    dev.log('theme ' + file.length + ' bytes, ' + widgets.length + ' live widgets');
+    for (var x = 0; x < widgets.length; x++) {
+      dev.log('widget ' + x + ' ' + JSON.stringify(widgets[x]) + ' glyphs ' + glyphs[x].length +
+        ' record ' + hex(file.subarray(0x80 + x * 0x40, 0x80 + x * 0x40 + 46)));
+    }
+    this.valueLogs = 4;
     var crc = crc16(file);
     var blocks = Math.ceil(file.length / BLOCK);
     dev.clearInput();
@@ -165,5 +241,20 @@ plugin({
     dev.clearInput();
     dev.write(header('end', 0, file.length, crc));
     return waitReady(dev, 60000);
+  },
+
+  values: function (dev, values) {
+    this.valueTick = !this.valueTick;
+    var packet = valuePackets(dev, values)[this.valueTick ? 0 : 1];
+    var sent;
+    try {
+      sent = dev.write(packet);
+    } catch (e) {
+      sent = e.message;
+    }
+    if (this.valueLogs > 0) {
+      this.valueLogs--;
+      dev.log('values ' + JSON.stringify(values) + ' sent ' + sent + ': ' + hex(packet));
+    }
   }
 });
