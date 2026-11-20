@@ -1,10 +1,9 @@
 import 'dart:ffi' hide Size;
-import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/gestures.dart' show kPrimaryButton;
 
-import 'accent.dart';
+import 'logo.dart';
 import 'theme.dart';
 import 'widgets.dart';
 
@@ -88,19 +87,7 @@ class _TitleBarState extends State<TitleBar> {
               child: Padding(
                 padding: const EdgeInsets.only(left: 30),
                 child: Row(
-                  children: [
-                    const _LogoMark(),
-                    const SizedBox(width: 12),
-                    Text(
-                      'OpenChroma',
-                      style: OcText.label.copyWith(
-                        fontFamily: Oc.fontDisplay,
-                        fontSize: 13.5,
-                        letterSpacing: -.1,
-                      ),
-                    ),
-                    const Spacer(),
-                  ],
+                  children: [const OcLogo(height: 20), const Spacer()],
                 ),
               ),
             ),
@@ -225,43 +212,4 @@ class _WindowButton extends StatelessWidget {
       ),
     ),
   );
-}
-
-/// A ring with a lit segment in the live accent.
-class _LogoMark extends StatelessWidget {
-  const _LogoMark();
-
-  @override
-  Widget build(BuildContext context) => SizedBox(
-    width: 22,
-    height: 22,
-    child: CustomPaint(painter: _LogoPainter(LiveAccent.of(context))),
-  );
-}
-
-class _LogoPainter extends CustomPainter {
-  const _LogoPainter(this.accent);
-  final Color accent;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final c = size.center(Offset.zero);
-    final r = size.width / 2 - 2.5;
-    final stroke = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 2.8
-      ..strokeCap = StrokeCap.round;
-    canvas.drawCircle(c, r, stroke..color = Oc.lineStrong);
-    canvas.drawArc(
-      Rect.fromCircle(center: c, radius: r),
-      -math.pi * .6,
-      math.pi * .85,
-      false,
-      stroke..color = accent,
-    );
-    canvas.drawCircle(c, 2.4, Paint()..color = Oc.text);
-  }
-
-  @override
-  bool shouldRepaint(_LogoPainter old) => old.accent != accent;
 }
