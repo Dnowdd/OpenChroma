@@ -44,7 +44,11 @@ UninstallDisplayIcon={app}\{#AppExe}
 UninstallDisplayName={#AppName}
 Compression=lzma2/max
 SolidCompression=yes
-WizardStyle=modern
+WizardStyle=modern dark
+WizardBackColor=#0C0C0E
+WizardImageBackColor=#0C0C0E
+WizardImageFile=images\wizard-164.bmp,images\wizard-192.bmp,images\wizard-246.bmp,images\wizard-273.bmp,images\wizard-328.bmp,images\wizard-355.bmp,images\wizard-410.bmp
+WizardSmallImageFile=images\small-55.bmp,images\small-64.bmp,images\small-83.bmp,images\small-92.bmp,images\small-110.bmp,images\small-119.bmp,images\small-138.bmp
 ; The app holds this mutex while it runs; setup asks to close it first.
 AppMutex=Local\OpenChroma.Instance
 CloseApplications=yes
