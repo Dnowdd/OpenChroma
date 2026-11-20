@@ -15,7 +15,9 @@ import 'device_art.dart';
 import 'effects_page.dart' show EffectArtwork;
 import 'fan_glyph.dart';
 import 'fans_page.dart' show fanSpin;
+import 'lighting_controls.dart';
 import 'profile_apps.dart';
+import 'screen_tab.dart' show DeviceScreenView;
 import 'shell.dart' show Pages;
 import 'theme.dart';
 import 'widgets.dart';
@@ -110,6 +112,19 @@ class _HomePageState extends State<HomePage> {
       assistant: widget.assistant,
       onOpenSettings: () => go(Pages.settings),
     );
+    final cooler = widget.engine.devices.values
+        .where(
+          (d) =>
+              d.screen != null && d.type == 'cooler' && d.status == 'running',
+        )
+        .firstOrNull;
+    final screen = cooler == null
+        ? null
+        : _ScreenCard(
+            engine: widget.engine,
+            device: cooler,
+            onOpen: () => go(Pages.devices),
+          );
 
     const gap = 16.0;
     Widget row(double height, List<(int, Widget)> items) => SizedBox(
@@ -134,7 +149,12 @@ class _HomePageState extends State<HomePage> {
         space,
         row(176, [for (final v in vitals) (1, v)]),
         space,
-        row(268, [(1, alertsCard), (1, fans), (1, reactive)]),
+        row(268, [
+          (1, alertsCard),
+          (1, fans),
+          (1, reactive),
+          if (screen != null) (1, screen),
+        ]),
         space,
         row(300, [(2, assistant), (1, devices)]),
       ];
@@ -152,6 +172,7 @@ class _HomePageState extends State<HomePage> {
       space,
       row(268, [(1, fans), (1, reactive)]),
       space,
+      if (screen != null) ...[box(300, screen), space],
       box(300, assistant),
       space,
       box(300, devices),
@@ -335,21 +356,31 @@ class _LightingHero extends StatelessWidget {
           Positioned(
             top: 18,
             left: 18,
-            child: _Glass(
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  OcStatusDot(color: accent, size: 7),
-                  const SizedBox(width: 8),
-                  const Text(
-                    'Ao vivo',
-                    style: TextStyle(
-                      fontSize: 12.5,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.white,
+            child: ListenableBuilder(
+              listenable: engine,
+              builder: (context, _) => _Glass(
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    OcStatusDot(
+                      color: engine.frozen ? Oc.textTertiary : accent,
+                      size: 7,
                     ),
-                  ),
-                ],
+                    const SizedBox(width: 8),
+                    Text(
+                      engine.brightness == 0
+                          ? 'Desligado'
+                          : engine.paused
+                          ? 'Pausado'
+                          : 'Ao vivo',
+                      style: const TextStyle(
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
@@ -422,31 +453,17 @@ class _LightingHero extends StatelessWidget {
                 ),
                 const SizedBox(width: 16),
                 _Glass(
-                  padding: const EdgeInsets.only(left: 14, right: 6),
+                  padding: const EdgeInsets.only(left: 6, right: 6),
                   height: 44,
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Icon(
-                        Icons.light_mode_outlined,
-                        size: 16,
-                        color: Colors.white,
-                      ),
-                      const SizedBox(width: 4),
-                      SizedBox(
+                      PauseButton(engine: engine, onDark: true),
+                      const SizedBox(width: 6),
+                      BrightnessControl(
+                        engine: engine,
                         width: 190,
-                        child: SliderTheme(
-                          data: SliderTheme.of(context)
-                              .copyWith(inactiveTrackColor: Colors.white24),
-                          child: OcSlider(
-                            value: engine.brightness.toDouble(),
-                            min: 0,
-                            max: 100,
-                            suffix: '%',
-                            activeColor: Colors.white,
-                            onChanged: (v) => engine.setBrightness(v.round()),
-                          ),
-                        ),
+                        onDark: true,
                       ),
                     ],
                   ),
@@ -1268,6 +1285,83 @@ class _ReactiveLightCard extends StatelessWidget {
 }
 
 // ---------------------------------------------------------------- Devices
+
+/// What the water cooler's screen shows, and turning it on or off.
+class _ScreenCard extends StatelessWidget {
+  const _ScreenCard({
+    required this.engine,
+    required this.device,
+    required this.onOpen,
+  });
+  final Engine engine;
+  final DeviceInstance device;
+  final VoidCallback onOpen;
+
+  @override
+  Widget build(BuildContext context) => ListenableBuilder(
+    listenable: engine,
+    builder: (context, _) {
+      final hasSwitch = device.plugin?.settings['screenOn'] != null;
+      final on = engine.pluginSetting(device, 'screenOn') != false;
+      final busy = device.screenProgress;
+      final status = busy != null
+          ? 'Enviando… ${(busy * 100).round()}%'
+          : !on
+          ? 'Tela desligada'
+          : engine.hasScreenBrightness(device)
+          ? 'Brilho ${engine.screenBrightness(device)}%'
+          : 'Tela ligada';
+      return OcCard(
+        onTap: onOpen,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            OcCardTitle(
+              'Water cooler',
+              trailing: const Icon(
+                Icons.arrow_forward_rounded,
+                size: 18,
+                color: Oc.textSecondary,
+              ),
+            ),
+            const SizedBox(height: 12),
+            Expanded(
+              child: Center(
+                child: AnimatedOpacity(
+                  duration: Oc.fast,
+                  opacity: on ? 1 : .35,
+                  child: DeviceScreenView(engine: engine, device: device),
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    status,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: OcText.caption,
+                  ),
+                ),
+                if (hasSwitch)
+                  Tooltip(
+                    message: on ? 'Desligar a tela' : 'Ligar a tela',
+                    child: OcSwitch(
+                      value: on,
+                      onChanged: (v) =>
+                          engine.setPluginSetting(device, 'screenOn', v),
+                    ),
+                  ),
+              ],
+            ),
+          ],
+        ),
+      );
+    },
+  );
+}
 
 class _DevicesCard extends StatelessWidget {
   const _DevicesCard({required this.engine, required this.onOpen});

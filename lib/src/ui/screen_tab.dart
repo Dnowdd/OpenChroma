@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 
@@ -11,6 +13,84 @@ const _imageTypes = XTypeGroup(
   extensions: ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp'],
 );
 
+/// What a device's screen shows: the image last sent, animated, with its
+/// texts and live values.
+class DeviceScreenView extends StatefulWidget {
+  const DeviceScreenView({
+    super.key,
+    required this.engine,
+    required this.device,
+  });
+  final Engine engine;
+  final DeviceInstance device;
+
+  @override
+  State<DeviceScreenView> createState() => _DeviceScreenViewState();
+}
+
+class _DeviceScreenViewState extends State<DeviceScreenView> {
+  PreviewFrames? _frames;
+  String? _loadedPath;
+
+  void _loadPreview(String? path) {
+    final key = path == null
+        ? null
+        : '$path|${File(path).lastModifiedSync().microsecondsSinceEpoch}';
+    if (key == _loadedPath) return;
+    _loadedPath = key;
+    final old = _frames;
+    _frames = null;
+    old?.dispose();
+    if (path == null) return;
+    PreviewFrames.load(path).then((f) {
+      if (!mounted || _loadedPath != key) return f.dispose();
+      setState(() => _frames = f);
+    }, onError: (_) {});
+  }
+
+  @override
+  void dispose() {
+    _frames?.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => ListenableBuilder(
+    listenable: widget.engine,
+    builder: (context, _) {
+      final engine = widget.engine, device = widget.device;
+      final spec = device.screen!;
+      final path = engine.screenImagePath(device);
+      final edit = engine.screenEdit(device);
+      _loadPreview(path);
+      if (path == null) {
+        return AspectRatio(
+          aspectRatio: spec.width / spec.height,
+          child: Container(
+            decoration: BoxDecoration(
+              color: Colors.black,
+              shape: spec.round ? BoxShape.circle : BoxShape.rectangle,
+              borderRadius: spec.round ? null : Oc.r12,
+              border: Border.all(color: Oc.lineStrong, width: 6),
+            ),
+            child: const Icon(
+              Icons.image_outlined,
+              size: 32,
+              color: Oc.textTertiary,
+            ),
+          ),
+        );
+      }
+      return ScreenPreview(
+        spec: spec,
+        frames: _frames,
+        edit: edit,
+        readSensor: engine.readSensor,
+      );
+    },
+  );
+}
+
 /// A device's own screen: what it shows, and editing and sending a new
 /// image or GIF.
 class ScreenTab extends StatefulWidget {
@@ -23,30 +103,8 @@ class ScreenTab extends StatefulWidget {
 }
 
 class _ScreenTabState extends State<ScreenTab> {
-  PreviewFrames? _frames;
-  String? _loadedPath;
-
   Engine get engine => widget.engine;
   DeviceInstance get device => widget.device;
-
-  void _loadPreview(String? path) {
-    if (path == _loadedPath) return;
-    _loadedPath = path;
-    final old = _frames;
-    _frames = null;
-    old?.dispose();
-    if (path == null) return;
-    PreviewFrames.load(path).then((f) {
-      if (!mounted || _loadedPath != path) return f.dispose();
-      setState(() => _frames = f);
-    }, onError: (_) {});
-  }
-
-  @override
-  void dispose() {
-    _frames?.dispose();
-    super.dispose();
-  }
 
   Future<void> _edit(String path, ScreenEdit? initial) async {
     final edit = await showScreenEditor(
@@ -57,10 +115,7 @@ class _ScreenTabState extends State<ScreenTab> {
       readSensor: engine.readSensor,
     );
     if (edit == null) return;
-    if (await engine.sendToScreen(device, path, edit: edit)) {
-      _loadedPath = null;
-      _loadPreview(engine.screenImagePath(device));
-    }
+    await engine.sendToScreen(device, path, edit: edit);
   }
 
   Future<void> _pick() async {
@@ -70,9 +125,7 @@ class _ScreenTabState extends State<ScreenTab> {
 
   @override
   Widget build(BuildContext context) {
-    final spec = device.screen!;
     final path = engine.screenImagePath(device);
-    _loadPreview(path);
     final progress = device.screenProgress;
     final busy = progress != null;
     return Column(
@@ -81,31 +134,7 @@ class _ScreenTabState extends State<ScreenTab> {
         Center(
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 360),
-            child: path == null
-                ? AspectRatio(
-                    aspectRatio: spec.width / spec.height,
-                    child: Container(
-                      decoration: BoxDecoration(
-                        color: Colors.black,
-                        shape: spec.round
-                            ? BoxShape.circle
-                            : BoxShape.rectangle,
-                        borderRadius: spec.round ? null : Oc.r12,
-                        border: Border.all(color: Oc.lineStrong, width: 6),
-                      ),
-                      child: const Icon(
-                        Icons.image_outlined,
-                        size: 32,
-                        color: Oc.textTertiary,
-                      ),
-                    ),
-                  )
-                : ScreenPreview(
-                    spec: spec,
-                    frames: _frames,
-                    edit: engine.screenEdit(device),
-                    readSensor: engine.readSensor,
-                  ),
+            child: DeviceScreenView(engine: engine, device: device),
           ),
         ),
         const SizedBox(height: 20),
