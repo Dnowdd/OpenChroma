@@ -5,6 +5,7 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../engine/engine.dart';
 import 'accent.dart';
@@ -247,6 +248,12 @@ class _ScreenEditorState extends State<_ScreenEditor> {
   late ScreenEdit _edit = widget.initial ?? const ScreenEdit();
   int? _selected;
   final _fields = <TextEditingController>[];
+  final _canvasFocus = FocusNode();
+  _DragMode? _mode;
+  Offset _dragAt = Offset.zero;
+  double _resizeSize = 0, _resizeDist = 1;
+  bool _guideX = false, _guideY = false;
+  MouseCursor _cursor = SystemMouseCursors.grab;
 
   double get _fitZoom {
     final f = _frames;
@@ -280,6 +287,7 @@ class _ScreenEditorState extends State<_ScreenEditor> {
   @override
   void dispose() {
     _frames?.dispose();
+    _canvasFocus.dispose();
     for (final c in _fields) {
       c.dispose();
     }
@@ -309,26 +317,174 @@ class _ScreenEditorState extends State<_ScreenEditor> {
     });
   }
 
-  void _drag(Offset delta, Size size) {
-    final dx = delta.dx / size.width, dy = delta.dy / size.height;
+  static const _inset = 12.0;
+  static const _handle = 7.0;
+
+  double _sizeLimit(ScreenText t) => t.live ? maxLiveSize : maxTextSize;
+
+  ScreenText? get _current {
     final i = _selected;
-    if (i != null && i < _edit.texts.length) {
-      final t = _edit.texts[i];
+    return i != null && i < _edit.texts.length ? _edit.texts[i] : null;
+  }
+
+  Rect _rectOf(int i, double side) {
+    final inner = side - _inset * 2;
+    return ScreenEdit.textRect(
+      _edit.texts[i],
+      inner,
+      inner,
+    ).shift(const Offset(_inset, _inset)).inflate(6);
+  }
+
+  Offset _centerOf(ScreenText t, double side) {
+    final inner = side - _inset * 2;
+    return Offset(_inset + t.x * inner, _inset + t.y * inner);
+  }
+
+  int? _hit(Offset p, double side) {
+    for (var i = _edit.texts.length - 1; i >= 0; i--) {
+      if (_rectOf(i, side).contains(p)) return i;
+    }
+    return null;
+  }
+
+  bool _onHandle(Offset p, double side) =>
+      _current != null &&
+      (p - _rectOf(_selected!, side).bottomRight).distance <= _handle + 5;
+
+  void _select(int? i) {
+    _canvasFocus.requestFocus();
+    setState(() => _selected = i);
+  }
+
+  void _pointerDown(Offset p, double side) {
+    if (_onHandle(p, side)) {
+      final t = _current!;
+      _canvasFocus.requestFocus();
+      _mode = _DragMode.resize;
+      _resizeSize = t.size;
+      _resizeDist = math.max((p - _centerOf(t, side)).distance, 1);
+      return;
+    }
+    final hit = _hit(p, side);
+    _select(hit);
+    if (hit != null) {
+      final t = _edit.texts[hit];
+      _mode = _DragMode.move;
+      _dragAt = Offset(t.x, t.y);
+    } else {
+      _mode = _DragMode.pan;
+    }
+  }
+
+  void _drag(DragUpdateDetails d, double side) {
+    final inner = side - _inset * 2;
+    final dx = d.delta.dx / inner, dy = d.delta.dy / inner;
+    final t = _current;
+    switch (_mode) {
+      case _DragMode.move when t != null:
+        _dragAt += Offset(dx, dy);
+        var x = _dragAt.dx.clamp(0.0, 1.0), y = _dragAt.dy.clamp(0.0, 1.0);
+        _guideX = (x - .5).abs() < .015;
+        _guideY = (y - .5).abs() < .015;
+        if (_guideX) x = .5;
+        if (_guideY) y = .5;
+        _setText(_selected!, t.copyWith(x: x, y: y));
+      case _DragMode.resize when t != null:
+        final dist = (d.localPosition - _centerOf(t, side)).distance;
+        _setText(
+          _selected!,
+          t.copyWith(
+            size: (_resizeSize * dist / _resizeDist).clamp(
+              minTextSize,
+              _sizeLimit(t),
+            ),
+          ),
+        );
+      case _DragMode.pan:
+        setState(
+          () => _edit = _edit.copyWith(
+            panX: (_edit.panX + dx).clamp(-1.0, 1.0),
+            panY: (_edit.panY + dy).clamp(-1.0, 1.0),
+          ),
+        );
+      default:
+    }
+  }
+
+  void _dragEnd() {
+    _mode = null;
+    if (_guideX || _guideY) setState(() => _guideX = _guideY = false);
+  }
+
+  void _scroll(PointerScrollEvent e, double side) {
+    final factor = e.scrollDelta.dy < 0 ? 1.1 : 1 / 1.1;
+    final t = _current;
+    if (t != null && _rectOf(_selected!, side).contains(e.localPosition)) {
+      _setText(
+        _selected!,
+        t.copyWith(size: (t.size * factor).clamp(minTextSize, _sizeLimit(t))),
+      );
+    } else {
+      _zoomBy(factor);
+    }
+  }
+
+  void _hover(Offset p, double side) {
+    final cursor = _onHandle(p, side)
+        ? SystemMouseCursors.resizeUpLeftDownRight
+        : _hit(p, side) != null
+        ? SystemMouseCursors.move
+        : SystemMouseCursors.grab;
+    if (cursor != _cursor) setState(() => _cursor = cursor);
+  }
+
+  KeyEventResult _key(FocusNode _, KeyEvent e) {
+    final t = _current;
+    if (t == null || e is KeyUpEvent) return KeyEventResult.ignored;
+    final i = _selected!;
+    final k = e.logicalKey;
+    final keys = HardwareKeyboard.instance;
+    if (k == LogicalKeyboardKey.escape) {
+      setState(() => _selected = null);
+    } else if (k == LogicalKeyboardKey.delete ||
+        k == LogicalKeyboardKey.backspace) {
+      _removeText(i);
+    } else if (keys.isControlPressed && k == LogicalKeyboardKey.keyD) {
+      if (e is KeyDownEvent) _duplicate(i);
+    } else {
+      final step = (keys.isShiftPressed ? 10 : 1) / widget.spec.width;
+      final d = switch (k) {
+        LogicalKeyboardKey.arrowLeft => Offset(-step, 0),
+        LogicalKeyboardKey.arrowRight => Offset(step, 0),
+        LogicalKeyboardKey.arrowUp => Offset(0, -step),
+        LogicalKeyboardKey.arrowDown => Offset(0, step),
+        _ => null,
+      };
+      if (d == null) return KeyEventResult.ignored;
       _setText(
         i,
         t.copyWith(
-          x: (t.x + dx).clamp(0.0, 1.0),
-          y: (t.y + dy).clamp(0.0, 1.0),
-        ),
-      );
-    } else {
-      setState(
-        () => _edit = _edit.copyWith(
-          panX: (_edit.panX + dx).clamp(-1.0, 1.0),
-          panY: (_edit.panY + dy).clamp(-1.0, 1.0),
+          x: (t.x + d.dx).clamp(0.0, 1.0),
+          y: (t.y + d.dy).clamp(0.0, 1.0),
         ),
       );
     }
+    return KeyEventResult.handled;
+  }
+
+  void _duplicate(int i) {
+    final t = _edit.texts[i];
+    final copy = t.copyWith(
+      x: (t.x + .04).clamp(0.0, 1.0),
+      y: (t.y + .04).clamp(0.0, 1.0),
+    );
+    final list = [..._edit.texts, copy];
+    _fields.add(TextEditingController(text: copy.text));
+    setState(() {
+      _edit = _edit.copyWith(texts: list);
+      _selected = list.length - 1;
+    });
   }
 
   void _zoomBy(double factor) => setState(
@@ -348,7 +504,7 @@ class _ScreenEditorState extends State<_ScreenEditor> {
       insetPadding: const EdgeInsets.all(24),
       shape: const RoundedRectangleBorder(borderRadius: Oc.r12),
       child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 940, maxHeight: 680),
+        constraints: const BoxConstraints(maxWidth: 1180, maxHeight: 820),
         child: Padding(
           padding: const EdgeInsets.all(20),
           child: Column(
@@ -358,8 +514,9 @@ class _ScreenEditorState extends State<_ScreenEditor> {
               const SizedBox(height: 4),
               Text(
                 _selected == null
-                    ? 'Arraste a imagem para posicionar e use a roda do mouse para o zoom.'
-                    : 'Arraste para mover o texto selecionado. Clique nele de novo na lista para voltar a mover a imagem.',
+                    ? 'Clique num texto para selecioná-lo. Arraste a imagem para posicionar e use a roda do mouse para o zoom.'
+                    : 'Arraste para mover e puxe o canto (ou use a roda do mouse sobre o texto) para mudar o tamanho. '
+                          'Setas ajustam a posição, Delete remove, Ctrl+D duplica e Esc solta a seleção.',
                 style: OcText.secondary,
               ),
               const SizedBox(height: 16),
@@ -379,30 +536,67 @@ class _ScreenEditorState extends State<_ScreenEditor> {
                                     box.maxWidth,
                                     box.maxHeight,
                                   );
+                                  final sel = _current == null
+                                      ? null
+                                      : _rectOf(_selected!, side);
                                   return SizedBox.square(
                                     dimension: side,
-                                    child: Listener(
-                                      onPointerSignal: (e) {
-                                        if (e is PointerScrollEvent) {
-                                          _zoomBy(
-                                            e.scrollDelta.dy < 0
-                                                ? 1.1
-                                                : 1 / 1.1,
-                                          );
-                                        }
-                                      },
-                                      child: GestureDetector(
-                                        onPanUpdate: (d) => _drag(
-                                          d.delta,
-                                          Size.square(side - 24),
-                                        ),
-                                        child: MouseRegion(
-                                          cursor: SystemMouseCursors.move,
-                                          child: ScreenPreview(
-                                            spec: spec,
-                                            frames: f,
-                                            edit: _edit,
-                                            readSensor: widget.readSensor,
+                                    child: Focus(
+                                      focusNode: _canvasFocus,
+                                      onKeyEvent: _key,
+                                      child: Listener(
+                                        onPointerDown: (e) =>
+                                            _pointerDown(e.localPosition, side),
+                                        onPointerSignal: (e) {
+                                          if (e is PointerScrollEvent) {
+                                            _scroll(e, side);
+                                          }
+                                        },
+                                        child: GestureDetector(
+                                          onPanUpdate: (d) => _drag(d, side),
+                                          onPanEnd: (_) => _dragEnd(),
+                                          onPanCancel: _dragEnd,
+                                          child: MouseRegion(
+                                            cursor: _cursor,
+                                            onHover: (e) =>
+                                                _hover(e.localPosition, side),
+                                            child: Stack(
+                                              fit: StackFit.expand,
+                                              children: [
+                                                ScreenPreview(
+                                                  spec: spec,
+                                                  frames: f,
+                                                  edit: _edit,
+                                                  readSensor: widget.readSensor,
+                                                ),
+                                                IgnorePointer(
+                                                  child: CustomPaint(
+                                                    painter: _SelectionPainter(
+                                                      boxes: [
+                                                        for (
+                                                          var i = 0;
+                                                          i <
+                                                              _edit
+                                                                  .texts
+                                                                  .length;
+                                                          i++
+                                                        )
+                                                          if (i != _selected)
+                                                            _rectOf(i, side),
+                                                      ],
+                                                      selected: sel,
+                                                      handle: _handle,
+                                                      color: LiveAccent.of(
+                                                        context,
+                                                      ),
+                                                      guideX: _guideX,
+                                                      guideY: _guideY,
+                                                      inset: _inset,
+                                                    ),
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
                                           ),
                                         ),
                                       ),
@@ -414,7 +608,7 @@ class _ScreenEditorState extends State<_ScreenEditor> {
                     ),
                     const SizedBox(width: 20),
                     SizedBox(
-                      width: 340,
+                      width: 360,
                       child: f == null ? const SizedBox() : _controls(f),
                     ),
                   ],
@@ -564,7 +758,7 @@ class _ScreenEditorState extends State<_ScreenEditor> {
     final t = _edit.texts[i];
     final selected = _selected == i;
     return GestureDetector(
-      onTap: () => setState(() => _selected = selected ? null : i),
+      onTap: () => _select(selected ? null : i),
       child: AnimatedContainer(
         duration: Oc.fast,
         margin: const EdgeInsets.only(bottom: 8),
@@ -622,6 +816,11 @@ class _ScreenEditorState extends State<_ScreenEditor> {
                   ),
                 ),
                 OcIconButton(
+                  icon: Icons.copy_rounded,
+                  tooltip: 'Duplicar',
+                  onPressed: () => _duplicate(i),
+                ),
+                OcIconButton(
                   icon: Icons.delete_outline_rounded,
                   tooltip: 'Remover',
                   onPressed: () => _removeText(i),
@@ -657,7 +856,9 @@ class _ScreenEditorState extends State<_ScreenEditor> {
                         i,
                         t.copyWith(
                           source: () => k.isEmpty ? null : k,
-                          size: k.isEmpty ? t.size : math.min(t.size, .18),
+                          size: k.isEmpty
+                              ? t.size
+                              : math.min(t.size, maxLiveSize),
                         ),
                       ),
                     ),
@@ -667,7 +868,7 @@ class _ScreenEditorState extends State<_ScreenEditor> {
             OcSlider(
               value: t.size * 100,
               min: 3,
-              max: t.live ? 18 : 30,
+              max: _sizeLimit(t) * 100,
               suffix: '%',
               onChanged: (v) => _setText(i, t.copyWith(size: v / 100)),
             ),
@@ -676,6 +877,78 @@ class _ScreenEditorState extends State<_ScreenEditor> {
       ),
     );
   }
+}
+
+enum _DragMode { pan, move, resize }
+
+class _SelectionPainter extends CustomPainter {
+  const _SelectionPainter({
+    required this.boxes,
+    required this.selected,
+    required this.handle,
+    required this.color,
+    required this.guideX,
+    required this.guideY,
+    required this.inset,
+  });
+  final List<Rect> boxes;
+  final Rect? selected;
+  final double handle;
+  final Color color;
+  final bool guideX, guideY;
+  final double inset;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final guide = Paint()
+      ..color = color.withValues(alpha: .8)
+      ..strokeWidth = 1;
+    if (guideX) {
+      canvas.drawLine(
+        Offset(size.width / 2, inset),
+        Offset(size.width / 2, size.height - inset),
+        guide,
+      );
+    }
+    if (guideY) {
+      canvas.drawLine(
+        Offset(inset, size.height / 2),
+        Offset(size.width - inset, size.height / 2),
+        guide,
+      );
+    }
+    final faint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1
+      ..color = const Color(0x40FFFFFF);
+    for (final b in boxes) {
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(b, const Radius.circular(4)),
+        faint,
+      );
+    }
+    final s = selected;
+    if (s == null) return;
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(s, const Radius.circular(4)),
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.5
+        ..color = color,
+    );
+    canvas.drawCircle(s.bottomRight, handle, Paint()..color = color);
+    canvas.drawCircle(
+      s.bottomRight,
+      handle,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2
+        ..color = Colors.white,
+    );
+  }
+
+  @override
+  bool shouldRepaint(_SelectionPainter old) => true;
 }
 
 class _Swatch extends StatelessWidget {

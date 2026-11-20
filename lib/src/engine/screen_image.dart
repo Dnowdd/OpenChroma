@@ -259,18 +259,45 @@ class ScreenEdit {
     for (final t in texts) {
       final text = t.live ? liveValue?.call(t) : t.text;
       if (text == null || text.trim().isEmpty) continue;
-      final b =
-          ui.ParagraphBuilder(ui.ParagraphStyle(textAlign: ui.TextAlign.center))
-            ..pushStyle(t.uiStyle(h, shadow: !t.live))
-            ..addText(text);
-      final para = b.build()..layout(ui.ParagraphConstraints(width: w * 2));
+      final para = _layoutText(t, text, w, h);
       canvas.drawParagraph(
         para,
         ui.Offset(t.x * w - w, t.y * h - para.height / 2),
       );
     }
   }
+
+  static ui.Paragraph _layoutText(
+    ScreenText t,
+    String text,
+    double w,
+    double h,
+  ) {
+    final b =
+        ui.ParagraphBuilder(ui.ParagraphStyle(textAlign: ui.TextAlign.center))
+          ..pushStyle(t.uiStyle(h, shadow: !t.live))
+          ..addText(text);
+    return b.build()..layout(ui.ParagraphConstraints(width: w * 2));
+  }
+
+  /// The box [t] takes on a [w] x [h] screen; live values are measured at
+  /// their widest.
+  static ui.Rect textRect(ScreenText t, double w, double h) {
+    final text = t.live
+        ? '8' * (ScreenSource.byKey(t.source)?.digits ?? 2)
+        : (t.text.trim().isEmpty ? ' ' : t.text);
+    final para = _layoutText(t, text, w, h);
+    return ui.Rect.fromCenter(
+      center: ui.Offset(t.x * w, t.y * h),
+      width: math.max(para.longestLine, h * .02),
+      height: para.height,
+    );
+  }
 }
+
+/// Largest font size, as a fraction of the screen height, for texts drawn
+/// into the frames and for live values the screen draws.
+const maxTextSize = .8, maxLiveSize = .4, minTextSize = .03;
 
 /// An image ready for a screen: RGB bytes per frame, row by row, and how
 /// long each frame shows.
@@ -402,9 +429,8 @@ class ScreenWidget {
 
 const screenGlyphs = '0123456789.-';
 
-/// The tallest digits drawn so far on a screen (the SmartMonitor app's own
-/// themes stay under it).
-const maxGlyphHeight = 120;
+/// The tallest digits drawn on a screen, enough for [maxLiveSize].
+const maxGlyphHeight = 240;
 
 /// The screen widgets for [edit]'s live texts.
 Future<List<ScreenWidget>> renderScreenWidgets(
@@ -441,7 +467,7 @@ Future<List<ScreenWidget>> renderScreenWidgets(
     final bytes = BytesBuilder(copy: false);
     for (final c in screenGlyphs.split('')) {
       final para = layout(c);
-      final gw = (para.maxIntrinsicWidth.ceil() + 2).clamp(1, 255);
+      final gw = (para.maxIntrinsicWidth.ceil() + 2).clamp(1, spec.width);
       final recorder = ui.PictureRecorder();
       final canvas = ui.Canvas(recorder);
       final white = ui.ParagraphBuilder(ui.ParagraphStyle())
@@ -462,7 +488,7 @@ Future<List<ScreenWidget>> renderScreenWidgets(
       bytes.add(alpha);
     }
     final digit = widths[0];
-    final w = math.min(255, digit * source.digits + 2);
+    final w = math.min(spec.width, digit * source.digits + 2);
     final cx = t.x * spec.width, cy = t.y * spec.height;
     final c = t.color;
     final r = (c >> 16) & 0xFF, g = (c >> 8) & 0xFF, b = c & 0xFF;

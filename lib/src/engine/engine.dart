@@ -21,7 +21,14 @@ import '../paths.dart';
 import 'screen_image.dart';
 
 export 'screen_image.dart'
-    show ScreenSpec, ScreenEdit, ScreenText, ScreenSource;
+    show
+        ScreenSpec,
+        ScreenEdit,
+        ScreenText,
+        ScreenSource,
+        maxTextSize,
+        maxLiveSize,
+        minTextSize;
 
 /// Canvas size effects draw on; layout coordinates use this space.
 const canvasWidth = 320.0;

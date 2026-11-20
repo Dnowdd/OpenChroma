@@ -6,6 +6,21 @@ import 'package:openchroma/src/monitor/system_monitor.dart';
 import 'package:openchroma/src/ui/device_art.dart';
 
 void main() {
+  test('screen texts are measured around their center', () {
+    const small = ScreenText(text: 'CPU', x: .25, y: .75, size: .1);
+    final a = ScreenEdit.textRect(small, 480, 480);
+    expect(a.center.dx, closeTo(120, .5));
+    expect(a.center.dy, closeTo(360, .5));
+    final b = ScreenEdit.textRect(small.copyWith(size: .6), 480, 480);
+    expect(b.width, greaterThan(a.width * 5));
+    final live = ScreenEdit.textRect(
+      small.copyWith(source: () => 'cpu.clock'),
+      480,
+      480,
+    );
+    expect(live.width, greaterThan(a.width));
+  });
+
   test('secrets survive a round trip and are not stored in clear', () {
     const key = 'sk-ant-api03-abcdefghijklmnop';
     final sealed = SecretStore.seal(key);
