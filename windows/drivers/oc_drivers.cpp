@@ -22,6 +22,7 @@
 #include <vector>
 
 #include "DetectionManager.h"
+#include "LogManager.h"
 #include "ResourceManager.h"
 #include "RGBController.h"
 
@@ -169,7 +170,21 @@ bool StillKnown(RGBController* c) {
 }
 
 void WriterLoop(RGBController* c) {
+  using Clock = std::chrono::steady_clock;
+  auto window = Clock::now();
+  int writes = 0;
+  double busy_ms = 0, worst_ms = 0;
   for (;;) {
+    const auto now = Clock::now();
+    if (now - window >= std::chrono::seconds(10)) {
+      if (writes > 0) {
+        LOG_INFO("[OpenChroma] %s: %d writes in 10 s, waited %.1f ms on average (worst %.1f ms) for the device",
+                 c->GetName().c_str(), writes, busy_ms / writes, worst_ms);
+      }
+      window = now;
+      writes = 0;
+      busy_ms = worst_ms = 0;
+    }
     std::vector<std::uint8_t> rgb;
     {
       std::unique_lock<std::mutex> lock(g_pending_mutex);
@@ -195,7 +210,13 @@ void WriterLoop(RGBController* c) {
       g_pending.erase(c);
       return;
     }
+    const auto wait_start = Clock::now();
     c->WaitForDeviceUpdate();
+    const double waited =
+        std::chrono::duration<double, std::milli>(Clock::now() - wait_start).count();
+    busy_ms += waited;
+    if (waited > worst_ms) worst_ms = waited;
+    writes++;
     std::lock_guard<std::mutex> lock(g_mutex);
     if (!Known(c)) continue;
     EnsureDirect(c);
