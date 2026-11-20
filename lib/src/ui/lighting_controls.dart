@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
@@ -30,12 +31,28 @@ class BrightnessControl extends StatefulWidget {
 class _BrightnessControlState extends State<BrightnessControl> {
   final _portal = OverlayPortalController();
   final _link = LayerLink();
+  final _pill = GlobalKey();
   Timer? _close;
   bool _overPanel = false, _overPill = false, _pressing = false;
 
+  /// Opens upwards when there is more room above the slider, and the room
+  /// the panel gets on that side.
+  bool _above = false;
+  double _room = 400;
+
   void _open() {
     _close?.cancel();
-    if (!_portal.isShowing) setState(_portal.show);
+    if (_portal.isShowing) return;
+    final box = _pill.currentContext?.findRenderObject() as RenderBox?;
+    final screen = MediaQuery.sizeOf(context).height;
+    if (box != null && box.hasSize) {
+      final top = box.localToGlobal(Offset.zero).dy;
+      final below = screen - top - box.size.height - 18;
+      final above = top - 18;
+      _above = below < 360 && above > below;
+      _room = math.max(160, _above ? above : below);
+    }
+    setState(_portal.show);
   }
 
   void _scheduleClose() {
@@ -57,16 +74,17 @@ class _BrightnessControlState extends State<BrightnessControl> {
     final engine = widget.engine;
     final color = widget.onDark ? Colors.white : Oc.textSecondary;
     return CompositedTransformTarget(
+      key: _pill,
       link: _link,
       child: OverlayPortal(
         controller: _portal,
         overlayChildBuilder: (context) => CompositedTransformFollower(
           link: _link,
-          targetAnchor: Alignment.bottomRight,
-          followerAnchor: Alignment.topRight,
-          offset: const Offset(6, 10),
+          targetAnchor: _above ? Alignment.topRight : Alignment.bottomRight,
+          followerAnchor: _above ? Alignment.bottomRight : Alignment.topRight,
+          offset: Offset(6, _above ? -10 : 10),
           child: Align(
-            alignment: Alignment.topRight,
+            alignment: _above ? Alignment.bottomRight : Alignment.topRight,
             child: MouseRegion(
               onEnter: (_) {
                 _overPanel = true;
@@ -82,7 +100,10 @@ class _BrightnessControlState extends State<BrightnessControl> {
                   _pressing = false;
                   _scheduleClose();
                 },
-                child: BrightnessPanel(engine: engine),
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(maxHeight: _room),
+                  child: BrightnessPanel(engine: engine),
+                ),
               ),
             ),
           ),
@@ -170,7 +191,7 @@ class BrightnessPanel extends StatelessWidget {
         ),
         child: SizedBox(
           width: 340,
-          child: Padding(
+          child: SingleChildScrollView(
             padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
             child: Column(
               mainAxisSize: MainAxisSize.min,

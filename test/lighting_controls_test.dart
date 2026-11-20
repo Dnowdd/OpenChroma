@@ -102,6 +102,38 @@ void main() {
     },
   );
 
+  testWidgets('near the bottom of the window the panel opens upwards', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: Align(
+            alignment: Alignment.bottomCenter,
+            child: Padding(
+              padding: const EdgeInsets.only(bottom: 20),
+              child: SizedBox(
+                height: 44,
+                child: BrightnessControl(engine: engine),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    await mouse.addPointer(location: Offset.zero);
+    addTearDown(mouse.removePointer);
+    await mouse.moveTo(tester.getCenter(find.byType(BrightnessControl)));
+    await tester.pump();
+    final panel = tester.getRect(find.byType(BrightnessPanel));
+    final control = tester.getRect(find.byIcon(Icons.light_mode_rounded));
+    expect(panel.bottom, lessThanOrEqualTo(control.top));
+    expect(panel.top, greaterThanOrEqualTo(0));
+    await mouse.moveTo(Offset.zero);
+    await tester.pump(const Duration(milliseconds: 400));
+  });
+
   testWidgets('hovering the brightness opens the panel, the button pauses', (
     tester,
   ) async {
