@@ -235,10 +235,22 @@ class _HtmlEffectPreviewState extends State<_HtmlEffectPreview> {
   static const _fps = 30;
   static const _hiddenFps = 1;
 
+  bool _hidden = false;
+  int? _fpsSet;
+
   late final _lifecycle = AppLifecycleListener(
-    onHide: () => _controller?.setFpsLimit(_hiddenFps),
-    onShow: () => _controller?.setFpsLimit(_fps),
+    onHide: () => _applyFps(hidden: true),
+    onShow: () => _applyFps(hidden: false),
   );
+
+  Future<void> _applyFps({bool? hidden}) async {
+    _hidden = hidden ?? _hidden;
+    final fps = _hidden || widget.engine.frozen ? _hiddenFps : _fps;
+    final c = _controller;
+    if (c == null || fps == _fpsSet) return;
+    _fpsSet = fps;
+    await c.setFpsLimit(fps);
+  }
 
   @override
   void initState() {
@@ -268,11 +280,12 @@ class _HtmlEffectPreviewState extends State<_HtmlEffectPreview> {
         _disposeWebview(c);
         return;
       }
-      final hidden = switch (SchedulerBinding.instance.lifecycleState) {
+      _hidden = switch (SchedulerBinding.instance.lifecycleState) {
         AppLifecycleState.hidden || AppLifecycleState.paused => true,
         _ => false,
       };
-      await c.setFpsLimit(hidden ? _hiddenFps : _fps);
+      _fpsSet = _hidden || widget.engine.frozen ? _hiddenFps : _fps;
+      await c.setFpsLimit(_fpsSet!);
       _messages = c.webMessage.listen(_onMessage);
       if (!mounted) return;
       setState(() {
@@ -323,6 +336,7 @@ class _HtmlEffectPreviewState extends State<_HtmlEffectPreview> {
   Future<void> _doSync() async {
     final c = _controller, loader = _loader;
     if (c == null || loader == null) return;
+    await _applyFps();
     final e = widget.engine.currentEffect;
     if (e == null || e.kind != EffectKind.html) return;
     final values = effectPropValues(widget.engine, e);

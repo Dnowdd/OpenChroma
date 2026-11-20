@@ -50,6 +50,14 @@ class OcfxPlayer {
         ..start();
     }
     _renderer!.params = effectPropValues(engine, e);
+    if (engine.frozen) {
+      _timer?.cancel();
+      _timer = null;
+      _clock.stop();
+      if (engine.frame == null) _tick();
+      return;
+    }
+    _clock.start();
     _timer ??= Timer.periodic(_interval, (_) => _tick());
   }
 

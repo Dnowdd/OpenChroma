@@ -21,6 +21,7 @@ import 'effects_page.dart';
 import 'fans_page.dart';
 import 'home_page.dart';
 import 'layout_page.dart';
+import 'lighting_controls.dart';
 import 'monitor_page.dart';
 import 'settings_page.dart';
 import 'theme.dart';
@@ -713,10 +714,7 @@ class NowPlayingBar extends StatelessWidget {
                             const Spacer(),
                             Container(
                               height: 40,
-                              padding: const EdgeInsets.only(
-                                left: 14,
-                                right: 6,
-                              ),
+                              padding: const EdgeInsets.only(left: 4, right: 6),
                               decoration: const BoxDecoration(
                                 color: Oc.raised,
                                 borderRadius: Oc.pill,
@@ -724,24 +722,9 @@ class NowPlayingBar extends StatelessWidget {
                               child: Row(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
-                                  const Icon(
-                                    Icons.light_mode_outlined,
-                                    size: 16,
-                                    color: Oc.textSecondary,
-                                  ),
-                                  const SizedBox(width: 4),
-                                  SizedBox(
-                                    width: 210,
-                                    child: OcSlider(
-                                      value: engine.brightness.toDouble(),
-                                      min: 0,
-                                      max: 100,
-                                      suffix: '%',
-                                      activeColor: accent,
-                                      onChanged: (v) =>
-                                          engine.setBrightness(v.round()),
-                                    ),
-                                  ),
+                                  PauseButton(engine: engine),
+                                  const SizedBox(width: 6),
+                                  BrightnessControl(engine: engine),
                                 ],
                               ),
                             ),
@@ -760,6 +743,8 @@ class NowPlayingBar extends StatelessWidget {
   }
 
   static String _devicesLabel(Engine e) {
+    if (e.brightness == 0) return 'Desligado · efeito pausado';
+    if (e.paused) return 'Pausado';
     final n = e.devices.values.where((d) => d.status == 'running').length;
     return n == 1 ? 'Ao vivo em 1 dispositivo' : 'Ao vivo em $n dispositivos';
   }

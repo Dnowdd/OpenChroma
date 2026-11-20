@@ -145,6 +145,11 @@ class DeviceInstance {
   Uint8List? lastSent;
   DateTime lastSentAt = DateTime(0);
 
+  /// The frame and brightness [lastSent] came from, so a paused effect is
+  /// not sampled again on every tick.
+  CanvasFrame? _sentFrame;
+  double _sentLevel = -1;
+
   String get name => device.name;
   String get type => device.type;
 
@@ -292,7 +297,7 @@ typedef _Lighting = ({
 enum ReactiveSource { cpu, gpu }
 
 class Engine extends ChangeNotifier {
-  Engine();
+  Engine({String? dataDir}) : dataDir = dataDir ?? openChromaDataDir();
 
   /// Reads a temperature for the reactive light (wired to the system
   /// monitor by main.dart).
@@ -306,7 +311,7 @@ class Engine extends ChangeNotifier {
     (d) => d.screen != null && screenEdit(d).sources.isNotEmpty,
   );
 
-  late final String dataDir = openChromaDataDir();
+  final String dataDir;
 
   List<EffectInfo> effects = [];
   final Map<String, DeviceInstance> devices = {};
@@ -399,7 +404,7 @@ class Engine extends ChangeNotifier {
       _pollAudio();
       if (_alertUntil != null) {
         _alertFrame();
-      } else if (reactive) {
+      } else if (reactive && !frozen) {
         _reactiveFrame();
       }
       _pushFrames();
@@ -473,6 +478,7 @@ class Engine extends ChangeNotifier {
 
   void selectEffect(EffectInfo e) {
     currentEffect = e;
+    paused = false;
     if (!_applyingProfile) {
       _settings.remove('profile');
       _keepUserChoice();
@@ -512,7 +518,60 @@ class Engine extends ChangeNotifier {
     if (!_applyingProfile) _settings.remove('profile');
     _settings['brightness'] = brightness;
     _save();
+    for (final d in devices.values) {
+      if (hasScreenBrightness(d)) _sendScreenBrightness(d);
+    }
     notifyListeners();
+  }
+
+  /// The user paused the effect: devices keep its last frame.
+  bool paused = false;
+
+  /// The effect stands still: paused, or nothing is lit (brightness 0), so
+  /// no frames are drawn and the devices are not written again.
+  bool get frozen => paused || brightness == 0;
+
+  void setPaused(bool v) {
+    if (paused == v) return;
+    paused = v;
+    notifyListeners();
+  }
+
+  /// [d]'s own LED brightness (0-100), applied on top of [brightness].
+  int deviceBrightness(DeviceInstance d) =>
+      ((_deviceSettings(d.key)['brightness'] as num?) ?? 100).toInt();
+
+  void setDeviceBrightness(DeviceInstance d, int v) {
+    _deviceSettings(d.key)['brightness'] = v.clamp(0, 100);
+    _save();
+    notifyListeners();
+  }
+
+  /// [d] has a screen whose brightness its plugin takes (a `brightness`
+  /// setting), scaled by [brightness] like the LEDs.
+  bool hasScreenBrightness(DeviceInstance d) =>
+      d.screen != null && d.plugin?.settings['brightness'] != null;
+
+  int screenBrightness(DeviceInstance d) =>
+      ((pluginSetting(d, 'brightness') as num?) ?? 100).toInt();
+
+  void setScreenBrightness(DeviceInstance d, int v) =>
+      setPluginSetting(d, 'brightness', v);
+
+  void _sendScreenBrightness(DeviceInstance d) => d.port?.send({
+    't': 'setting',
+    'name': 'brightness',
+    'value': _pluginValue(d, 'brightness', pluginSetting(d, 'brightness')),
+  });
+
+  /// What a plugin gets for setting [name]: the screen brightness is
+  /// scaled by the overall [brightness], within the setting's range.
+  Object? _pluginValue(DeviceInstance d, String name, Object? value) {
+    final spec = d.plugin?.settings[name];
+    if (name != 'brightness' || d.screen == null || spec == null) return value;
+    if (value is! num) return value;
+    final min = (spec['min'] as num?) ?? 0, max = (spec['max'] as num?) ?? 100;
+    return (value * brightness / 100).round().clamp(min, max);
   }
 
   // Favorites are stored by effect title, which survives reinstalls and
@@ -587,6 +646,7 @@ class Engine extends ChangeNotifier {
   void onFrame(CanvasFrame f) {
     // The reactive light draws its own frames.
     if (_alertUntil != null || (reactive && _reactiveColor != null)) return;
+    if (frozen && frame != null) return;
     frame = f;
     frameNotifier.value = f;
   }
@@ -813,13 +873,23 @@ class Engine extends ChangeNotifier {
 
   /// Pulses every LED red for a few seconds, then the effect resumes.
   void flashAlert() {
+    if (_alertUntil == null) _beforeAlert = frame;
     _alertUntil = DateTime.now().add(const Duration(seconds: 4));
     _alertTick = 0;
   }
 
+  /// The frame shown before the flash, put back after it while the effect
+  /// is frozen and draws no new one.
+  CanvasFrame? _beforeAlert;
+
   void _alertFrame() {
     if (DateTime.now().isAfter(_alertUntil!)) {
       _alertUntil = null;
+      if (frozen && _beforeAlert != null) {
+        frame = _beforeAlert;
+        frameNotifier.value = frame;
+      }
+      _beforeAlert = null;
       return;
     }
     final on = (_alertTick++ ~/ 8).isEven;
@@ -1161,7 +1231,7 @@ class Engine extends ChangeNotifier {
     final values = <String, Object?>{
       for (final e in d.plugin!.settings.entries) e.key: e.value['default'],
       ...((ds['props'] as Map?) ?? {}).cast<String, Object?>(),
-    };
+    }..updateAll((name, v) => _pluginValue(d, name, v));
     await Isolate.spawn(
       pluginWorkerMain,
       PluginWorkerArgs(
@@ -1418,7 +1488,11 @@ class Engine extends ChangeNotifier {
         (_deviceSettings(d.key)['props'] ??= <String, dynamic>{}) as Map;
     props[name] = value;
     _save();
-    d.port?.send({'t': 'setting', 'name': name, 'value': value});
+    d.port?.send({
+      't': 'setting',
+      'name': name,
+      'value': _pluginValue(d, name, value),
+    });
     notifyListeners();
   }
 
@@ -1832,6 +1906,7 @@ class Engine extends ChangeNotifier {
     item.y = item.y.clamp(-canvasHeight, canvasHeight * 2);
     item.scale = item.scale.clamp(0.5, 60);
     layout[zoneKey] = _layoutJson(d, zoneKey, item);
+    d.lastSent = null;
     _save();
     notifyListeners();
   }
@@ -1975,10 +2050,21 @@ class Engine extends ChangeNotifier {
     final f = frame;
     if (f == null) return;
     // An alert flash must show even with the lights dimmed or off.
-    final b = _alertUntil != null ? 1.0 : brightness / 100.0;
+    final alert = _alertUntil != null;
+    final master = alert ? 1.0 : brightness / 100.0;
+    final still = frozen && !alert;
     for (final d in devices.values) {
       if (d.status != 'running' || d.device.ledCount == 0) continue;
       if (d.activeMode != null) continue;
+      final b = alert ? 1.0 : master * deviceBrightness(d) / 100;
+      if (still &&
+          d.lastSent != null &&
+          identical(d._sentFrame, f) &&
+          d._sentLevel == b) {
+        continue;
+      }
+      d._sentFrame = f;
+      d._sentLevel = b;
       final out = Uint8List(d.device.ledCount * 3);
       final test = d.testColor;
       if (test != null) {
@@ -2000,7 +2086,8 @@ class Engine extends ChangeNotifier {
       final now = DateTime.now();
       if (last != null &&
           listEquals(last, out) &&
-          now.difference(d.lastSentAt) < const Duration(seconds: 1)) {
+          (still ||
+              now.difference(d.lastSentAt) < const Duration(seconds: 1))) {
         continue;
       }
       d.lastSent = out;
