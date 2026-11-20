@@ -173,7 +173,7 @@ Future<void> pluginWorkerMain(PluginWorkerArgs args) async {
   Object? modeOptions;
   var modeChanged = false;
   final pendingSettings = <MapEntry<String, Object?>>[];
-  final stop = Completer<void>();
+  Completer<void>? wake;
 
   inbox.listen((msg) {
     if (msg is! Map) return;
@@ -193,7 +193,7 @@ Future<void> pluginWorkerMain(PluginWorkerArgs args) async {
         pendingValues = m['values'] as List;
       case 'stop':
         running = false;
-        if (!stop.isCompleted) stop.complete();
+        if (wake?.isCompleted == false) wake!.complete();
     }
   });
 
@@ -290,10 +290,13 @@ Future<void> pluginWorkerMain(PluginWorkerArgs args) async {
         safe('__oc.poll()');
       }
       final wait = 1000 ~/ fps - (clock.elapsedMilliseconds - frameStart);
-      await Future.any([
-        Future<void>.delayed(Duration(milliseconds: wait > 1 ? wait : 1)),
-        stop.future,
-      ]);
+      final tick = wake = Completer<void>();
+      final timer = Timer(
+        Duration(milliseconds: wait > 1 ? wait : 1),
+        () => tick.isCompleted ? null : tick.complete(),
+      );
+      await tick.future;
+      timer.cancel();
     }
     try {
       rt.eval('__oc.stop()');

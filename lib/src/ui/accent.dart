@@ -228,8 +228,8 @@ class _LiveCanvasState extends State<LiveCanvas> {
         _image = image;
         _dark = dark;
       });
-      // The render object still paints the old image until the next frame.
-      WidgetsBinding.instance.addPostFrameCallback((_) => old?.dispose());
+      // RawImage paints a clone; a post-frame dispose never runs while hidden and leaks.
+      old?.dispose();
     });
   }
 
