@@ -3,6 +3,7 @@
 #include <dwmapi.h>
 #include <shellapi.h>
 
+#include <cstdint>
 #include <cwchar>
 
 #include "resource.h"
@@ -209,6 +210,90 @@ void Notify(const wchar_t* title, const wchar_t* body) {
   Shell_NotifyIconW(NIM_MODIFY, &n);
 }
 
+namespace {
+
+// A 32-bit icon from [size] x [size] straight-alpha RGBA pixels.
+HICON IconFromRgba(const std::uint8_t* rgba, int size) {
+  BITMAPV5HEADER h{};
+  h.bV5Size = sizeof(h);
+  h.bV5Width = size;
+  h.bV5Height = -size;
+  h.bV5Planes = 1;
+  h.bV5BitCount = 32;
+  h.bV5Compression = BI_BITFIELDS;
+  h.bV5RedMask = 0x00FF0000;
+  h.bV5GreenMask = 0x0000FF00;
+  h.bV5BlueMask = 0x000000FF;
+  h.bV5AlphaMask = 0xFF000000;
+  void* bits = nullptr;
+  HDC dc = GetDC(nullptr);
+  HBITMAP color = CreateDIBSection(dc, reinterpret_cast<BITMAPINFO*>(&h),
+                                   DIB_RGB_COLORS, &bits, nullptr, 0);
+  ReleaseDC(nullptr, dc);
+  if (!color) return nullptr;
+  auto* out = static_cast<std::uint8_t*>(bits);
+  for (int i = 0; i < size * size; i++) {
+    out[i * 4] = rgba[i * 4 + 2];
+    out[i * 4 + 1] = rgba[i * 4 + 1];
+    out[i * 4 + 2] = rgba[i * 4];
+    out[i * 4 + 3] = rgba[i * 4 + 3];
+  }
+  HBITMAP mask = CreateBitmap(size, size, 1, 1, nullptr);
+  ICONINFO info{};
+  info.fIcon = TRUE;
+  info.hbmColor = color;
+  info.hbmMask = mask;
+  HICON icon = CreateIconIndirect(&info);
+  DeleteObject(color);
+  DeleteObject(mask);
+  return icon;
+}
+
+HICON g_window_small = nullptr;
+HICON g_window_big = nullptr;
+
+}  // namespace
+
+void SetIcon(const std::uint8_t* tiny_rgba, int tiny_size,
+             const std::uint8_t* big_rgba, int big_size) {
+  HICON tiny = IconFromRgba(tiny_rgba, tiny_size);
+  HICON tiny_window = IconFromRgba(tiny_rgba, tiny_size);
+  HICON big = IconFromRgba(big_rgba, big_size);
+  if (!tiny || !tiny_window || !big) {
+    if (tiny) DestroyIcon(tiny);
+    if (tiny_window) DestroyIcon(tiny_window);
+    if (big) DestroyIcon(big);
+    return;
+  }
+  HICON old_tray = g_icon;
+  g_icon = tiny;
+  if (g_icon_added) {
+    NOTIFYICONDATAW n{};
+    n.cbSize = sizeof(n);
+    n.hWnd = g_window;
+    n.uID = kIconId;
+    n.uFlags = NIF_ICON;
+    n.hIcon = g_icon;
+    Shell_NotifyIconW(NIM_MODIFY, &n);
+  }
+  if (g_window) {
+    SendMessageW(g_window, WM_SETICON, ICON_SMALL,
+                 reinterpret_cast<LPARAM>(tiny_window));
+    SendMessageW(g_window, WM_SETICON, ICON_BIG, reinterpret_cast<LPARAM>(big));
+  }
+  if (old_tray) DestroyIcon(old_tray);
+  if (g_window_small) DestroyIcon(g_window_small);
+  if (g_window_big) DestroyIcon(g_window_big);
+  g_window_small = tiny_window;
+  g_window_big = big;
+}
+
+void IconSizes(int* tiny_size, int* big_size) {
+  const UINT dpi = g_window ? GetDpiForWindow(g_window) : 96;
+  *tiny_size = GetSystemMetricsForDpi(SM_CXSMICON, dpi);
+  *big_size = GetSystemMetricsForDpi(SM_CXICON, dpi);
+}
+
 void RemoveIcon() {
   if (!g_icon_added) return;
   NOTIFYICONDATAW n{};
@@ -231,6 +316,20 @@ __declspec(dllexport) void OcTrayRemoveIcon() { tray::RemoveIcon(); }
 __declspec(dllexport) void OcTrayNotify(const wchar_t* title,
                                         const wchar_t* body) {
   tray::Notify(title, body);
+}
+
+// Sizes, in pixels, of the tiny (tray, title) and big (taskbar) icons.
+__declspec(dllexport) void OcAppIconSizes(int* tiny_size, int* big_size) {
+  tray::IconSizes(tiny_size, big_size);
+}
+
+// Replaces the tray and window icons with straight-alpha RGBA pixels, so
+// they follow the app's accent.
+__declspec(dllexport) void OcSetAppIcon(const std::uint8_t* tiny_rgba,
+                                        int tiny_size,
+                                        const std::uint8_t* big_rgba,
+                                        int big_size) {
+  tray::SetIcon(tiny_rgba, tiny_size, big_rgba, big_size);
 }
 
 }  // extern "C"

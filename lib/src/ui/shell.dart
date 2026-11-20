@@ -14,6 +14,7 @@ import '../fans/fan_service.dart';
 import '../monitor/system_monitor.dart';
 import '../system/launch_settings.dart';
 import 'accent.dart';
+import 'app_icon.dart';
 import 'checkup_page.dart';
 import 'decor_clock.dart';
 import 'devices_page.dart';
@@ -66,6 +67,7 @@ class _ShellState extends State<Shell> {
   late int _page = (widget.initialPage ?? const int.fromEnvironment('OC_PAGE'))
       .clamp(0, Pages.settings);
   late final _accent = AccentController(widget.engine);
+  late final _appIcon = AppIconSync(_accent);
   SystemMonitor get _monitor => widget.monitor;
   late final _checkup = CheckupService(
     monitor: widget.monitor,
@@ -92,12 +94,14 @@ class _ShellState extends State<Shell> {
   void initState() {
     super.initState();
     _lifecycle;
+    _appIcon;
   }
 
   @override
   void dispose() {
     _lifecycle.dispose();
     _checkup.dispose();
+    _appIcon.dispose();
     _accent.dispose();
     super.dispose();
   }

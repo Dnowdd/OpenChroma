@@ -6,6 +6,8 @@
 
 #include <windows.h>
 
+#include <cstdint>
+
 namespace tray {
 
 // True when another instance already runs; it has been asked to show its
@@ -28,6 +30,14 @@ bool HandleMessage(HWND window, UINT message, WPARAM wparam, LPARAM lparam,
 
 // Shows a notification from the tray icon, adding the icon if needed.
 void Notify(const wchar_t* title, const wchar_t* body);
+
+// Replaces the tray and window icons with [tiny_size] and [big_size]
+// square straight-alpha RGBA images.
+void SetIcon(const std::uint8_t* tiny_rgba, int tiny_size,
+             const std::uint8_t* big_rgba, int big_size);
+
+// The tiny and big icon sizes for the window's monitor.
+void IconSizes(int* tiny_size, int* big_size);
 
 void RemoveIcon();
 
