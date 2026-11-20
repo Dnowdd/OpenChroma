@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:isolate';
 import 'dart:math' as math;
 import 'dart:typed_data';
@@ -27,6 +28,9 @@ class OcfxPlayer {
   Timer? _timer;
   OcfxRenderer? _renderer;
   String? _effectId;
+
+  /// The effect and settings of the frame shown while frozen.
+  String? _frozenKey;
   final _clock = Stopwatch();
 
   static const _interval = Duration(milliseconds: 33);
@@ -49,26 +53,30 @@ class OcfxPlayer {
         ..reset()
         ..start();
     }
-    _renderer!.params = effectPropValues(engine, e);
+    final params = effectPropValues(engine, e);
+    _renderer!.params = params;
     if (engine.frozen) {
       _timer?.cancel();
       _timer = null;
       _clock.stop();
-      if (engine.frame == null) _tick();
+      final key = '${e.id}|${jsonEncode(params)}';
+      if (engine.frame == null || key != _frozenKey) _tick(force: true);
+      _frozenKey = key;
       return;
     }
+    _frozenKey = null;
     _clock.start();
     _timer ??= Timer.periodic(_interval, (_) => _tick());
   }
 
-  void _tick() {
+  void _tick({bool force = false}) {
     final r = _renderer;
     if (r == null) return;
     r.audio = engine.audioNotifier.value;
     FrameProfiler.count('effectFrame');
     FrameProfiler.measure('effectFrame', () {
       final rgb = r.render(_clock.elapsedMicroseconds / 1e6);
-      engine.onFrame(CanvasFrame(frameWidth, frameHeight, rgb));
+      engine.onFrame(CanvasFrame(frameWidth, frameHeight, rgb), force: force);
     });
   }
 

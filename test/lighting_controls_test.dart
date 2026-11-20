@@ -1,9 +1,12 @@
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:openchroma/src/effects/effect_library.dart';
 import 'package:openchroma/src/engine/engine.dart';
+import 'package:openchroma/src/ui/accent.dart';
 import 'package:openchroma/src/ui/lighting_controls.dart';
 
 void main() {
@@ -28,6 +31,76 @@ void main() {
     engine.setPaused(false);
     expect(engine.frozen, isFalse);
   });
+
+  test('the accent follows a frozen effect from its one frame', () async {
+    final accent = AccentController(engine);
+    addTearDown(accent.dispose);
+    engine.currentEffect = EffectInfo(
+      path: 'red.ocfx',
+      title: 'Red',
+      description: '',
+      author: '',
+      properties: const [],
+      thumbnail: null,
+      kind: EffectKind.ocfx,
+      imported: false,
+    );
+    engine.setBrightness(0);
+    final rgb = Uint8List(160 * 100 * 3);
+    for (var i = 0; i < rgb.length; i += 3) {
+      rgb[i] = 255;
+    }
+    engine.onFrame(CanvasFrame(160, 100, rgb));
+    await Future<void>.delayed(const Duration(milliseconds: 1500));
+    final hue = HSVColor.fromColor(accent.value).hue;
+    expect(accent.value, isNot(AccentController.neutral));
+    expect(hue < 10 || hue > 350, isTrue);
+  });
+
+  test(
+    'an effect color setting is the accent; darkness is the brand',
+    () async {
+      final accent = AccentController(engine);
+      addTearDown(accent.dispose);
+      final solid = EffectInfo(
+        path: 'solid.ocfx',
+        title: 'Solid',
+        description: '',
+        author: '',
+        properties: [
+          EffectProperty({
+            'property': 'color',
+            'type': 'color',
+            'default': '#7C5CFF',
+          }),
+        ],
+        thumbnail: null,
+        kind: EffectKind.ocfx,
+        imported: false,
+      );
+      engine.selectEffect(solid);
+      engine.setEffectProperty(solid, 'color', '#0050FF');
+      await Future<void>.delayed(const Duration(milliseconds: 1500));
+      expect(HSVColor.fromColor(accent.value).hue, closeTo(221, 3));
+
+      engine.selectEffect(
+        EffectInfo(
+          path: 'dark.ocfx',
+          title: 'Dark',
+          description: '',
+          author: '',
+          properties: const [],
+          thumbnail: null,
+          kind: EffectKind.ocfx,
+          imported: false,
+        ),
+      );
+      engine.setBrightness(0);
+      engine.onFrame(CanvasFrame(160, 100, Uint8List(160 * 100 * 3)));
+      await Future<void>.delayed(const Duration(milliseconds: 1500));
+      expect(accent.value, AccentController.neutral);
+    },
+  );
 
   testWidgets('hovering the brightness opens the panel, the button pauses', (
     tester,

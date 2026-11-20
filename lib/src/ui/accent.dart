@@ -6,14 +6,14 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 
+import '../effects/effect_library.dart';
+import '../effects/ocfx_player.dart' show effectPropValues;
 import '../engine/engine.dart';
 
-/// The app's accent color, taken from the selected effect: when the effect
-/// or one of its settings changes, a few seconds of its frames are sampled
-/// and the most present color becomes the accent, fixed until the next
-/// change. Strongly colored effects give their dominant hue (at a fixed
-/// saturation and brightness so it reads on the dark surfaces); white or
-/// grey ones give a neutral light accent.
+/// The app's accent color, taken from the selected effect. An effect with a
+/// color setting gives that color; otherwise a few seconds of its frames are
+/// sampled and the most present color wins, fixed until the next change.
+/// When nothing colorful shows up, the accent is the brand green.
 class AccentController extends ChangeNotifier {
   AccentController(this.engine) {
     engine.addListener(_onEngine);
@@ -23,7 +23,7 @@ class AccentController extends ChangeNotifier {
   }
 
   final Engine engine;
-  static const neutral = Color(0xFFEDEDF0);
+  static const neutral = Color(0xFFADFF73);
   static const _bins = 36;
 
   // How long to look at an effect before settling, and the longest to wait
@@ -32,6 +32,7 @@ class AccentController extends ChangeNotifier {
   static const _patience = Duration(seconds: 12);
 
   final _histogram = List<double>.filled(_bins, 0);
+  final _sums = List<double>.filled(_bins * 3, 0);
   double _grey = 0;
   double _lit = 0;
   int _frames = 0;
@@ -43,30 +44,54 @@ class AccentController extends ChangeNotifier {
   Color _target = neutral;
   Color value = neutral;
 
+  /// The accent reached the color it was easing to.
+  bool get settled => value == _target;
+
   void _onEngine() {
     final e = engine.currentEffect;
     final sig = e == null
         ? ''
         : '${e.path}|${e.title}|${jsonEncode(engine.effectSettings(e))}';
-    if (sig == _signature) return;
+    if (sig == _signature) {
+      if (engine.frozen && _since != null) _onFrame();
+      return;
+    }
     _signature = sig;
-    final cached = _cache[sig];
+    final chosen = e == null ? null : _settingColor(e);
+    final cached = chosen ?? _cache[sig];
     if (cached != null || e == null) {
       _target = cached ?? neutral;
       _since = null;
       return;
     }
     _histogram.fillRange(0, _bins, 0);
+    _sums.fillRange(0, _sums.length, 0);
     _grey = _lit = 0;
     _since = DateTime.now();
+    if (engine.frozen) _onFrame();
+  }
+
+  /// The first colorful color setting of [e], as the user set it.
+  Color? _settingColor(EffectInfo e) {
+    final values = effectPropValues(engine, e);
+    for (final prop in e.properties) {
+      if (prop.type != 'color') continue;
+      final c = parseHexColor('${values[prop.name]}');
+      if (c != null && HSVColor.fromColor(c).saturation >= .25) {
+        return readableAccent(c);
+      }
+    }
+    return null;
   }
 
   void _onFrame() {
     final since = _since;
     final f = engine.frameNotifier.value;
     if (since == null || f == null) return;
+    // A frozen effect sends no more frames: the one shown is all there is.
+    final frozen = engine.frozen;
     // A sparse grid on every other frame is plenty for "most present".
-    if (_frames++ % 2 == 0) {
+    if (frozen || _frames++ % 2 == 0) {
       final px = f.rgb;
       for (var y = 0; y < f.height; y += 5) {
         for (var x = 0; x < f.width; x += 5) {
@@ -74,40 +99,49 @@ class AccentController extends ChangeNotifier {
           final hsv = HSVColor.fromColor(
             Color.fromARGB(255, px[o], px[o + 1], px[o + 2]),
           );
-          if (hsv.value < .12) continue;
+          if (hsv.value < .08) continue;
           final weight = hsv.value * hsv.value;
           _lit += weight;
           _grey += weight * (1 - hsv.saturation);
-          _histogram[(hsv.hue / 10).floor() % _bins] += weight * hsv.saturation;
+          final bin = (hsv.hue / 10).floor() % _bins;
+          final w = weight * hsv.saturation;
+          _histogram[bin] += w;
+          _sums[bin * 3] += px[o] * w;
+          _sums[bin * 3 + 1] += px[o + 1] * w;
+          _sums[bin * 3 + 2] += px[o + 2] * w;
         }
       }
     }
     final age = DateTime.now().difference(since);
     // Settle once enough light was seen over the window, or give up waiting.
-    if ((age >= _window && _lit > 40) || age >= _patience) _settle();
+    if (frozen || (age >= _window && _lit > 40) || age >= _patience) {
+      _settle();
+    }
   }
 
   void _settle() {
     _since = null;
     final colored = _histogram.fold<double>(0, (a, b) => a + b);
     Color result;
-    if (_lit < 1 || colored < _grey * .6) {
+    if (colored < .5 || colored < _grey * .25) {
       result = neutral;
     } else {
       var best = 0;
       for (var i = 1; i < _bins; i++) {
         if (_histogram[i] > _histogram[best]) best = i;
       }
-      // Average the winning bin with its neighbours for a smooth hue.
-      double sx = 0, sy = 0;
+      // The winning bin and its neighbours, as the colors actually shown.
+      double r = 0, g = 0, b = 0, w = 0;
       for (var d = -1; d <= 1; d++) {
         final i = (best + d) % _bins;
-        final a = (i * 10 + 5) * math.pi / 180;
-        sx += math.cos(a) * _histogram[i];
-        sy += math.sin(a) * _histogram[i];
+        r += _sums[i * 3];
+        g += _sums[i * 3 + 1];
+        b += _sums[i * 3 + 2];
+        w += _histogram[i];
       }
-      final hue = (math.atan2(sy, sx) * 180 / math.pi + 360) % 360;
-      result = HSVColor.fromAHSV(1, hue, .55, 1).toColor();
+      result = readableAccent(
+        Color.fromARGB(255, (r / w).round(), (g / w).round(), (b / w).round()),
+      );
     }
     if (_signature != null) _cache[_signature!] = result;
     _target = result;
@@ -149,6 +183,22 @@ class LiveAccent extends InheritedNotifier<AccentController> {
           ?.notifier
           ?.value ??
       AccentController.neutral;
+}
+
+/// "#RRGGBB" as a color, or null.
+Color? parseHexColor(String s) {
+  final m = RegExp(r'^#?([0-9a-fA-F]{6})$').firstMatch(s.trim());
+  return m == null ? null : Color(0xFF000000 | int.parse(m[1]!, radix: 16));
+}
+
+/// [c] kept in its hue, bright and colorful enough to read on the dark
+/// surfaces.
+Color readableAccent(Color c) {
+  final hsv = HSVColor.fromColor(c);
+  return hsv
+      .withSaturation(hsv.saturation.clamp(.45, .9))
+      .withValue(math.max(hsv.value, .9))
+      .toColor();
 }
 
 /// Text/icon color that reads on top of an accent fill.

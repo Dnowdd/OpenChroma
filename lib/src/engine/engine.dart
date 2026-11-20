@@ -643,10 +643,12 @@ class Engine extends ChangeNotifier {
   /// of the engine itself.
   final frameNotifier = ValueNotifier<CanvasFrame?>(null);
 
-  void onFrame(CanvasFrame f) {
+  /// [force] shows [f] even while the effect is frozen (the effect or its
+  /// settings changed meanwhile).
+  void onFrame(CanvasFrame f, {bool force = false}) {
     // The reactive light draws its own frames.
     if (_alertUntil != null || (reactive && _reactiveColor != null)) return;
-    if (frozen && frame != null) return;
+    if (frozen && frame != null && !force) return;
     frame = f;
     frameNotifier.value = f;
   }
