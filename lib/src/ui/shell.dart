@@ -68,6 +68,7 @@ class _ShellState extends State<Shell> {
       .clamp(0, Pages.settings);
   late final _accent = AccentController(widget.engine);
   late final _appIcon = AppIconSync(_accent);
+  final _openDevice = ValueNotifier<String?>(null);
   SystemMonitor get _monitor => widget.monitor;
   late final _checkup = CheckupService(
     monitor: widget.monitor,
@@ -102,6 +103,7 @@ class _ShellState extends State<Shell> {
     _lifecycle.dispose();
     _checkup.dispose();
     _appIcon.dispose();
+    _openDevice.dispose();
     _accent.dispose();
     super.dispose();
   }
@@ -182,9 +184,16 @@ class _ShellState extends State<Shell> {
                                                 assistant: widget.assistant,
                                                 active: _shows(Pages.home),
                                                 onNavigate: _go,
+                                                onOpenDevice: (key) {
+                                                  _openDevice.value = key;
+                                                  _go(Pages.devices);
+                                                },
                                               ),
                                               _LightingPage(engine: engine),
-                                              DevicesPage(engine: engine),
+                                              DevicesPage(
+                                                engine: engine,
+                                                open: _openDevice,
+                                              ),
                                               FansPage(
                                                 fans: widget.fans,
                                                 active: _shows(Pages.fans),

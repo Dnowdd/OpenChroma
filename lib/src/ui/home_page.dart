@@ -33,6 +33,7 @@ class HomePage extends StatefulWidget {
     required this.assistant,
     required this.active,
     required this.onNavigate,
+    required this.onOpenDevice,
   });
   final Engine engine;
   final SystemMonitor monitor;
@@ -40,6 +41,9 @@ class HomePage extends StatefulWidget {
   final Assistant assistant;
   final bool active;
   final ValueChanged<int> onNavigate;
+
+  /// Opens one device on the devices page.
+  final ValueChanged<String> onOpenDevice;
 
   @override
   State<HomePage> createState() => _HomePageState();
@@ -123,7 +127,7 @@ class _HomePageState extends State<HomePage> {
         : _ScreenCard(
             engine: widget.engine,
             device: cooler,
-            onOpen: () => go(Pages.devices),
+            onOpen: () => widget.onOpenDevice(cooler.key),
           );
 
     const gap = 16.0;
