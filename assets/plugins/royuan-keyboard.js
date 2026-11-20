@@ -322,7 +322,8 @@ plugin({
     var same = true;
     for (var i = 3; i < c.length && same; i++) same = c[i] === c[i % 3];
     if (same) return; // one color: the live command already shows it
-    this.send(dev, MODE_USERPIC, APP_PICTURE, 0xFF, 0xFF, 0xFF);
+    // The colors go first, so switching to the picture shows them at once
+    // instead of the old picture.
     if (this.frameKey !== this.pictureKey) {
       var pic = [];
       for (var p = 0; p < 7 * 56; p++) pic.push(0);
@@ -338,6 +339,7 @@ plugin({
       }
       this.pictureKey = this.frameKey;
     }
+    this.send(dev, MODE_USERPIC, APP_PICTURE, 0xFF, 0xFF, 0xFF);
     this.pictureOn = true;
     this.directOn = false;
   },

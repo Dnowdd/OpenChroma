@@ -272,12 +272,13 @@ void main() {
     expect(fake.features, isEmpty); // not still long enough yet
     await Future<void>.delayed(const Duration(milliseconds: 1600));
     fake.poll();
-    expect(fake.features.first.sublist(1, 6), [0x07, 0x0D, 4, 4, 2]);
-    expect(fake.features.skip(1).map((f) => f.sublist(1, 6)).toList(), [
+    // The picture is written before the keyboard switches to it.
+    expect(fake.features.take(7).map((f) => f.sublist(1, 6)).toList(), [
       for (var part = 0; part < 7; part++) [0x0C, 0, 0x80, 0x01, part],
     ]);
+    expect(fake.features[7].sublist(1, 6), [0x07, 0x0D, 4, 4, 2]);
     // Esc (LED 0) sits in slot 0: its color leads the first part.
-    expect(fake.features[1].sublist(9, 12), [0, 255, 0]);
+    expect(fake.features[0].sublist(9, 12), [0, 255, 0]);
     // The same frame again does not write the picture again.
     fake.features.clear();
     fake.render(colors);
