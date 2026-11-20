@@ -65,7 +65,7 @@ function buildTheme(jpegs, direction, widgets, glyphs) {
   for (var i = 0; i < jpegs.length; i++) start += 4 + jpegs[i].length;
   var data = start + (start % 2);
   var total = data;
-  for (var g = 0; g < glyphs.length; g++) total += glyphs[g].length;
+  for (var g = 0; g < glyphs.length; g++) if (glyphs[g]) total += glyphs[g].length;
   var file = new Uint8Array(total);
   file[0] = 0x96;
   file[1] = direction;
@@ -84,6 +84,7 @@ function buildTheme(jpegs, direction, widgets, glyphs) {
     at += 4 + jpegs[j].length;
   }
   at = data;
+  var offsets = [];
   for (var k = 0; k < widgets.length && k < MAX_WIDGETS; k++) {
     var w = widgets[k], r = 0x80 + k * 0x40;
     file[r] = 0x92;
@@ -96,13 +97,24 @@ function buildTheme(jpegs, direction, widgets, glyphs) {
     file[r + 11] = 1;
     put(file, r + 12, be16(w.color));
     file[r + 15] = 0xff;
-    put(file, r + 16, be32(at));
+    if (glyphs[k]) {
+      offsets[k] = at;
+      put(file, at, glyphs[k]);
+      at += glyphs[k].length;
+    } else {
+      offsets[k] = offsets[w.sharedWith];
+    }
+    put(file, r + 16, be32(offsets[k]));
     put(file, r + 20, be16(w.glyphHeight));
     for (var c = 0; c < 12; c++) put(file, r + 22 + c * 2, be16(w.glyphWidths[c]));
-    put(file, at, glyphs[k]);
-    at += glyphs[k].length;
   }
   return file;
+}
+
+function sameBytes(a, b) {
+  if (a.length !== b.length) return false;
+  for (var i = 0; i < a.length; i++) if (a[i] !== b[i]) return false;
+  return true;
 }
 
 function hex(bytes) {
@@ -190,10 +202,20 @@ plugin({
     var quality = dev.setting('quality') || 80;
     var dir = ['0°', '90°', '180°', '270°'].indexOf(dev.setting('direction'));
     var widgets = image.widgets || [];
-    var glyphs = [], glyphBytes = 0;
+    var glyphs = [], all = [], glyphBytes = 0;
     for (var g = 0; g < widgets.length; g++) {
-      glyphs.push(dev.widgetGlyphs(g));
-      glyphBytes += glyphs[g].length;
+      all.push(dev.widgetGlyphs(g));
+      glyphs.push(all[g]);
+      for (var p = 0; p < g; p++) {
+        if (glyphs[p] && widgets[p].glyphHeight === widgets[g].glyphHeight &&
+            JSON.stringify(widgets[p].glyphWidths) === JSON.stringify(widgets[g].glyphWidths) &&
+            sameBytes(all[p], all[g])) {
+          widgets[g].sharedWith = p;
+          glyphs[g] = null;
+          break;
+        }
+      }
+      if (glyphs[g]) glyphBytes += glyphs[g].length;
     }
     var budget = (widgets.length ? MAX_LIVE_THEME : MAX_THEME) - BLOCK - glyphBytes - 2;
     var probe = dev.jpeg(0, quality).length;
@@ -219,7 +241,7 @@ plugin({
     var file = buildTheme(jpegs, dir < 0 ? 0 : dir, widgets, glyphs);
     dev.log('theme ' + file.length + ' bytes, ' + widgets.length + ' live widgets');
     for (var x = 0; x < widgets.length; x++) {
-      dev.log('widget ' + x + ' ' + JSON.stringify(widgets[x]) + ' glyphs ' + glyphs[x].length +
+      dev.log('widget ' + x + ' ' + JSON.stringify(widgets[x]) + ' glyphs ' + all[x].length +
         ' record ' + hex(file.subarray(0x80 + x * 0x40, 0x80 + x * 0x40 + 46)));
     }
     this.valueLogs = 4;
