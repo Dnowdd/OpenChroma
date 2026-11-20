@@ -141,6 +141,10 @@ class DeviceInstance {
   /// LED is dark (the color-order assistant).
   (int, int, int, int)? testColor;
 
+  /// With [testColor], only the first this many LEDs of the zone light (the
+  /// LED counting assistant).
+  int? testCount;
+
   /// Last colors sent and when, to skip identical frames.
   Uint8List? lastSent;
   DateTime lastSentAt = DateTime(0);
@@ -1791,8 +1795,10 @@ class Engine extends ChangeNotifier {
     int r = 0,
     int g = 0,
     int b = 0,
+    int? count,
   ]) {
     d.testColor = zone == null ? null : (zone, r, g, b);
+    d.testCount = zone == null ? null : count;
     d.lastSent = null;
   }
 
@@ -2071,7 +2077,8 @@ class Engine extends ChangeNotifier {
       final test = d.testColor;
       if (test != null) {
         final z = d.device.zones[test.$1];
-        for (var i = z.start; i < z.start + z.count; i++) {
+        final lit = math.min(z.count, d.testCount ?? z.count);
+        for (var i = z.start; i < z.start + lit; i++) {
           out[i * 3] = test.$2;
           out[i * 3 + 1] = test.$3;
           out[i * 3 + 2] = test.$4;

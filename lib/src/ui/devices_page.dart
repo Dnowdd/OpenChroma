@@ -1,6 +1,9 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 
 import '../drivers/hardware_mode.dart';
+import '../drivers/native_drivers.dart' show DriverZone;
 import '../engine/engine.dart';
 import '../system/batteries.dart';
 import 'color_order.dart';
@@ -22,8 +25,12 @@ import 'widgets.dart';
 String deviceKind(DeviceInstance d) => deviceKindOf(d.type, d.name).label;
 
 class DevicesPage extends StatefulWidget {
-  const DevicesPage({super.key, required this.engine});
+  const DevicesPage({super.key, required this.engine, this.open});
   final Engine engine;
+
+  /// A device to show, on its screen tab when it has one (set from other
+  /// pages; cleared once shown).
+  final ValueNotifier<String?>? open;
 
   @override
   State<DevicesPage> createState() => _DevicesPageState();
@@ -31,6 +38,27 @@ class DevicesPage extends StatefulWidget {
 
 class _DevicesPageState extends State<DevicesPage> {
   String? _selected;
+  String? _screenFor;
+
+  @override
+  void initState() {
+    super.initState();
+    widget.open?.addListener(_onOpen);
+    _onOpen();
+  }
+
+  @override
+  void dispose() {
+    widget.open?.removeListener(_onOpen);
+    super.dispose();
+  }
+
+  void _onOpen() {
+    final key = widget.open?.value;
+    if (key == null) return;
+    widget.open!.value = null;
+    setState(() => _selected = _screenFor = key);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -83,7 +111,10 @@ class _DevicesPageState extends State<DevicesPage> {
                                 engine: engine,
                                 device: d,
                                 selected: d.key == sel?.key,
-                                onTap: () => setState(() => _selected = d.key),
+                                onTap: () => setState(() {
+                                  _selected = d.key;
+                                  _screenFor = null;
+                                }),
                               ),
                             if (engine.otherBatteries.isNotEmpty) ...[
                               const Padding(
@@ -108,9 +139,14 @@ class _DevicesPageState extends State<DevicesPage> {
                         clipBehavior: Clip.antiAlias,
                         child: sel != null
                             ? _DeviceDetail(
-                                key: ValueKey(sel.key),
+                                key: ValueKey(
+                                  '${sel.key}|${_screenFor == sel.key}',
+                                ),
                                 engine: engine,
                                 device: sel,
+                                initialTab: _screenFor == sel.key
+                                    ? 'screen'
+                                    : 'lighting',
                               )
                             : EmptyState(
                                 icon: Icons.usb_rounded,
@@ -283,7 +319,13 @@ class _BatteryTile extends StatelessWidget {
 }
 
 class _DeviceDetail extends StatefulWidget {
-  const _DeviceDetail({super.key, required this.engine, required this.device});
+  const _DeviceDetail({
+    super.key,
+    required this.engine,
+    required this.device,
+    this.initialTab = 'lighting',
+  });
+  final String initialTab;
   final Engine engine;
   final DeviceInstance device;
 
@@ -292,7 +334,7 @@ class _DeviceDetail extends StatefulWidget {
 }
 
 class _DeviceDetailState extends State<_DeviceDetail> {
-  String _tab = 'lighting';
+  late String _tab = widget.initialTab;
 
   @override
   Widget build(BuildContext context) {
@@ -677,11 +719,31 @@ class _ZonesTab extends StatelessWidget {
                     ? 'Matriz ${zones[i].width} × ${zones[i].height}'
                     : null,
                 trailing: zones[i].resizable
-                    ? OcNumberField(
-                        value: zones[i].count,
-                        suffix: 'LEDs',
-                        onSubmitted: (v) =>
-                            engine.setZoneLedCount(device, i, v),
+                    ? Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          OcButton(
+                            label: 'Contar',
+                            icon: Icons.auto_fix_high_rounded,
+                            variant: OcButtonVariant.ghost,
+                            onPressed: () => showDialog<void>(
+                              context: context,
+                              barrierDismissible: false,
+                              builder: (_) => _LedCounter(
+                                engine: engine,
+                                device: device,
+                                zone: i,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          OcNumberField(
+                            value: zones[i].count,
+                            suffix: 'LEDs',
+                            onSubmitted: (v) =>
+                                engine.setZoneLedCount(device, i, v),
+                          ),
+                        ],
                       )
                     : Text(
                         zones[i].count == 1
@@ -695,6 +757,133 @@ class _ZonesTab extends StatelessWidget {
       ],
     );
   }
+}
+
+/// Finds how many LEDs hang off an ARGB connector: the first N light up
+/// green while the user moves N until the last fan is fully lit.
+class _LedCounter extends StatefulWidget {
+  const _LedCounter({
+    required this.engine,
+    required this.device,
+    required this.zone,
+  });
+  final Engine engine;
+  final DeviceInstance device;
+  final int zone;
+
+  @override
+  State<_LedCounter> createState() => _LedCounterState();
+}
+
+class _LedCounterState extends State<_LedCounter> {
+  late final DriverZone _info = widget.device.device.zones[widget.zone];
+  late final int _original = _info.count;
+  late final int _max = math.min(_info.max, 300);
+  late int _count = _original > 0 ? _original : 10;
+
+  @override
+  void initState() {
+    super.initState();
+    widget.engine.setZoneLedCount(widget.device, widget.zone, _info.max);
+    _show();
+  }
+
+  void _show() => widget.engine.setTestColor(
+    widget.device,
+    widget.zone,
+    0,
+    255,
+    90,
+    _count,
+  );
+
+  void _set(int v) {
+    setState(() => _count = v.clamp(1, _max));
+    _show();
+  }
+
+  void _finish(int? count) {
+    widget.engine
+      ..setTestColor(widget.device, null)
+      ..setZoneLedCount(widget.device, widget.zone, count ?? _original);
+    Navigator.pop(context);
+  }
+
+  @override
+  Widget build(BuildContext context) => Dialog(
+    backgroundColor: Oc.panel,
+    shape: const RoundedRectangleBorder(borderRadius: Oc.r12),
+    child: SizedBox(
+      width: 460,
+      child: Padding(
+        padding: const EdgeInsets.all(22),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text('Contar LEDs de ${_info.name}', style: OcText.title),
+            const SizedBox(height: 6),
+            const Text(
+              'Os primeiros LEDs acendem em verde. Aumente até a última '
+              'ventoinha ou fita ficar toda acesa, e pare no ponto em que '
+              'acender mais um não muda nada.',
+              style: OcText.secondary,
+            ),
+            const SizedBox(height: 20),
+            Row(
+              children: [
+                OcIconButton(
+                  icon: Icons.remove_rounded,
+                  tooltip: 'Um a menos',
+                  onPressed: _count > 1 ? () => _set(_count - 1) : null,
+                ),
+                Expanded(
+                  child: Center(
+                    child: Text(
+                      '$_count LEDs',
+                      style: OcText.title.copyWith(
+                        fontSize: 22,
+                        fontFeatures: const [FontFeature.tabularFigures()],
+                      ),
+                    ),
+                  ),
+                ),
+                OcIconButton(
+                  icon: Icons.add_rounded,
+                  tooltip: 'Um a mais',
+                  onPressed: _count < _max ? () => _set(_count + 1) : null,
+                ),
+              ],
+            ),
+            OcSlider(
+              value: _count.toDouble(),
+              min: 1,
+              max: _max.toDouble(),
+              onChanged: (v) => _set(v.round()),
+            ),
+            const SizedBox(height: 18),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                OcButton(
+                  label: 'Cancelar',
+                  variant: OcButtonVariant.ghost,
+                  onPressed: () => _finish(null),
+                ),
+                const SizedBox(width: 8),
+                OcButton(
+                  label: 'Usar $_count LEDs',
+                  icon: Icons.check_rounded,
+                  variant: OcButtonVariant.primary,
+                  onPressed: () => _finish(_count),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
 }
 
 class _InfoTab extends StatelessWidget {
