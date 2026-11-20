@@ -181,6 +181,11 @@ class _LiveCanvasState extends State<LiveCanvas> {
   bool _decoding = false;
   bool _dark = true;
 
+  static bool get _hidden => switch (WidgetsBinding.instance.lifecycleState) {
+    AppLifecycleState.hidden || AppLifecycleState.paused => true,
+    _ => false,
+  };
+
   @override
   void initState() {
     super.initState();
@@ -197,7 +202,7 @@ class _LiveCanvasState extends State<LiveCanvas> {
 
   void _onFrame() {
     final f = widget.engine.frameNotifier.value;
-    if (f == null || _decoding) return;
+    if (f == null || _decoding || _hidden) return;
     _decoding = true;
     // "Off" when only a sliver of the canvas is lit (e.g. a spectrum's
     // idle baseline).

@@ -13,6 +13,7 @@ import 'src/engine/engine.dart';
 import 'src/fans/fan_service.dart';
 import 'src/monitor/system_monitor.dart';
 import 'src/paths.dart';
+import 'src/system/background_trim.dart';
 import 'src/ui/shell.dart';
 import 'src/ui/theme.dart';
 
@@ -118,6 +119,7 @@ class OpenChromaApp extends StatefulWidget {
 
 class _OpenChromaAppState extends State<OpenChromaApp> {
   late final AppLifecycleListener _lifecycle;
+  final _trim = BackgroundTrim();
 
   @override
   void initState() {
@@ -137,6 +139,7 @@ class _OpenChromaAppState extends State<OpenChromaApp> {
 
   @override
   void dispose() {
+    _trim.dispose();
     _lifecycle.dispose();
     super.dispose();
   }
