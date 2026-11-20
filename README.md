@@ -73,8 +73,8 @@ Requisitos:
 
 - Windows 10 (1809 ou mais novo) ou Windows 11, 64 bits.
 - [Microsoft WebView2](https://developer.microsoft.com/microsoft-edge/webview2/)
-  para os efeitos. Já vem no Windows 11; o instalador cuida disso no
-  Windows 10.
+  só para efeitos HTML importados. Já vem no Windows 11; o instalador cuida
+  disso no Windows 10.
 - O driver [PawnIO](https://pawnio.eu) para o RGB da memória RAM e das placas
   de vídeo, a temperatura da CPU e as ventoinhas da placa-mãe. O instalador
   traz o setup oficial e o instala em segundo plano. Essas funções também precisam
@@ -172,8 +172,8 @@ lib/src/
   plugins/       plugins JavaScript: API, leitura e o worker de cada
                  dispositivo (QuickJS)
   hid/           acesso USB HID direto pelo Windows, para os plugins
-  effects/       biblioteca de efeitos, o renderizador .ocfx e o WebView2
-                 que desenha o efeito num canvas de 320x200
+  effects/       biblioteca de efeitos, o renderizador .ocfx em Dart e o
+                 WebView2 dos efeitos HTML importados
   fans/          curvas e controle das ventoinhas
   monitor/       leituras do sistema (lado nativo em windows/runner)
   checkup/       diagnóstico e análise de telas azuis
@@ -187,8 +187,9 @@ windows/drivers/ oc_drivers.dll: os drivers do OpenRGB com a API C do
 third_party/openrgb/  cópia do código do OpenRGB usada pelos drivers
 ```
 
-O efeito roda numa página (WebView2) que desenha num canvas; a cada ~33 ms o
-quadro volta para o app, que calcula a cor de cada LED pela posição do
+A cada ~33 ms o efeito desenha um quadro do canvas de 320x200: os `.ocfx`
+direto em Dart, os HTML importados numa página do WebView2, que só abre
+quando um deles está ativo. O app calcula a cor de cada LED pela posição do
 dispositivo no layout e entrega para o driver, que escreve no hardware na
 sua própria thread.
 

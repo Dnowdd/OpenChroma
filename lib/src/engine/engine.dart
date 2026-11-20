@@ -10,7 +10,6 @@ import 'package:path/path.dart' as p;
 
 import '../audio/audio_service.dart';
 import '../effects/effect_library.dart';
-import '../effects/ocfx_runtime.dart';
 import '../drivers/native_drivers.dart';
 import '../hid/hid_ffi.dart';
 import '../hid/serial_ffi.dart';
@@ -438,13 +437,9 @@ class Engine extends ChangeNotifier {
   // ---------------------------------------------------------------- effects
   late final String bundledEffectsDir = p.join(dataDir, 'effects', 'bundled');
   late final String importedEffectsDir = p.join(dataDir, 'effects', 'imported');
-  late final String runtimeDir = p.join(dataDir, 'runtime');
 
-  /// Writes the `.ocfx` renderer page and the effects shipped as assets to
-  /// disk, where the WebView can load them.
+  /// Writes the effects shipped as assets to disk.
   Future<void> _installBundledContent() async {
-    Directory(runtimeDir).createSync(recursive: true);
-    File(p.join(runtimeDir, 'ocfx.html')).writeAsStringSync(ocfxRuntimeHtml);
     final dir = Directory(bundledEffectsDir);
     if (dir.existsSync()) dir.deleteSync(recursive: true);
     dir.createSync(recursive: true);

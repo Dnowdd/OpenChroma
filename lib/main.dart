@@ -1,37 +1,24 @@
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
-import 'package:path/path.dart' as p;
-import 'package:webview_windows/webview_windows.dart';
 
 import 'src/ai/ai_service.dart';
 import 'src/ai/assistant.dart';
 import 'src/alerts/alert_service.dart';
 import 'src/diagnostics/frame_profiler.dart';
 import 'src/effects/effect_host.dart';
+import 'src/effects/ocfx_player.dart';
 import 'src/engine/engine.dart';
 import 'src/fans/fan_service.dart';
 import 'src/monitor/system_monitor.dart';
-import 'src/paths.dart';
 import 'src/system/background_trim.dart';
 import 'src/ui/shell.dart';
 import 'src/ui/theme.dart';
 
 Future<void> main(List<String> args) async {
   WidgetsFlutterBinding.ensureInitialized();
-  try {
-    // Keep effects animating when the window is minimized or covered.
-    await WebviewController.initializeEnvironment(
-      userDataPath: p.join(openChromaDataDir(), 'webview'),
-      additionalArguments:
-          '--disable-background-timer-throttling '
-          '--disable-renderer-backgrounding --disable-backgrounding-occluded-windows '
-          '--autoplay-policy=no-user-gesture-required',
-    );
-  } catch (_) {
-    // Already initialized (hot restart) or WebView2 missing; the preview reports it.
-  }
   final engine = Engine();
+  OcfxPlayer(engine);
   final monitor = SystemMonitor();
   // Fans run for the whole session, whichever page is open.
   final fans = FanService(monitor)..start();
