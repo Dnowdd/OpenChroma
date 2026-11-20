@@ -208,6 +208,37 @@ void main() {
     expect(old.features.single[1], 0x07);
   }, skip: skip);
 
+  test('the K86 takes the middle of the keyboard as its live color', () {
+    final fake = _FakeDevice(
+      'assets/plugins/royuan-keyboard.js',
+      endpoints: [_endpoint(interface: 2, featureLength: 65)],
+      info: {'vid': 0x3151, 'pid': 0x4015},
+      answers: {
+        0x8F: [0x00, 0x8F, 0x90, 0x04, 0x00, 0x00],
+      },
+    );
+    fake.start();
+    final zone = (fake.layout()['zones'] as List).single as Map;
+    final map = (zone['map'] as List).cast<num>();
+    final width = zone['width'] as int;
+    final colors = List<int>.filled(86 * 3, 0);
+    for (var i = 0; i < map.length; i++) {
+      final led = map[i].toInt();
+      if (led < 0) continue;
+      final col = i % width;
+      final band = col < width / 3
+          ? 0
+          : col > width * 2 / 3
+          ? 2
+          : 1;
+      colors[led * 3 + band] = 255;
+    }
+    fake.features.clear();
+    fake.render(colors);
+    // A rainbow across the keys shows its middle color, not a grey average.
+    expect(fake.features.last.sublist(1, 5), [0x0E, 0, 255, 0]);
+  }, skip: skip);
+
   test('the K86 shows still effects key by key in picture 3', () async {
     final fake = _FakeDevice(
       'assets/plugins/royuan-keyboard.js',

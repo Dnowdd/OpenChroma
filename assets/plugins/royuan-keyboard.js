@@ -280,11 +280,20 @@ plugin({
       this.directOn = false;
       this.sentKey = '';
     }
-    // The average of every key: the one color the keyboard takes live.
-    var n = colors.length / 3, r = 0, g = 0, b = 0;
+    // The one color the keyboard takes live: the average of its middle
+    // third, so an effect that moves across it (a rainbow) passes through
+    // its colors instead of averaging to grey.
+    var perKey = colors.length === K86_LEDS.length;
+    var n = 0, r = 0, g = 0, b = 0;
     for (var i = 0; i < colors.length; i += 3) {
+      if (perKey) {
+        var col = K86_LEDS[i + 1];
+        if (col < K86_GRID.width / 3 || col > K86_GRID.width * 2 / 3) continue;
+      }
       r += colors[i]; g += colors[i + 1]; b += colors[i + 2];
+      n++;
     }
+    n = Math.max(1, n);
     r = Math.round(r / n); g = Math.round(g / n); b = Math.round(b / n);
     var one = r + ',' + g + ',' + b;
     if (one === this.sentKey) return;
