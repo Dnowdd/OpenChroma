@@ -10,6 +10,8 @@ import 'shell.dart' show Pages;
 import 'theme.dart';
 import 'widgets.dart';
 
+const _memoryColor = Color(0xFF67E8F9);
+
 /// Temperatures and usage of the PC's main components.
 class MonitorPage extends StatefulWidget {
   const MonitorPage({
@@ -491,13 +493,13 @@ class _MemoryCard extends StatelessWidget {
         ],
       ),
       const SizedBox(height: 12),
-      _Bar(percent: memory.percent),
+      _Bar(percent: memory.percent, color: _memoryColor),
       const SizedBox(height: 20),
       _ChartBlock(
         title: 'Uso',
         history: history,
         format: _fmtPercent,
-        color: LiveAccent.of(context),
+        color: _memoryColor,
         range: _percentRange,
       ),
       const SizedBox(height: 20),
@@ -707,12 +709,37 @@ class _ProcessesCard extends StatelessWidget {
           title: byMemory ? 'Os que mais usam memória' : 'Os que mais usam CPU',
           trailing: OcSegmented<bool>(
             value: byMemory,
-            options: const [(false, 'CPU'), (true, 'Memória')],
+            options: const [(false, 'CPU'), (true, 'Memory')],
             onChanged: onSort,
           ),
         ),
         const SizedBox(height: 16),
-        const _ProcessRow.header(),
+        Padding(
+          padding: const EdgeInsets.only(bottom: 8),
+          child: Row(
+            children: [
+              const Expanded(child: Text('Name', style: OcText.caption)),
+              SizedBox(
+                width: 200,
+                child: _ProcessSortButton(
+                  label: 'CPU',
+                  selected: !byMemory,
+                  onPressed: () => onSort(false),
+                ),
+              ),
+              const SizedBox(width: 24),
+              SizedBox(
+                width: 200,
+                child: _ProcessSortButton(
+                  label: 'Memory',
+                  selected: byMemory,
+                  color: _memoryColor,
+                  onPressed: () => onSort(true),
+                ),
+              ),
+            ],
+          ),
+        ),
         const Divider(),
         for (final p in list.take(_rows))
           _ProcessRow(
@@ -730,6 +757,51 @@ class _ProcessesCard extends StatelessWidget {
   }
 }
 
+class _ProcessSortButton extends StatelessWidget {
+  const _ProcessSortButton({
+    required this.label,
+    required this.selected,
+    required this.onPressed,
+    this.color = Oc.text,
+  });
+
+  final String label;
+  final bool selected;
+  final VoidCallback onPressed;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) => Semantics(
+    selected: selected,
+    child: Tooltip(
+      message: 'Sort by $label, highest first',
+      child: TextButton(
+        onPressed: onPressed,
+        style: TextButton.styleFrom(
+          alignment: Alignment.centerLeft,
+          foregroundColor: color,
+          padding: const EdgeInsets.symmetric(horizontal: 8),
+          minimumSize: const Size(0, Oc.control),
+          shape: const RoundedRectangleBorder(borderRadius: Oc.r6),
+          textStyle: OcText.secondary.copyWith(
+            fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(label),
+            if (selected) ...[
+              const SizedBox(width: 6),
+              const Icon(Icons.arrow_downward_rounded, size: 14),
+            ],
+          ],
+        ),
+      ),
+    ),
+  );
+}
+
 class _ProcessRow extends StatelessWidget {
   const _ProcessRow({
     required this.name,
@@ -738,18 +810,8 @@ class _ProcessRow extends StatelessWidget {
     required this.memory,
     required this.memoryPercent,
     required this.byMemory,
-  }) : header = false;
+  });
 
-  const _ProcessRow.header()
-    : header = true,
-      name = '',
-      count = 0,
-      cpu = 0,
-      memory = 0,
-      memoryPercent = 0,
-      byMemory = false;
-
-  final bool header;
   final String name;
   final int count;
   final double cpu;
@@ -759,19 +821,6 @@ class _ProcessRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (header) {
-      return const Padding(
-        padding: EdgeInsets.only(bottom: 8),
-        child: Row(
-          children: [
-            Expanded(child: Text('Nome', style: OcText.caption)),
-            SizedBox(width: 200, child: Text('CPU', style: OcText.caption)),
-            SizedBox(width: 24),
-            SizedBox(width: 200, child: Text('Memória', style: OcText.caption)),
-          ],
-        ),
-      );
-    }
     return SizedBox(
       height: 34,
       child: Row(
@@ -808,6 +857,7 @@ class _ProcessRow extends StatelessWidget {
               percent: memoryPercent,
               text: _fmtBytes(memory),
               emphasized: byMemory,
+              color: _memoryColor,
             ),
           ),
         ],
@@ -1155,10 +1205,12 @@ class _InlineMeter extends StatelessWidget {
     required this.percent,
     required this.text,
     required this.emphasized,
+    this.color,
   });
   final double percent;
   final String text;
   final bool emphasized;
+  final Color? color;
 
   @override
   Widget build(BuildContext context) => Row(
@@ -1168,7 +1220,8 @@ class _InlineMeter extends StatelessWidget {
         child: Text(
           text,
           style: OcText.mono.copyWith(
-            color: emphasized ? Oc.text : Oc.textSecondary,
+            color: Oc.text,
+            fontWeight: emphasized ? FontWeight.w600 : FontWeight.w400,
           ),
         ),
       ),
@@ -1176,7 +1229,7 @@ class _InlineMeter extends StatelessWidget {
         child: _Bar(
           percent: percent,
           height: 4,
-          color: emphasized ? LiveAccent.of(context) : Oc.lineStrong,
+          color: color ?? LiveAccent.of(context),
         ),
       ),
     ],
