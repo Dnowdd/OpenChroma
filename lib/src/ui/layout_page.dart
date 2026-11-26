@@ -1,7 +1,10 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 
 import '../engine/engine.dart';
 import 'accent.dart';
+import 'auto_layout.dart';
 import 'theme.dart';
 import 'widgets.dart';
 
@@ -17,11 +20,59 @@ class _LayoutPageState extends State<LayoutPage> {
   String? _selDevice;
   String? _selZone;
   bool _dim = false;
+  bool _preview = false;
+  var _undo = <(String, String), (LedZone, LayoutItem, LayoutItem)>{};
 
   void _select(DeviceInstance? d, String? zone) => setState(() {
     _selDevice = d?.key;
     _selZone = zone;
   });
+
+  bool _samePosition(LayoutItem a, LayoutItem b) =>
+      a.x == b.x && a.y == b.y && a.scale == b.scale;
+
+  void _apply(
+    List<DeviceInstance> devices,
+    Map<(String, String), LayoutItem> proposal,
+  ) {
+    final engine = widget.engine;
+    final undo = <(String, String), (LedZone, LayoutItem, LayoutItem)>{};
+    for (final device in devices) {
+      for (final zone in device.zones) {
+        final key = (device.key, zone.key);
+        final proposed = proposal[key];
+        if (proposed == null) continue;
+        final previous = engine.layoutOf(device, zone.key);
+        if (!_samePosition(previous, proposed)) {
+          undo[key] = (zone, previous, proposed);
+        }
+      }
+    }
+    setState(() {
+      _preview = false;
+      if (undo.isNotEmpty) _undo = undo;
+    });
+    engine.setLayouts({
+      for (final entry in undo.entries) entry.key: entry.value.$3,
+    });
+  }
+
+  Map<(String, String), LayoutItem> _undoable(Engine engine) {
+    final placements = <(String, String), LayoutItem>{};
+    for (final MapEntry(key: (deviceKey, zoneKey), value: (zone, old, applied))
+        in _undo.entries) {
+      final device = engine.devices[deviceKey];
+      final current = device?.zones.where((z) => z.key == zoneKey).firstOrNull;
+      if (device != null &&
+          current != null &&
+          current.width == zone.width &&
+          current.height == zone.height &&
+          _samePosition(engine.layoutOf(device, zoneKey), applied)) {
+        placements[(deviceKey, zoneKey)] = old;
+      }
+    }
+    return placements;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -30,6 +81,15 @@ class _LayoutPageState extends State<LayoutPage> {
         .where((d) => d.status == 'running')
         .toList();
     final selDevice = engine.devices[_selDevice];
+    final canArrange = running.any(
+      (device) => device.zones.any(
+        (zone) =>
+            zone.width > 0 && zone.height > 0 && zone.positions.isNotEmpty,
+      ),
+    );
+    final preview = _preview && canArrange;
+    final proposal = preview ? suggestLayout(running) : null;
+    final undoable = _undoable(engine);
     return Row(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -39,25 +99,59 @@ class _LayoutPageState extends State<LayoutPage> {
             children: [
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 0, 20, 18),
-                child: Row(
+                child: Wrap(
+                  spacing: 10,
+                  runSpacing: 8,
+                  crossAxisAlignment: WrapCrossAlignment.center,
                   children: [
-                    const Icon(
-                      Icons.pan_tool_alt_outlined,
-                      size: 16,
-                      color: Oc.textTertiary,
-                    ),
-                    const SizedBox(width: 8),
-                    const Expanded(
-                      child: Text(
-                        'Arraste cada zona sobre o efeito. Cada ponto é um LED.',
-                        style: OcText.secondary,
+                    if (preview) ...[
+                      const Text('Preview', style: OcText.label),
+                      OcButton(
+                        label: 'Apply',
+                        variant: OcButtonVariant.primary,
+                        onPressed: () => _apply(running, proposal!),
                       ),
-                    ),
-                    const Text('Escurecer efeito', style: OcText.secondary),
-                    const SizedBox(width: 10),
-                    OcSwitch(
-                      value: _dim,
-                      onChanged: (v) => setState(() => _dim = v),
+                      OcButton(
+                        label: 'Cancel',
+                        variant: OcButtonVariant.ghost,
+                        onPressed: () => setState(() => _preview = false),
+                      ),
+                    ] else ...[
+                      if (canArrange)
+                        OcButton(
+                          label: 'Auto Arrange',
+                          icon: Icons.auto_awesome_rounded,
+                          onPressed: () => setState(() => _preview = true),
+                        ),
+                      if (undoable.isNotEmpty)
+                        OcButton(
+                          label: 'Undo',
+                          icon: Icons.undo_rounded,
+                          variant: OcButtonVariant.ghost,
+                          onPressed: () {
+                            final placements = _undoable(engine);
+                            setState(
+                              () => placements.keys.forEach(_undo.remove),
+                            );
+                            engine.setLayouts(placements);
+                          },
+                        ),
+                      if (canArrange)
+                        const Text(
+                          'Drag zones to move them.',
+                          style: OcText.secondary,
+                        ),
+                    ],
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Text('Escurecer efeito', style: OcText.secondary),
+                        const SizedBox(width: 10),
+                        OcSwitch(
+                          value: _dim,
+                          onChanged: (v) => setState(() => _dim = v),
+                        ),
+                      ],
                     ),
                   ],
                 ),
@@ -106,7 +200,7 @@ class _LayoutPageState extends State<LayoutPage> {
                                         ),
                                         for (final d in running)
                                           for (final z in d.zones)
-                                            _zone(engine, d, z, k),
+                                            _zone(engine, d, z, k, proposal),
                                       ],
                                     ),
                                   ),
@@ -162,7 +256,9 @@ class _LayoutPageState extends State<LayoutPage> {
                 ),
                 const SizedBox(height: 20),
               ],
-              if (selDevice != null && _selZone != null)
+              if (!preview &&
+                  selDevice != null &&
+                  selDevice.zones.any((zone) => zone.key == _selZone))
                 _ZoneEditor(
                   engine: engine,
                   device: selDevice,
@@ -175,30 +271,44 @@ class _LayoutPageState extends State<LayoutPage> {
     );
   }
 
-  Widget _zone(Engine engine, DeviceInstance d, LedZone z, double k) {
-    final item = engine.layoutOf(d, z.key);
+  Widget _zone(
+    Engine engine,
+    DeviceInstance d,
+    LedZone z,
+    double k,
+    Map<(String, String), LayoutItem>? proposal,
+  ) {
+    final item = proposal?[(d.key, z.key)] ?? engine.layoutOf(d, z.key);
+    final editing = proposal == null;
     final selected = _selDevice == d.key && _selZone == z.key;
-    final w = (z.width * item.scale * k).clamp(8.0, 4000.0);
-    final h = (z.height * item.scale * k).clamp(8.0, 4000.0);
+    final w = (z.width * item.scale * k).clamp(0.0, 4000.0);
+    final h = (z.height * item.scale * k).clamp(0.0, 4000.0);
     return Positioned(
       left: item.x * k,
       top: item.y * k,
-      width: w,
-      height: h,
+      width: math.max(8, w),
+      height: math.max(8, h),
       child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
         onTap: () => _select(d, z.key),
-        onPanStart: (_) => _select(d, z.key),
-        onPanUpdate: (u) {
-          item.x += u.delta.dx / k;
-          item.y += u.delta.dy / k;
-          engine.setLayout(d, z.key, item);
-        },
+        onPanStart: editing ? (_) => _select(d, z.key) : null,
+        onPanUpdate: editing
+            ? (u) {
+                item.x += u.delta.dx / k;
+                item.y += u.delta.dy / k;
+                engine.setLayout(d, z.key, item);
+              }
+            : null,
         child: MouseRegion(
-          cursor: SystemMouseCursors.grab,
+          cursor: editing ? SystemMouseCursors.grab : SystemMouseCursors.click,
           child: Tooltip(
             message: z.key == 'main' ? d.name : z.label,
-            child: CustomPaint(
-              painter: _ZonePainter(z, item.scale * k, selected),
+            child: Align(
+              alignment: Alignment.topLeft,
+              child: CustomPaint(
+                size: Size(w, h),
+                painter: _ZonePainter(z, item.scale * k, selected),
+              ),
             ),
           ),
         ),
@@ -385,7 +495,13 @@ class _ZoneEditor extends StatelessWidget {
         ),
         OcPanel(
           children: [
-            slider('Escala', item.scale, .5, 40, (v) => item.scale = v),
+            slider(
+              'Escala',
+              item.scale,
+              math.min(.5, item.scale),
+              math.max(40, item.scale),
+              (v) => item.scale = v,
+            ),
             slider(
               'Posição X',
               item.x,

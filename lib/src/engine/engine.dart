@@ -1908,15 +1908,36 @@ class Engine extends ChangeNotifier {
   }
 
   void setLayout(DeviceInstance d, String zoneKey, LayoutItem item) {
+    _writeLayout(d, zoneKey, item);
+    _save();
+    notifyListeners();
+  }
+
+  void setLayouts(Map<(String, String), LayoutItem> placements) {
+    var changed = false;
+    for (final MapEntry(key: (deviceKey, zoneKey), value: item)
+        in placements.entries) {
+      final device = devices[deviceKey];
+      if (device == null || !device.zones.any((zone) => zone.key == zoneKey)) {
+        continue;
+      }
+      _writeLayout(device, zoneKey, item);
+      changed = true;
+    }
+    if (changed) {
+      _save();
+      notifyListeners();
+    }
+  }
+
+  void _writeLayout(DeviceInstance d, String zoneKey, LayoutItem item) {
     final layout =
         (_deviceSettings(d.key)['layout'] ??= <String, dynamic>{}) as Map;
     item.x = item.x.clamp(-canvasWidth, canvasWidth * 2);
     item.y = item.y.clamp(-canvasHeight, canvasHeight * 2);
-    item.scale = item.scale.clamp(0.5, 60);
+    item.scale = item.scale > 0 ? math.min(item.scale, 60) : .5;
     layout[zoneKey] = _layoutJson(d, zoneKey, item);
     d.lastSent = null;
-    _save();
-    notifyListeners();
   }
 
   /// [item] as saved, with the size of the zone's grid it was made for.
