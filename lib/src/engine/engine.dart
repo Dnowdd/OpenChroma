@@ -44,16 +44,51 @@ class CanvasFrame {
 
 /// Placement of a device (or one of its subdevices / channels) on the canvas.
 class LayoutItem {
-  LayoutItem({required this.x, required this.y, required this.scale});
+  LayoutItem({
+    required this.x,
+    required this.y,
+    required this.scale,
+    this.turns = 0,
+    this.flipX = false,
+    this.flipY = false,
+  });
   double x;
   double y;
   double scale;
+  int turns;
+  bool flipX;
+  bool flipY;
 
-  Map<String, Object> toJson() => {'x': x, 'y': y, 'scale': scale};
+  (int, int) sizeOf(LedZone zone) =>
+      turns.isOdd ? (zone.height, zone.width) : (zone.width, zone.height);
+
+  (double, double) pointOf(LedZone zone, double x, double y) {
+    if (turns == 0 && !flipX && !flipY) return (x, y);
+    final (width, height) = sizeOf(zone);
+    final (u, v) = switch (turns % 4) {
+      1 => (zone.height - y, x),
+      2 => (zone.width - x, zone.height - y),
+      3 => (y, zone.width - x),
+      _ => (x, y),
+    };
+    return (flipX ? width - u : u, flipY ? height - v : v);
+  }
+
+  Map<String, Object> toJson() => {
+    'x': x,
+    'y': y,
+    'scale': scale,
+    if (turns != 0) 'turns': turns,
+    if (flipX) 'flipX': true,
+    if (flipY) 'flipY': true,
+  };
   static LayoutItem fromJson(Map j) => LayoutItem(
     x: (j['x'] as num).toDouble(),
     y: (j['y'] as num).toDouble(),
     scale: (j['scale'] as num).toDouble(),
+    turns: ((j['turns'] as num?)?.toInt() ?? 0) % 4,
+    flipX: j['flipX'] == true,
+    flipY: j['flipY'] == true,
   );
 }
 
@@ -338,6 +373,8 @@ class Engine extends ChangeNotifier {
 
   Map<String, dynamic> _settings = {};
   Timer? _tick;
+  Timer? _identifyTimer;
+  (DeviceInstance, LedZone, bool)? _identifiedZone;
   Timer? _rescan;
   Timer? _batteryCheck;
   Timer? _screenValues;
@@ -411,7 +448,7 @@ class Engine extends ChangeNotifier {
       } else if (reactive && !frozen) {
         _reactiveFrame();
       }
-      _pushFrames();
+      pushFrames();
     });
   }
 
@@ -1797,9 +1834,44 @@ class Engine extends ChangeNotifier {
     int b = 0,
     int? count,
   ]) {
+    if (zone != null && identical(_identifiedZone?.$1, d)) {
+      stopIdentifyingZone();
+    }
     d.testColor = zone == null ? null : (zone, r, g, b);
     d.testCount = zone == null ? null : count;
     d.lastSent = null;
+  }
+
+  void identifyZone(DeviceInstance device, LedZone zone) {
+    if (_shuttingDown ||
+        device.status != 'running' ||
+        device.activeMode != null ||
+        device.testColor != null ||
+        zone.leds.isEmpty ||
+        !device.zones.contains(zone)) {
+      return;
+    }
+    stopIdentifyingZone();
+    _identifiedZone = (device, zone, true);
+    device.lastSent = null;
+    _identifyTimer = Timer.periodic(const Duration(milliseconds: 350), (timer) {
+      if (timer.tick >= 3 ||
+          !identical(devices[device.key], device) ||
+          !device.zones.contains(zone)) {
+        stopIdentifyingZone();
+        return;
+      }
+      _identifiedZone = (device, zone, timer.tick.isEven);
+      device.lastSent = null;
+    });
+  }
+
+  void stopIdentifyingZone() {
+    _identifyTimer?.cancel();
+    _identifyTimer = null;
+    final identified = _identifiedZone;
+    _identifiedZone = null;
+    if (identified != null && frame != null) identified.$1.lastSent = null;
   }
 
   /// Puts [d] back as it was first detected: driver options (the values
@@ -2027,8 +2099,9 @@ class Engine extends ChangeNotifier {
       final o = zone.leds[i] * 3;
       if (o + 2 >= out.length) continue;
       final pos = zone.positions[i];
-      final x0 = (item.x + pos[0] * item.scale) * sx,
-          y0 = (item.y + pos[1] * item.scale) * sy;
+      final (x, y) = item.pointOf(zone, pos[0] + .5, pos[1] + .5);
+      final x0 = (item.x + (x - .5) * item.scale) * sx,
+          y0 = (item.y + (y - .5) * item.scale) * sy;
       var r = 0, g = 0, bl = 0, n = 0;
       for (var j = 0; j < ny; j++) {
         final py = (y0 + (j + 0.5) * ch / ny).floor();
@@ -2058,16 +2131,23 @@ class Engine extends ChangeNotifier {
     final zone = d.zones.firstOrNull;
     if (zone == null) return const [];
     final item = layoutOf(d, zone.key);
-    final w = zone.width * item.scale, h = zone.height * item.scale;
     // The hue, not the dimmed level: a thumbnail at 20% would just be grey.
     final sx = f.width / canvasWidth, sy = f.height / canvasHeight;
-    final py = ((item.y + h / 2) * sy).floor().clamp(0, f.height - 1);
     return [
       for (var i = 0; i < n; i++)
         () {
-          final px = ((item.x + w * (i + .5) / n) * sx).floor().clamp(
+          final (x, y) = item.pointOf(
+            zone,
+            zone.width * (i + .5) / n,
+            zone.height / 2,
+          );
+          final px = ((item.x + x * item.scale) * sx).floor().clamp(
             0,
             f.width - 1,
+          );
+          final py = ((item.y + y * item.scale) * sy).floor().clamp(
+            0,
+            f.height - 1,
           );
           final o = (py * f.width + px) * 3;
           return Color.fromARGB(255, f.rgb[o], f.rgb[o + 1], f.rgb[o + 2]);
@@ -2075,9 +2155,9 @@ class Engine extends ChangeNotifier {
     ];
   }
 
-  void _pushFrames() {
+  @visibleForTesting
+  void pushFrames() {
     final f = frame;
-    if (f == null) return;
     // An alert flash must show even with the lights dimmed or off.
     final alert = _alertUntil != null;
     final master = alert ? 1.0 : brightness / 100.0;
@@ -2085,8 +2165,18 @@ class Engine extends ChangeNotifier {
     for (final d in devices.values) {
       if (d.status != 'running' || d.device.ledCount == 0) continue;
       if (d.activeMode != null) continue;
+      final identified = _identifiedZone;
+      final identify =
+          !alert &&
+              identified != null &&
+              identical(identified.$1, d) &&
+              d.zones.contains(identified.$2)
+          ? identified
+          : null;
+      if (f == null && identify == null && d.lastSent == null) continue;
       final b = alert ? 1.0 : master * deviceBrightness(d) / 100;
-      if (still &&
+      if (f != null &&
+          still &&
           d.lastSent != null &&
           identical(d._sentFrame, f) &&
           d._sentLevel == b) {
@@ -2105,8 +2195,20 @@ class Engine extends ChangeNotifier {
           out[i * 3 + 2] = test.$4;
         }
       } else {
-        for (final z in d.zones) {
-          _sampleZone(z, layoutOf(d, z.key), f, b, out);
+        if (f != null) {
+          for (final z in d.zones) {
+            _sampleZone(z, layoutOf(d, z.key), f, b, out);
+          }
+        }
+        if (identify != null) {
+          final level = identify.$3 ? 160 : 0;
+          for (final led in identify.$2.leds) {
+            final offset = led * 3;
+            if (offset < 0 || offset + 2 >= out.length) continue;
+            out[offset] = level;
+            out[offset + 1] = level;
+            out[offset + 2] = level;
+          }
         }
       }
       // Static effects would resend the same colors 30 times a second;
@@ -2137,6 +2239,7 @@ class Engine extends ChangeNotifier {
   /// Saves settings and leaves the LEDs dark before the app exits.
   Future<void> shutdown() async {
     _shuttingDown = true;
+    stopIdentifyingZone();
     _tick?.cancel();
     _rescan?.cancel();
     _devicePoll?.cancel();

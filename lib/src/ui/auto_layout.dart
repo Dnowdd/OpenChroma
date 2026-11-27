@@ -7,9 +7,10 @@ import 'device_art.dart';
 enum _Area { lighting, accessories, keyboard, pointer, pc }
 
 Map<(String, String), LayoutItem> suggestLayout(
-  Iterable<DeviceInstance> devices,
-) {
-  final groups = <_Area, List<(String, LedZone)>>{};
+  Iterable<DeviceInstance> devices, {
+  LayoutItem Function(DeviceInstance, String)? currentLayout,
+}) {
+  final groups = <_Area, List<(DeviceInstance, LedZone)>>{};
   final ordered = devices.toList()..sort((a, b) => a.key.compareTo(b.key));
   for (final device in ordered) {
     final area = switch (deviceKindOf(device.type, device.name)) {
@@ -27,7 +28,7 @@ Map<(String, String), LayoutItem> suggestLayout(
     };
     for (final zone in device.zones) {
       if (zone.width > 0 && zone.height > 0 && zone.positions.isNotEmpty) {
-        (groups[area] ??= []).add((device.key, zone));
+        (groups[area] ??= []).add((device, zone));
       }
     }
   }
@@ -91,20 +92,26 @@ Map<(String, String), LayoutItem> suggestLayout(
     final rows = (zones.length / columns).ceil();
     final width = region.width / columns;
     final height = region.height / rows;
-    for (final (index, (deviceKey, zone)) in zones.indexed) {
+    for (final (index, (device, zone)) in zones.indexed) {
       final row = index ~/ columns;
       final rowCount = math.min(columns, zones.length - row * columns);
       final centerX =
           region.center.dx + (index % columns + .5 - rowCount / 2) * width;
       final centerY = region.top + (row + .5) * height;
+      final current = currentLayout?.call(device, zone.key);
+      final (zoneWidth, zoneHeight) =
+          current?.sizeOf(zone) ?? (zone.width, zone.height);
       final scale = math.min(
         40.0,
-        math.min(width * .88 / zone.width, height * .84 / zone.height),
+        math.min(width * .88 / zoneWidth, height * .84 / zoneHeight),
       );
-      result[(deviceKey, zone.key)] = LayoutItem(
-        x: centerX - zone.width * scale / 2,
-        y: centerY - zone.height * scale / 2,
+      result[(device.key, zone.key)] = LayoutItem(
+        x: centerX - zoneWidth * scale / 2,
+        y: centerY - zoneHeight * scale / 2,
         scale: scale,
+        turns: current?.turns ?? 0,
+        flipX: current?.flipX ?? false,
+        flipY: current?.flipY ?? false,
       );
     }
   }

@@ -17,19 +17,53 @@ class LayoutPage extends StatefulWidget {
 }
 
 class _LayoutPageState extends State<LayoutPage> {
+  final _sidebar = ScrollController();
   String? _selDevice;
   String? _selZone;
   bool _dim = false;
   bool _preview = false;
   var _undo = <(String, String), (LedZone, LayoutItem, LayoutItem)>{};
 
-  void _select(DeviceInstance? d, String? zone) => setState(() {
-    _selDevice = d?.key;
-    _selZone = zone;
-  });
+  void _select(DeviceInstance? device, LedZone? zone, {bool identify = false}) {
+    final engine = widget.engine;
+    engine.stopIdentifyingZone();
+    if (identify && device != null && zone != null) {
+      engine.identifyZone(device, zone);
+    }
+    if (!_preview &&
+        zone != null &&
+        (_selDevice != device?.key || _selZone != zone.key) &&
+        _sidebar.hasClients) {
+      _sidebar.jumpTo(0);
+    }
+    setState(() {
+      _selDevice = device?.key;
+      _selZone = zone?.key;
+    });
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (!TickerMode.valuesOf(context).enabled) {
+      widget.engine.stopIdentifyingZone();
+    }
+  }
+
+  @override
+  void dispose() {
+    widget.engine.stopIdentifyingZone();
+    _sidebar.dispose();
+    super.dispose();
+  }
 
   bool _samePosition(LayoutItem a, LayoutItem b) =>
-      a.x == b.x && a.y == b.y && a.scale == b.scale;
+      a.x == b.x &&
+      a.y == b.y &&
+      a.scale == b.scale &&
+      a.turns == b.turns &&
+      a.flipX == b.flipX &&
+      a.flipY == b.flipY;
 
   void _apply(
     List<DeviceInstance> devices,
@@ -88,7 +122,9 @@ class _LayoutPageState extends State<LayoutPage> {
       ),
     );
     final preview = _preview && canArrange;
-    final proposal = preview ? suggestLayout(running) : null;
+    final proposal = preview
+        ? suggestLayout(running, currentLayout: engine.layoutOf)
+        : null;
     final undoable = _undoable(engine);
     return Row(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -121,7 +157,10 @@ class _LayoutPageState extends State<LayoutPage> {
                         OcButton(
                           label: 'Auto Arrange',
                           icon: Icons.auto_awesome_rounded,
-                          onPressed: () => setState(() => _preview = true),
+                          onPressed: () {
+                            engine.stopIdentifyingZone();
+                            setState(() => _preview = true);
+                          },
                         ),
                       if (undoable.isNotEmpty)
                         OcButton(
@@ -138,7 +177,7 @@ class _LayoutPageState extends State<LayoutPage> {
                         ),
                       if (canArrange)
                         const Text(
-                          'Drag zones to move them.',
+                          'Click a zone to identify its LEDs, or drag to move it.',
                           style: OcText.secondary,
                         ),
                     ],
@@ -227,6 +266,7 @@ class _LayoutPageState extends State<LayoutPage> {
           ),
           clipBehavior: Clip.antiAlias,
           child: ListView(
+            controller: _sidebar,
             padding: const EdgeInsets.fromLTRB(16, 20, 16, 20),
             children: [
               if (running.isEmpty)
@@ -238,6 +278,17 @@ class _LayoutPageState extends State<LayoutPage> {
                     message: 'Os dispositivos conectados aparecem aqui.',
                   ),
                 ),
+              if (!preview &&
+                  selDevice != null &&
+                  selDevice.status == 'running' &&
+                  selDevice.zones.any((zone) => zone.key == _selZone)) ...[
+                _ZoneEditor(
+                  engine: engine,
+                  device: selDevice,
+                  zoneKey: _selZone!,
+                ),
+                const SizedBox(height: 20),
+              ],
               for (final d in running) ...[
                 SectionLabel(d.name),
                 OcPanel(
@@ -250,20 +301,12 @@ class _LayoutPageState extends State<LayoutPage> {
                             : z.label.split(' - ').last,
                         detail: '${z.positions.length} LEDs',
                         selected: _selDevice == d.key && _selZone == z.key,
-                        onTap: () => _select(d, z.key),
+                        onTap: () => _select(d, z, identify: !preview),
                       ),
                   ],
                 ),
                 const SizedBox(height: 20),
               ],
-              if (!preview &&
-                  selDevice != null &&
-                  selDevice.zones.any((zone) => zone.key == _selZone))
-                _ZoneEditor(
-                  engine: engine,
-                  device: selDevice,
-                  zoneKey: _selZone!,
-                ),
             ],
           ),
         ),
@@ -281,17 +324,19 @@ class _LayoutPageState extends State<LayoutPage> {
     final item = proposal?[(d.key, z.key)] ?? engine.layoutOf(d, z.key);
     final editing = proposal == null;
     final selected = _selDevice == d.key && _selZone == z.key;
-    final w = (z.width * item.scale * k).clamp(0.0, 4000.0);
-    final h = (z.height * item.scale * k).clamp(0.0, 4000.0);
+    final (width, height) = item.sizeOf(z);
+    final w = (width * item.scale * k).clamp(0.0, 4000.0);
+    final h = (height * item.scale * k).clamp(0.0, 4000.0);
     return Positioned(
+      key: ValueKey((d.key, z.key)),
       left: item.x * k,
       top: item.y * k,
       width: math.max(8, w),
       height: math.max(8, h),
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
-        onTap: () => _select(d, z.key),
-        onPanStart: editing ? (_) => _select(d, z.key) : null,
+        onTap: () => _select(d, z, identify: editing),
+        onPanStart: editing ? (_) => _select(d, z) : null,
         onPanUpdate: editing
             ? (u) {
                 item.x += u.delta.dx / k;
@@ -307,7 +352,7 @@ class _LayoutPageState extends State<LayoutPage> {
               alignment: Alignment.topLeft,
               child: CustomPaint(
                 size: Size(w, h),
-                painter: _ZonePainter(z, item.scale * k, selected),
+                painter: _ZonePainter(z, item, item.scale * k, selected),
               ),
             ),
           ),
@@ -336,8 +381,9 @@ class _DotGridPainter extends CustomPainter {
 }
 
 class _ZonePainter extends CustomPainter {
-  _ZonePainter(this.zone, this.cell, this.selected);
+  _ZonePainter(this.zone, this.item, this.cell, this.selected);
   final LedZone zone;
+  final LayoutItem item;
   final double cell;
   final bool selected;
 
@@ -363,7 +409,8 @@ class _ZonePainter extends CustomPainter {
       ..strokeWidth = 1
       ..color = Colors.black.withValues(alpha: .55);
     for (final pos in zone.positions) {
-      final c = Offset((pos[0] + .5) * cell, (pos[1] + .5) * cell);
+      final (x, y) = item.pointOf(zone, pos[0] + .5, pos[1] + .5);
+      final c = Offset(x * cell, y * cell);
       canvas.drawCircle(c, radius, fill);
       canvas.drawCircle(c, radius, ring);
     }
@@ -385,7 +432,12 @@ class _ZonePainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_ZonePainter old) =>
-      old.cell != cell || old.selected != selected || old.zone != zone;
+      old.cell != cell ||
+      old.selected != selected ||
+      old.zone != zone ||
+      old.item.turns != item.turns ||
+      old.item.flipX != item.flipX ||
+      old.item.flipY != item.flipY;
 }
 
 class _ZoneTile extends StatelessWidget {
@@ -446,6 +498,9 @@ class _ZoneEditor extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final item = engine.layoutOf(device, zoneKey);
+    final zone = device.zones.firstWhere((z) => z.key == zoneKey);
+    final (width, height) = item.sizeOf(zone);
+    void save() => engine.setLayout(device, zoneKey, item);
     Widget slider(
       String label,
       double value,
@@ -462,7 +517,7 @@ class _ZoneEditor extends StatelessWidget {
         integer: false,
         onChanged: (v) {
           set(v);
-          engine.setLayout(device, zoneKey, item);
+          save();
         },
       ),
     );
@@ -476,23 +531,70 @@ class _ZoneEditor extends StatelessWidget {
             icon: Icons.fit_screen_rounded,
             variant: OcButtonVariant.ghost,
             onPressed: () {
-              final z = device.zones.firstWhere((z) => z.key == zoneKey);
-              final s = [
-                canvasWidth / z.width,
-                canvasHeight / z.height,
-              ].reduce((a, b) => a < b ? a : b);
-              engine.setLayout(
-                device,
-                zoneKey,
-                LayoutItem(
-                  x: (canvasWidth - z.width * s) / 2,
-                  y: (canvasHeight - z.height * s) / 2,
-                  scale: s,
-                ),
+              final scale = math.min(
+                60.0,
+                math.min(canvasWidth / width, canvasHeight / height),
               );
+              item
+                ..x = (canvasWidth - width * scale) / 2
+                ..y = (canvasHeight - height * scale) / 2
+                ..scale = scale;
+              save();
             },
           ),
         ),
+        if (device.activeMode != null)
+          const Padding(
+            padding: EdgeInsets.only(bottom: 8),
+            child: Text(
+              'Switch to OpenChroma effects to identify this zone.',
+              style: OcText.secondary,
+            ),
+          ),
+        Wrap(
+          spacing: 6,
+          runSpacing: 6,
+          children: [
+            OcButton(
+              label: 'Rotate 90°',
+              icon: Icons.rotate_right_rounded,
+              onPressed: () {
+                final (oldWidth, oldHeight) = item.sizeOf(zone);
+                final (flipX, flipY) = (item.flipX, item.flipY);
+                item
+                  ..turns = (item.turns + 1) % 4
+                  ..flipX = flipY
+                  ..flipY = flipX
+                  ..x += (oldWidth - oldHeight) * item.scale / 2
+                  ..y += (oldHeight - oldWidth) * item.scale / 2;
+                save();
+              },
+            ),
+            OcButton(
+              label: 'Flip horizontal',
+              icon: Icons.swap_horiz_rounded,
+              variant: item.flipX
+                  ? OcButtonVariant.primary
+                  : OcButtonVariant.secondary,
+              onPressed: () {
+                item.flipX = !item.flipX;
+                save();
+              },
+            ),
+            OcButton(
+              label: 'Flip vertical',
+              icon: Icons.swap_vert_rounded,
+              variant: item.flipY
+                  ? OcButtonVariant.primary
+                  : OcButtonVariant.secondary,
+              onPressed: () {
+                item.flipY = !item.flipY;
+                save();
+              },
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
         OcPanel(
           children: [
             slider(
