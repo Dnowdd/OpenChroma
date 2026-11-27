@@ -183,10 +183,6 @@ app só, rápido, que:
 </tr>
 </table>
 
-<a href="docs/video/showcase.mp4"><img src="docs/video/showcase-preview.webp" alt="Prévia da demonstração do OpenChroma" width="100%"></a>
-
-[**Assista à demonstração completa**](docs/video/showcase.mp4)
-
 **Um projeto gratuito, de código aberto e sem fins lucrativos para controlar a iluminação RGB e as ventoinhas e monitorar o PC no Windows.**
 
 - 🔔 **Avisos**: notificação do Windows (e, se quiser, os LEDs piscando em
@@ -242,10 +238,6 @@ teclados, mouses, headsets, mousepads, placas-mãe, controladoras ARGB, water
 coolers, memórias e placas de vídeo da ASUS, Corsair, Logitech, Razer,
 SteelSeries, HyperX, Gigabyte, MSI, NZXT, Lian Li, Cooler Master e outras.
 Não precisa instalar o OpenRGB.
-
-<a href="docs/video/showcase.mp4"><img src="docs/video/showcase-preview.webp" alt="Prévia da demonstração do OpenChroma" width="100%"></a>
-
-[**Assista à demonstração completa**](docs/video/showcase.mp4)
 
 **Um projeto gratuito, de código aberto e sem fins lucrativos para controlar a iluminação RGB e as ventoinhas e monitorar o PC no Windows.**
 

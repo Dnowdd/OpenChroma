@@ -182,10 +182,6 @@ replaces all of them with a single, fast app that:
 </tr>
 </table>
 
-<a href="docs/video/showcase.mp4"><img src="docs/video/showcase-preview.webp" alt="OpenChroma showcase preview" width="100%"></a>
-
-[**Watch the full showcase**](docs/video/showcase.mp4)
-
 **A free, open-source, non-profit project for RGB lighting, fan control and PC monitoring on Windows.**
 
 - 🔔 **Alerts**: a Windows notification (and, if you want, a red flash on
@@ -238,10 +234,6 @@ keyboards, mice, headsets, mousepads, motherboards, ARGB controllers, AIO
 coolers, RAM and graphics cards from ASUS, Corsair, Logitech, Razer,
 SteelSeries, HyperX, Gigabyte, MSI, NZXT, Lian Li, Cooler Master and more.
 No need to install OpenRGB.
-
-<a href="docs/video/showcase.mp4"><img src="docs/video/showcase-preview.webp" alt="OpenChroma showcase preview" width="100%"></a>
-
-[**Watch the full showcase**](docs/video/showcase.mp4)
 
 **A free, open-source, non-profit project for RGB lighting, fan control and PC monitoring on Windows.**
 
