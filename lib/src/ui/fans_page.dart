@@ -638,6 +638,7 @@ class _CurvePainter extends CustomPainter {
         text: TextSpan(
           text: '$label ${t.round()} °C',
           style: const TextStyle(
+            fontFamily: Oc.font,
             fontSize: 11.5,
             fontWeight: FontWeight.w600,
             color: Oc.bg,

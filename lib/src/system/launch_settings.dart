@@ -18,7 +18,7 @@ typedef _RunElevated = int Function(Pointer<Utf16>, Pointer<Utf16>, int);
 
 /// Administrator rights, through the runner's windows/runner/elevation.cpp.
 class Elevation {
-  static final bool isElevated = () {
+  static final bool _native = () {
     try {
       return DynamicLibrary.executable()
               .lookupFunction<Int32 Function(), int Function()>(
@@ -29,6 +29,11 @@ class Elevation {
       return false;
     }
   }();
+
+  @visibleForTesting
+  static bool? debugOverride;
+
+  static bool get isElevated => debugOverride ?? _native;
 
   /// Starts this app again elevated with [args]; true when it launched.
   static bool relaunch(List<String> args) {
@@ -86,6 +91,8 @@ class LaunchSettings extends ChangeNotifier {
   LaunchSettings() {
     load();
   }
+
+  static LaunchSettings Function() create = LaunchSettings.new;
 
   static const _layersKey =
       r'HKCU\Software\Microsoft\Windows NT\CurrentVersion\AppCompatFlags\Layers';

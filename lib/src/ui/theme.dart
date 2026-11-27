@@ -78,7 +78,11 @@ class OcText {
     color: Oc.textSecondary,
     height: 1.45,
   );
-  static const caption = TextStyle(fontSize: 11.5, color: Oc.textTertiary);
+  static const caption = TextStyle(
+    fontFamily: Oc.font,
+    fontSize: 11.5,
+    color: Oc.textTertiary,
+  );
   static const overline = TextStyle(
     fontSize: 11,
     fontWeight: FontWeight.w600,

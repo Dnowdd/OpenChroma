@@ -899,6 +899,7 @@ class _ProcessSortButton extends StatelessWidget {
           minimumSize: const Size(0, Oc.control),
           shape: const RoundedRectangleBorder(borderRadius: Oc.r6),
           textStyle: OcText.secondary.copyWith(
+            fontFamily: Oc.font,
             fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
           ),
         ),

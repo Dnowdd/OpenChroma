@@ -284,7 +284,7 @@ class _LaunchPanel extends StatefulWidget {
 }
 
 class _LaunchPanelState extends State<_LaunchPanel> {
-  final _launch = LaunchSettings();
+  final _launch = LaunchSettings.create();
 
   @override
   void dispose() {

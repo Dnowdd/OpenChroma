@@ -23,6 +23,9 @@ import 'shell.dart' show Pages;
 import 'theme.dart';
 import 'widgets.dart';
 
+@visibleForTesting
+DateTime Function() homeNow = DateTime.now;
+
 /// The start page: the light that is on, the PC's vitals, what needs
 /// attention, and quick access to everything else.
 class HomePage extends StatefulWidget {
@@ -210,7 +213,7 @@ class _Header extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final now = DateTime.now();
+    final now = homeNow();
     final greeting = now.hour < 5
         ? l10n.homeGreetingNight
         : now.hour < 12
@@ -296,7 +299,7 @@ class _ClockState extends State<_Clock> {
 
   @override
   Widget build(BuildContext context) {
-    final now = DateTime.now();
+    final now = homeNow();
     String two(int v) => v.toString().padLeft(2, '0');
     return Text(
       '${two(now.hour)}:${two(now.minute)}',
