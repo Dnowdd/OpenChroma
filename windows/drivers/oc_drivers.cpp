@@ -219,6 +219,15 @@ void WriterLoop(RGBController* c) {
     writes++;
     std::lock_guard<std::mutex> lock(g_mutex);
     if (!Known(c)) continue;
+    {
+      std::lock_guard<std::mutex> pending_lock(g_pending_mutex);
+      if (g_writer_stop) return;
+      const auto latest = g_pending.find(c);
+      if (latest != g_pending.end()) {
+        rgb.swap(latest->second);
+        g_pending.erase(latest);
+      }
+    }
     EnsureDirect(c);
     const unsigned int leds = c->GetLEDCount();
     const unsigned int n = static_cast<unsigned int>(rgb.size() / 3);
