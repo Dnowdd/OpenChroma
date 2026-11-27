@@ -124,6 +124,8 @@ target_link_libraries(oc_drivers PRIVATE
   "${ORGB_DEPS}/PawnIO/PawnIOLib.lib"
 )
 
+target_link_options(oc_drivers PRIVATE "/DEPENDENTLOADFLAG:0xA00")
+
 # DLLs oc_drivers.dll loads, and the PawnIO modules the SMBus drivers use.
 set(OC_DRIVERS_RUNTIME
   "${ORGB_DEPS}/hidapi-hotplug-win/x64/hidapi-hotplug.dll"

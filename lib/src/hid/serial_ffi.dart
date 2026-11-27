@@ -5,6 +5,7 @@ import 'dart:typed_data';
 import 'package:ffi/ffi.dart';
 
 import 'hid_ffi.dart';
+import '../system/system_paths.dart';
 
 final _kernel32 = DynamicLibrary.open('kernel32.dll');
 
@@ -228,7 +229,7 @@ List<HidEndpointInfo> serialEnumerate(Set<int> models) {
 
 String _reg(String key, List<String> args) {
   try {
-    final r = Process.runSync('reg', ['query', key, ...args]);
+    final r = Process.runSync(SystemPaths.tool('reg'), ['query', key, ...args]);
     return r.exitCode == 0 ? '${r.stdout}' : '';
   } catch (_) {
     return '';

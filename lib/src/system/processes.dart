@@ -1,9 +1,15 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'system_paths.dart';
+
 /// Executable names (lowercase, e.g. `cs2.exe`) of every running process.
 Future<Set<String>> runningProcesses() async {
-  final r = await Process.run('tasklist', ['/fo', 'csv', '/nh']);
+  final r = await Process.run(SystemPaths.tool('tasklist'), [
+    '/fo',
+    'csv',
+    '/nh',
+  ]);
   return {
     for (final line in (r.stdout as String).split('\n'))
       if (line.startsWith('"'))
@@ -17,7 +23,7 @@ typedef RunningApp = ({String exe, String title});
 /// Programs that have a window open now, for picking one; sorted by title.
 Future<List<RunningApp>> windowedApps() async {
   try {
-    final r = await Process.run('powershell', [
+    final r = await Process.run(SystemPaths.powershell, [
       '-NoProfile',
       '-Command',
       r'[Console]::OutputEncoding = [Text.Encoding]::UTF8; '

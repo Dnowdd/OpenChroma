@@ -7,6 +7,8 @@
 
 #include <windows.h>
 
+#include "security.h"
+
 #include <string>
 #include <vector>
 
@@ -28,10 +30,9 @@ class PawnIo {
 
   // True when PawnIOLib.dll is present (the driver is installed).
   static bool Installed() {
-    wchar_t pf[MAX_PATH];
-    if (!GetEnvironmentVariableW(L"ProgramFiles", pf, MAX_PATH)) return false;
-    return GetFileAttributesW(
-               (std::wstring(pf) + L"\\PawnIO\\PawnIOLib.dll").c_str()) !=
+    const std::wstring pf = ProgramFilesDir();
+    if (pf.empty()) return false;
+    return GetFileAttributesW((pf + L"\\PawnIO\\PawnIOLib.dll").c_str()) !=
            INVALID_FILE_ATTRIBUTES;
   }
 
@@ -39,9 +40,11 @@ class PawnIo {
   bool Open(const wchar_t* module) {
     if (handle_) return true;
     if (!lib_) {
-      wchar_t pf[MAX_PATH];
-      if (!GetEnvironmentVariableW(L"ProgramFiles", pf, MAX_PATH)) return false;
-      lib_ = LoadLibraryW((std::wstring(pf) + L"\\PawnIO\\PawnIOLib.dll").c_str());
+      const std::wstring pf = ProgramFilesDir();
+      if (pf.empty()) return false;
+      lib_ = LoadLibraryExW((pf + L"\\PawnIO\\PawnIOLib.dll").c_str(), nullptr,
+                            LOAD_LIBRARY_SEARCH_DEFAULT_DIRS |
+                                LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR);
       if (!lib_) return false;
       open_ = reinterpret_cast<OpenFn>(GetProcAddress(lib_, "pawnio_open"));
       load_ = reinterpret_cast<LoadFn>(GetProcAddress(lib_, "pawnio_load"));

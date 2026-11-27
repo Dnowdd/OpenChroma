@@ -323,7 +323,7 @@ class NvCoolers {
 
   // "ok", "none" or "failed".
   const char* Init() {
-    HMODULE lib = LoadLibraryW(L"nvapi64.dll");
+    HMODULE lib = LoadLibraryExW(L"nvapi64.dll", nullptr, LOAD_LIBRARY_SEARCH_SYSTEM32);
     if (!lib) return "none";
     auto query = reinterpret_cast<void* (*)(uint32_t)>(
         GetProcAddress(lib, "nvapi_QueryInterface"));

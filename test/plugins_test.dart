@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:openchroma/src/plugins/js_runtime.dart';
 import 'package:openchroma/src/plugins/plugin_library.dart';
+import 'package:openchroma/src/plugins/plugin_trust.dart';
 
 /// Runs the bundled plugins against a fake device and checks the reports
 /// they build. QuickJS only loads next to a Windows build, so these run
@@ -160,7 +161,7 @@ void main() {
     final fake = _FakeDevice(
       'assets/plugins/royuan-keyboard.js',
       endpoints: [_endpoint(interface: 2, featureLength: 65)],
-      settings: {'live': 'Ao vivo B'},
+      settings: {'live': 'Live B'},
     );
     fake.start();
     fake.render([10, 20, 30]);
@@ -449,6 +450,172 @@ void main() {
       40,
     ]);
   }, skip: skip);
+
+  group('trust on first use', () {
+    late Directory dir;
+    setUp(() => dir = Directory.systemTemp.createTempSync('oc_trust'));
+    tearDown(() => dir.deleteSync(recursive: true));
+
+    String source(String name, {int vid = 1}) =>
+        "plugin({ name: '$name', devices: [{ vid: $vid, pid: 2 }], zones: [] });";
+    File write(String file, String text) =>
+        File('${dir.path}/$file')..writeAsStringSync(text);
+    PluginFile read(String file) => PluginFile.read('${dir.path}/$file');
+
+    test('hashes the file and lists only .js files', () {
+      write('a.js', 'abc');
+      write('notes.txt', 'x');
+      final files = scanPluginFilesSync(dir.path);
+      expect(files.map((f) => f.name), ['a.js']);
+      expect(
+        files.single.sha256,
+        'ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad',
+      );
+      expect(files.single.shortHash, 'ba7816bf8f01');
+    });
+
+    test('an unknown file is pending and approving it binds to its hash', () {
+      write('a.js', source('A'));
+      final approvals = PluginApprovals();
+      final f = read('a.js');
+      expect(approvals.trustOf(f), PluginTrust.pending);
+      approvals.approve(f);
+      expect(approvals.trustOf(f), PluginTrust.approved);
+      write('a.js', source('A changed'));
+      expect(approvals.trustOf(read('a.js')), PluginTrust.pending);
+      expect(approvals.changedSinceApproval(read('a.js')), isTrue);
+    });
+
+    test('elevated, a changed file needs a new approval', () {
+      write('a.js', source('A'));
+      final approvals = PluginApprovals()..approve(read('a.js'));
+      write('a.js', source('B'));
+      expect(approvals.sync([read('a.js')], elevated: true), isFalse);
+      expect(approvals.trustOf(read('a.js')), PluginTrust.pending);
+    });
+
+    test('not elevated, a file approved once follows its edits', () {
+      write('a.js', source('A'));
+      final approvals = PluginApprovals()..approve(read('a.js'));
+      write('a.js', source('B'));
+      expect(approvals.sync([read('a.js')], elevated: false), isTrue);
+      expect(approvals.trustOf(read('a.js')), PluginTrust.approved);
+      write('new.js', source('N'));
+      expect(approvals.sync([read('new.js')], elevated: false), isFalse);
+      expect(approvals.trustOf(read('new.js')), PluginTrust.pending);
+    });
+
+    test('a refusal lasts until the file changes', () {
+      write('a.js', source('A'));
+      final approvals = PluginApprovals()..deny(read('a.js'));
+      approvals.sync([read('a.js')], elevated: true);
+      expect(approvals.trustOf(read('a.js')), PluginTrust.denied);
+      write('a.js', source('B'));
+      approvals.sync([read('a.js')], elevated: true);
+      expect(approvals.trustOf(read('a.js')), PluginTrust.pending);
+    });
+
+    test('decisions survive a round trip through the settings', () {
+      write('a.js', source('A'));
+      write('b.js', source('B'));
+      final approvals = PluginApprovals()
+        ..approve(read('a.js'))
+        ..deny(read('b.js'));
+      final again = PluginApprovals.fromJson(
+        jsonDecode(jsonEncode(approvals.toJson())),
+      );
+      expect(again.trustOf(read('a.js')), PluginTrust.approved);
+      expect(again.trustOf(read('b.js')), PluginTrust.denied);
+    });
+
+    test('only approved files are loaded, and a change unloads them', () async {
+      write('one.js', source('One', vid: 1));
+      write('two.js', source('Two', vid: 3));
+      final approvals = PluginApprovals();
+      Future<PluginScan> scan() => readAllPlugins(
+        userDir: dir.path,
+        bundled: const [],
+        approvals: approvals,
+        elevated: true,
+      );
+
+      var r = await scan();
+      expect(r.plugins, isEmpty);
+      expect(
+        r.userPlugins.map((u) => u.trust),
+        everyElement(PluginTrust.pending),
+      );
+
+      approvals.approve(read('one.js'));
+      r = await scan();
+      expect(r.plugins.map((i) => i.name), ['One']);
+      expect(r.plugins.single.bundled, isFalse);
+      expect(
+        r.userPlugins.firstWhere((u) => u.file.name == 'two.js').trust,
+        PluginTrust.pending,
+      );
+
+      write('one.js', source('One edited', vid: 1));
+      r = await scan();
+      expect(r.plugins, isEmpty);
+      expect(
+        r.userPlugins.firstWhere((u) => u.file.name == 'one.js').changed,
+        isTrue,
+      );
+    }, skip: skip);
+
+    test('a user plugin that replaces a bundled one is marked', () async {
+      final bundled = PluginFile.bundled('lamp.js', source('Lamp', vid: 7));
+      write('lamp.js', source('My lamp', vid: 7));
+      write('other.js', source('Other', vid: 7));
+      final approvals = PluginApprovals()
+        ..approve(read('lamp.js'))
+        ..approve(read('other.js'));
+      final r = await readAllPlugins(
+        userDir: dir.path,
+        bundled: [bundled],
+        approvals: approvals,
+        elevated: true,
+      );
+      expect(r.plugins.map((i) => i.name), ['My lamp', 'Other']);
+      final lamp = r.userPlugins.firstWhere((u) => u.file.name == 'lamp.js');
+      expect(lamp.replacesBundled, isTrue);
+      expect(lamp.overrides, ['Lamp']);
+      final other = r.userPlugins.firstWhere((u) => u.file.name == 'other.js');
+      expect(other.replacesBundled, isFalse);
+      expect(other.overrides, ['Lamp']);
+    }, skip: skip);
+
+    test('a plugin that never returns is cut off and the rest load', () async {
+      write('loop.js', 'while (true) {}');
+      write('fine.js', source('Fine', vid: 5));
+      final approvals = PluginApprovals()
+        ..approve(read('loop.js'))
+        ..approve(read('fine.js'));
+      Future<PluginScan> scan() => readAllPlugins(
+        userDir: dir.path,
+        bundled: const [],
+        approvals: approvals,
+        elevated: true,
+        timeout: const Duration(milliseconds: 800),
+      );
+      final clock = Stopwatch()..start();
+      final r = await scan();
+      expect(clock.elapsed, lessThan(const Duration(seconds: 10)));
+      final loop = r.plugins.firstWhere((i) => i.path.endsWith('loop.js'));
+      expect(loop.error, isNotNull);
+      expect(loop.devices, isEmpty);
+      expect(r.plugins.firstWhere((i) => i.name == 'Fine').error, isNull);
+
+      clock.reset();
+      final again = await scan();
+      expect(clock.elapsed, lessThan(const Duration(milliseconds: 700)));
+      expect(
+        again.plugins.firstWhere((i) => i.path.endsWith('loop.js')).error,
+        isNotNull,
+      );
+    }, skip: skip);
+  });
 }
 
 Map<String, Object> _endpoint({

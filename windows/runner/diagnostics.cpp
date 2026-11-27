@@ -33,6 +33,7 @@
 #include <vector>
 
 #include "json_writer.h"
+#include "security.h"
 
 namespace {
 
@@ -549,7 +550,8 @@ class Runner {
   bool RunDisk(int index, size_t megabytes) {
     wchar_t dir[MAX_PATH];
     GetTempPathW(MAX_PATH, dir);
-    const std::wstring path = std::wstring(dir) + L"openchroma_checkup.tmp";
+    const std::wstring path =
+        std::wstring(dir) + L"openchroma_checkup_" + oc::RandomHex(16) + L".tmp";
     ULARGE_INTEGER free{};
     GetDiskFreeSpaceExW(dir, &free, nullptr, nullptr);
     if (free.QuadPart < (megabytes + 2048) * 1024ull * 1024) {
@@ -567,10 +569,18 @@ class Runner {
     bool ok = true;
     // No OS cache: the numbers are the drive's, and the read really comes
     // back from it.
-    HANDLE f = CreateFileW(path.c_str(), GENERIC_READ | GENERIC_WRITE, 0, nullptr, CREATE_ALWAYS,
+    HANDLE f = CreateFileW(path.c_str(), GENERIC_READ | GENERIC_WRITE, 0, nullptr, CREATE_NEW,
                            FILE_ATTRIBUTE_TEMPORARY | FILE_FLAG_NO_BUFFERING |
-                               FILE_FLAG_WRITE_THROUGH | FILE_FLAG_DELETE_ON_CLOSE,
+                               FILE_FLAG_WRITE_THROUGH | FILE_FLAG_DELETE_ON_CLOSE |
+                               FILE_FLAG_OPEN_REPARSE_POINT,
                            nullptr);
+    FILE_ATTRIBUTE_TAG_INFO tag{};
+    if (f != INVALID_HANDLE_VALUE &&
+        (!GetFileInformationByHandleEx(f, FileAttributeTagInfo, &tag, sizeof(tag)) ||
+         (tag.FileAttributes & FILE_ATTRIBUTE_REPARSE_POINT))) {
+      CloseHandle(f);
+      f = INVALID_HANDLE_VALUE;
+    }
     if (f == INVALID_HANDLE_VALUE) {
       VirtualFree(block, 0, MEM_RELEASE);
       Update(index, [](Step& st) { st.error = "Não foi possível criar o arquivo de teste"; });

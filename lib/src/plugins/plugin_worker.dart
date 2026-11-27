@@ -3,50 +3,75 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:isolate';
 import 'dart:typed_data';
+import 'dart:ui' show Locale;
 
 import 'package:image/image.dart' as img;
-import 'package:path/path.dart' as p;
 
 import '../hid/hid_ffi.dart';
 import '../hid/serial_ffi.dart';
+import '../i18n/l10n.dart';
 import 'js_runtime.dart';
+import 'thread_priority.dart';
 
 /// Arguments for [pluginWorkerMain].
 class PluginWorkerArgs {
   PluginWorkerArgs({
     required this.sendPort,
-    required this.pluginPath,
+    required this.pluginName,
+    required this.pluginSource,
+    required this.allowedModels,
     required this.endpoints,
     required this.settings,
     required this.deviceName,
     this.serialBaud,
+    this.language = 'en',
   });
 
   final SendPort sendPort;
-  final String pluginPath;
+  final String pluginName;
+
+  /// What runs: the text the user approved, not a fresh read of the file.
+  final String pluginSource;
+
+  /// VID<<16|PID of the models the plugin declares; it can open no others.
+  final Set<int> allowedModels;
   final List<Map<String, Object>> endpoints;
   final Map<String, Object?> settings;
   final String deviceName;
 
   /// Set for plugins that talk to a serial port instead of HID.
   final int? serialBaud;
+
+  final String language;
 }
 
 /// Runs one plugin for one physical device, in its own isolate.
 ///
 /// To the app: `port`, `layout` {zones, modes}, `battery`, `log`, `error`,
-/// `rejected`, `stopped`. From the app: `frame` (RGB bytes per LED),
+/// `rejected`, `stopped`, `thread` and `beat` (the watchdog's pulse). From the app: `frame` (RGB bytes per LED),
 /// `mode` (hardware mode id, or null for the app's colors, and its
 /// options), `setting`, `screen` (frames and delays for the device's
 /// screen), `stop`. Screen uploads answer with `progress` and `screenDone`.
 Future<void> pluginWorkerMain(PluginWorkerArgs args) async {
+  l10n = lookupAppLocalizations(Locale(args.language));
   final inbox = ReceivePort();
   final out = args.sendPort;
   out.send({'t': 'port', 'port': inbox.sendPort});
+  out.send({'t': 'thread', 'id': currentThreadId()});
 
-  final endpoints = [
-    for (final e in args.endpoints) HidEndpointInfo.fromJson(e),
-  ];
+  final endpoints =
+      [for (final e in args.endpoints) HidEndpointInfo.fromJson(e)]
+          .where(
+            (e) => args.allowedModels.contains(e.vendorId << 16 | e.productId),
+          )
+          .toList();
+  final pulse = Stopwatch()..start();
+  void beat() {
+    if (pulse.elapsedMilliseconds < 250) return;
+    pulse.reset();
+    out.send({'t': 'beat'});
+  }
+
   final handles = <String, HidHandle>{};
   HidEndpointInfo? current;
 
@@ -62,20 +87,21 @@ Future<void> pluginWorkerMain(PluginWorkerArgs args) async {
   void log(String msg) => out.send({'t': 'log', 'msg': msg});
 
   SerialHandle port() {
-    final ep = current ?? (throw PluginError('nenhuma porta escolhida'));
+    final ep = current ?? (throw PluginError(l10n.pluginsNoPort));
     return serial ??=
         SerialHandle.open(ep.path, args.serialBaud!) ??
-        (throw PluginError('não foi possível abrir ${ep.path}'));
+        (throw PluginError(l10n.pluginsCannotOpen(ep.path)));
   }
 
   HidHandle handle() {
-    final ep = current ?? (throw PluginError('nenhuma interface escolhida'));
+    final ep = current ?? (throw PluginError(l10n.pluginsNoInterface));
     return handles[ep.path] ??=
         HidHandle.open(ep) ??
-        (throw PluginError('não foi possível abrir ${ep.path}'));
+        (throw PluginError(l10n.pluginsCannotOpen(ep.path)));
   }
 
   Object? host(String method, List<dynamic> a) {
+    beat();
     int n(Object? v) => v is num ? v.toInt() : 0;
     List<int> bytes(Object? v) => v is List ? v.map(n).toList() : <int>[];
     switch (method) {
@@ -118,8 +144,10 @@ Future<void> pluginWorkerMain(PluginWorkerArgs args) async {
         }
         return false;
       case 'sleep':
-        final ms = n(a[0]);
+        final ms = n(a[0]).clamp(0, 5000);
         if (ms > 0) sleep(Duration(milliseconds: ms));
+        pulse.reset();
+        out.send({'t': 'beat'});
         return null;
       case 'log':
         log('${a[0]}');
@@ -198,10 +226,11 @@ Future<void> pluginWorkerMain(PluginWorkerArgs args) async {
   });
 
   try {
-    rt.eval(
-      File(args.pluginPath).readAsStringSync(),
-      name: p.basename(args.pluginPath),
-    );
+    if (endpoints.isEmpty) {
+      out.send({'t': 'rejected'});
+      return;
+    }
+    rt.eval(args.pluginSource, name: args.pluginName);
     final first = endpoints.first;
     rt.eval(
       '__oc.setInfo(${jsonEncode({'vid': first.vendorId, 'pid': first.productId, 'serial': first.serial, 'product': first.product, 'manufacturer': first.manufacturer, 'name': args.deviceName})})',
@@ -233,11 +262,12 @@ Future<void> pluginWorkerMain(PluginWorkerArgs args) async {
       try {
         rt.eval(code);
       } on PluginError catch (e) {
-        if (failures++ < 5) log('erro: $e');
+        if (failures++ < 5) log('error: $e');
       }
     }
 
     while (running) {
+      beat();
       final frameStart = clock.elapsedMilliseconds;
       // Let queued messages (frames, settings, stop) arrive.
       await Future<void>.delayed(Duration.zero);
@@ -262,7 +292,7 @@ Future<void> pluginWorkerMain(PluginWorkerArgs args) async {
               ) ==
               true;
         } on PluginError catch (e) {
-          log('tela: $e');
+          log('screen: $e');
         }
         screenFrames = const [];
         widgetGlyphs = const [];

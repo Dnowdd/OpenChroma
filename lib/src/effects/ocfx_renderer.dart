@@ -141,15 +141,18 @@ class OcfxRenderer {
 
   double _num(Object? v, double d) {
     final x = _val(v);
-    if (x is num) return x.toDouble();
+    if (x is num) return x.isFinite ? x.toDouble() : d;
     if (x is bool) return x ? 1 : 0;
     if (x is String) {
       final s = x.trim();
       if (s.isEmpty) return 0;
-      return double.tryParse(s) ?? d;
+      final n = double.tryParse(s);
+      return n != null && n.isFinite ? n : d;
     }
     return d;
   }
+
+  int _count(Object? v, double d) => _num(v, d).clamp(0, 2000).round();
 
   /// 0..1 literals, or 0..100 from a parameter or written as a percentage.
   double _frac(Object? v, double d) {
@@ -416,7 +419,7 @@ class OcfxRenderer {
   // ------------------------------------------------------ shape layers
   void _rain(Map l, double t, int idx) {
     final col = _val(l['color']) ?? '#22C55E';
-    final n = _num(l['density'], 30).round();
+    final n = _count(l['density'], 30);
     final len = _frac(l['length'], 0.35) * _h;
     final rand = _Rng(4321 + idx * 31);
     final sp = 0.4 + _rate(l) * 3;
@@ -435,7 +438,7 @@ class OcfxRenderer {
 
   void _stars(Map l, double t, int idx) {
     final col = _color(_val(l['color']) ?? '#ffffff') ?? _white;
-    final n = _num(l['density'], 60).round();
+    final n = _count(l['density'], 60);
     final rand = _Rng(777 + idx * 13);
     final sp = _rate(l) * 40;
     final opacity = _frac(l['opacity'], 1);
@@ -503,7 +506,7 @@ class OcfxRenderer {
   void _bars(Map l) {
     final mirror = _truthy(_val(l['mirror']));
     final center = _val(l['from']) == 'center';
-    final count = math.max(4, _num(l['count'], 32).round());
+    final count = math.max(4, _count(l['count'], 32));
     final bands = _bandsFor(mirror ? (count / 2).ceil() : count);
     final cols = _val(l['colors']) ?? 'spectrum';
     final gap = _frac(l['gap'], 0.2);
@@ -569,7 +572,7 @@ class OcfxRenderer {
     }
     final cx = _num(l['x'], 0.5) * _w, cy = _num(l['y'], 0.5) * _h;
     final maxR = math.sqrt(_w * _w + _h * _h) / 1.5;
-    final step = 2 + _num(l['speed'], 50) / 10;
+    final step = math.max(0.5, 2 + _num(l['speed'], 50) / 10);
     final lw = math.max(2.0, _num(l['thickness'], 14));
     st.rings.removeWhere((r) {
       r.r += step;
@@ -662,7 +665,7 @@ class OcfxRenderer {
   }
 
   void _sparkle(Map l, double t, int idx) {
-    final n = _num(l['density'], 40).round(), size = _num(l['size'], 6);
+    final n = _count(l['density'], 40), size = _num(l['size'], 6);
     final col = _val(l['color']);
     final rand = _Rng(1234 + idx * 97);
     final opacity = _frac(l['opacity'], 1), rate = _rate(l);

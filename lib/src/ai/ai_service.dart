@@ -5,6 +5,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as p;
 
+import '../i18n/l10n.dart';
 import '../paths.dart';
 import 'secret_store.dart';
 
@@ -15,11 +16,13 @@ enum AiProvider {
 
   /// Any server that speaks the OpenAI chat API: OpenRouter, Groq, Mistral,
   /// DeepSeek, a local Ollama or LM Studio...
-  compatible('Compatível com OpenAI', 'https://openrouter.ai/api/v1');
+  compatible('OpenAI-compatible', 'https://openrouter.ai/api/v1');
 
-  const AiProvider(this.label, this.defaultBaseUrl);
-  final String label;
+  const AiProvider(this._label, this.defaultBaseUrl);
+  final String _label;
   final String defaultBaseUrl;
+
+  String get label => this == compatible ? l10n.aiProviderCompatible : _label;
 
   static AiProvider byName(String? n) =>
       values.where((v) => v.name == n).firstOrNull ?? anthropic;
@@ -162,7 +165,9 @@ class AiService extends ChangeNotifier {
   void setBaseUrl(AiProvider p, String url) {
     final g = gateways[p]!;
     if (g.baseUrl == url.trim()) return;
+    final before = Uri.tryParse(g.url)?.host;
     g.baseUrl = url.trim();
+    if (Uri.tryParse(g.url)?.host != before) g.key = '';
     g.models = [];
     _save();
     notifyListeners();
@@ -206,7 +211,7 @@ class AiService extends ChangeNotifier {
     } on AiException catch (e) {
       modelErrors[p] = e.message;
     } catch (e) {
-      modelErrors[p] = 'Não foi possível listar os modelos ($e).';
+      modelErrors[p] = l10n.aiErrorListModels('$e');
     } finally {
       loadingModels.remove(p);
       notifyListeners();
@@ -236,8 +241,12 @@ class AiService extends ChangeNotifier {
   }) async {
     final HttpClientResponse res;
     final String text;
+    if (uri.scheme != 'https' && !_isLoopback(uri.host)) {
+      throw AiException(l10n.aiErrorInsecureUrl(uri.host));
+    }
     try {
       final req = await _http.openUrl(method, uri);
+      req.followRedirects = false;
       headers.forEach(req.headers.set);
       if (body != null) {
         req.headers.contentType = ContentType.json;
@@ -246,11 +255,11 @@ class AiService extends ChangeNotifier {
       res = await req.close().timeout(timeout);
       text = await res.transform(utf8.decoder).join().timeout(timeout);
     } on TimeoutException {
-      throw AiException('O servidor demorou demais para responder.');
+      throw AiException(l10n.aiErrorTimeout);
     } on SocketException catch (e) {
-      throw AiException('Sem conexão com ${uri.host} (${e.message}).');
+      throw AiException(l10n.aiErrorNoConnection(uri.host, e.message));
     } on HandshakeException {
-      throw AiException('Falha na conexão segura com ${uri.host}.');
+      throw AiException(l10n.aiErrorSecureConnection(uri.host));
     }
     Object? json;
     try {
@@ -260,10 +269,16 @@ class AiService extends ChangeNotifier {
       throw AiException(_errorMessage(res.statusCode, json, text));
     }
     if (json is! Map<String, dynamic>) {
-      throw AiException('Resposta inesperada do servidor.');
+      throw AiException(l10n.aiErrorUnexpectedResponse);
     }
     return json;
   }
+
+  static bool _isLoopback(String host) =>
+      host == 'localhost' ||
+      host == '::1' ||
+      host == '[::1]' ||
+      RegExp(r'^127\.\d+\.\d+\.\d+$').hasMatch(host);
 
   static String _errorMessage(int status, Object? json, String raw) {
     var detail = '';
@@ -272,11 +287,11 @@ class AiService extends ChangeNotifier {
       detail = e is Map ? '${e['message'] ?? ''}' : '${e ?? ''}';
     }
     return switch (status) {
-      401 || 403 => 'Chave de API inválida ou sem permissão.',
-      404 => 'Endereço ou modelo não encontrado. $detail'.trim(),
-      429 => 'Limite de uso atingido. Tente de novo em instantes.',
-      >= 500 => 'O provedor está instável agora ($status).',
-      _ => detail.isEmpty ? 'Erro $status.' : detail,
+      401 || 403 => l10n.aiErrorInvalidKey,
+      404 => '${l10n.aiErrorNotFound} $detail'.trim(),
+      429 => l10n.aiErrorRateLimit,
+      >= 500 => l10n.aiErrorProviderUnstable(status),
+      _ => detail.isEmpty ? l10n.aiErrorStatus(status) : detail,
     };
   }
 
@@ -345,10 +360,10 @@ class AiService extends ChangeNotifier {
   }) async {
     final g = current;
     if (!g.configured) {
-      throw AiException('Configure uma chave de API em Configurações.');
+      throw AiException(l10n.aiErrorNoKey);
     }
     if (g.model.isEmpty) {
-      throw AiException('Escolha um modelo em Configurações.');
+      throw AiException(l10n.aiErrorNoModel);
     }
     const timeout = Duration(minutes: 3);
     return switch (g.provider) {
@@ -392,13 +407,13 @@ class AiService extends ChangeNotifier {
       timeout: const Duration(minutes: 3),
     );
     if (j['stop_reason'] == 'refusal') {
-      throw AiException('O modelo recusou responder a esse pedido.');
+      throw AiException(l10n.aiErrorRefused);
     }
     final text = [
       for (final b in j['content'] as List? ?? [])
         if (b is Map && b['type'] == 'text') '${b['text']}',
     ].join('\n').trim();
-    if (text.isEmpty) throw AiException('O modelo não respondeu nada.');
+    if (text.isEmpty) throw AiException(l10n.aiErrorEmptyReply);
     return text;
   }
 
@@ -429,12 +444,12 @@ class AiService extends ChangeNotifier {
       for (final c in item['content'] as List? ?? []) {
         if (c is Map && c['type'] == 'output_text') parts.add('${c['text']}');
         if (c is Map && c['type'] == 'refusal') {
-          throw AiException('O modelo recusou responder a esse pedido.');
+          throw AiException(l10n.aiErrorRefused);
         }
       }
     }
     final text = parts.join('\n').trim();
-    if (text.isEmpty) throw AiException('O modelo não respondeu nada.');
+    if (text.isEmpty) throw AiException(l10n.aiErrorEmptyReply);
     return text;
   }
 
@@ -463,7 +478,7 @@ class AiService extends ChangeNotifier {
     final text = choice is Map
         ? '${(choice['message'] as Map?)?['content'] ?? ''}'.trim()
         : '';
-    if (text.isEmpty) throw AiException('O modelo não respondeu nada.');
+    if (text.isEmpty) throw AiException(l10n.aiErrorEmptyReply);
     return text;
   }
 

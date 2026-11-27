@@ -261,12 +261,13 @@ class Nvml {
   };
 
   Nvml() {
-    lib_ = LoadLibraryW(L"nvml.dll");
+    lib_ = LoadLibraryExW(L"nvml.dll", nullptr, LOAD_LIBRARY_SEARCH_SYSTEM32);
     if (!lib_) {
-      wchar_t pf[MAX_PATH];
-      if (GetEnvironmentVariableW(L"ProgramW6432", pf, MAX_PATH)) {
-        lib_ = LoadLibraryW(
-            (std::wstring(pf) + L"\\NVIDIA Corporation\\NVSMI\\nvml.dll").c_str());
+      const std::wstring pf = oc::ProgramFilesDir();
+      if (!pf.empty()) {
+        lib_ = LoadLibraryExW(
+            (pf + L"\\NVIDIA Corporation\\NVSMI\\nvml.dll").c_str(), nullptr,
+            LOAD_LIBRARY_SEARCH_DEFAULT_DIRS | LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR);
       }
     }
     if (!lib_) return;
@@ -566,7 +567,7 @@ class Monitor {
     nt_query_ = reinterpret_cast<NtQuerySystemInformationFn>(
         GetProcAddress(GetModuleHandleW(L"ntdll.dll"), "NtQuerySystemInformation"));
     HMODULE gdi = GetModuleHandleW(L"gdi32.dll");
-    if (!gdi) gdi = LoadLibraryW(L"gdi32.dll");
+    if (!gdi) gdi = LoadLibraryExW(L"gdi32.dll", nullptr, LOAD_LIBRARY_SEARCH_SYSTEM32);
     kmt_open_ = reinterpret_cast<LONG(WINAPI*)(D3dkmtOpenAdapterFromLuid*)>(
         GetProcAddress(gdi, "D3DKMTOpenAdapterFromLuid"));
     kmt_query_ = reinterpret_cast<LONG(WINAPI*)(D3dkmtQueryAdapterInfo*)>(

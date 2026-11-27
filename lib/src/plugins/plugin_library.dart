@@ -1,9 +1,13 @@
-import 'dart:io';
+import 'dart:async';
 import 'dart:isolate';
+import 'dart:ui' show Locale;
 
 import 'package:path/path.dart' as p;
 
+import '../i18n/l10n.dart';
 import 'js_runtime.dart';
+import 'plugin_trust.dart';
+import 'thread_priority.dart';
 
 /// A device model a plugin drives.
 class PluginDevice {
@@ -27,6 +31,9 @@ class PluginInfo {
     required this.bundled,
     this.serialBaud,
     this.stamp = 0,
+    this.sha256 = '',
+    this.source = '',
+    this.overrides = const [],
     this.error,
   });
 
@@ -47,9 +54,33 @@ class PluginInfo {
 
   /// Hash of the file's source, to tell when it changed.
   final int stamp;
+
+  /// SHA-256 and text of what was read; the plugin runs from this text,
+  /// never from a second read of the file.
+  final String sha256;
+  final String source;
+
+  /// Bundled plugins this user plugin takes devices or the file name from.
+  final List<String> overrides;
   final String? error;
 
   String get id => p.basenameWithoutExtension(path).toLowerCase();
+
+  PluginInfo withOverrides(List<String> names) => PluginInfo(
+    path: path,
+    name: name,
+    vendor: vendor,
+    type: type,
+    devices: devices,
+    settings: settings,
+    bundled: bundled,
+    serialBaud: serialBaud,
+    stamp: stamp,
+    sha256: sha256,
+    source: source,
+    overrides: names,
+    error: error,
+  );
 }
 
 int? _int(Object? v) => switch (v) {
@@ -64,14 +95,18 @@ int? _int(Object? v) => switch (v) {
 };
 
 /// Reads one plugin file's description.
-PluginInfo readPlugin(String path, {required bool bundled}) {
+PluginInfo readPlugin(String path, {required bool bundled}) =>
+    readPluginFile(PluginFile.read(path), bundled: bundled);
+
+/// Runs [file] in a throwaway QuickJS context to read what it declares. Only
+/// for bundled or approved files.
+PluginInfo readPluginFile(PluginFile file, {required bool bundled}) {
+  if (file.error != null) return _failed(file, bundled, file.error!);
   final rt = JsRuntime((method, args) => null);
-  var source = '';
   try {
-    source = File(path).readAsStringSync();
-    rt.eval(source, name: p.basename(path));
+    rt.eval(file.source, name: file.name);
     if (rt.eval('__oc.defined()') != true) {
-      throw PluginError('o arquivo não chama plugin({...})');
+      throw PluginError(l10n.pluginsNoDefinition);
     }
     final d = rt.evalJson('JSON.parse(__oc.describe())') as Map;
     final devices = <PluginDevice>[
@@ -83,10 +118,10 @@ PluginInfo readPlugin(String path, {required bool bundled}) {
             '${e['name'] ?? d['name'] ?? ''}',
           ),
     ];
-    if (devices.isEmpty) throw PluginError('nenhum dispositivo em "devices"');
+    if (devices.isEmpty) throw PluginError(l10n.pluginsNoDevices);
     return PluginInfo(
-      path: path,
-      name: '${d['name'] ?? p.basenameWithoutExtension(path)}',
+      path: file.path,
+      name: '${d['name'] ?? p.basenameWithoutExtension(file.name)}',
       vendor: '${d['vendor'] ?? ''}',
       type: '${d['type'] ?? 'other'}',
       devices: devices,
@@ -99,40 +134,207 @@ PluginInfo readPlugin(String path, {required bool bundled}) {
       serialBaud: d['serial'] is Map
           ? _int((d['serial'] as Map)['baud'])
           : null,
-      stamp: source.hashCode,
+      stamp: file.source.hashCode,
+      sha256: file.sha256,
+      source: file.source,
     );
   } catch (e) {
-    return PluginInfo(
-      path: path,
-      name: p.basenameWithoutExtension(path),
-      vendor: '',
-      type: 'other',
-      devices: const [],
-      settings: const {},
-      bundled: bundled,
-      stamp: source.hashCode,
-      error: '$e',
-    );
+    return _failed(file, bundled, '$e');
   } finally {
     rt.dispose();
   }
 }
 
-/// Reads every plugin: the bundled ones in [bundledDir], then the user's in
-/// [userDir], which replace bundled ones with the same file name.
-Future<List<PluginInfo>> loadPlugins({
-  required String bundledDir,
-  required String userDir,
-}) => Isolate.run(() {
-  final byId = <String, PluginInfo>{};
-  for (final (dir, bundled) in [(bundledDir, true), (userDir, false)]) {
-    final d = Directory(dir);
-    if (!d.existsSync()) continue;
-    for (final f in d.listSync().whereType<File>()) {
-      if (!f.path.toLowerCase().endsWith('.js')) continue;
-      final info = readPlugin(f.path, bundled: bundled);
-      byId[info.id] = info;
+PluginInfo _failed(PluginFile file, bool bundled, String error) => PluginInfo(
+  path: file.path,
+  name: p.basenameWithoutExtension(file.name),
+  vendor: '',
+  type: 'other',
+  devices: const [],
+  settings: const {},
+  bundled: bundled,
+  stamp: file.source.hashCode,
+  sha256: file.sha256,
+  error: error,
+);
+
+const pluginLoadTimeout = Duration(seconds: 3);
+const _bundledLoadTimeout = Duration(seconds: 20);
+
+final _hung = <String>{};
+
+class _ProbeArgs {
+  _ProbeArgs(this.out, this.files, this.bundled, this.language);
+  final SendPort out;
+  final List<PluginFile> files;
+  final bool bundled;
+  final String language;
+}
+
+void _probeMain(_ProbeArgs a) {
+  l10n = lookupAppLocalizations(Locale(a.language));
+  a.out.send({'t': 'thread', 'id': currentThreadId()});
+  a.out.send({
+    't': 'result',
+    'infos': [for (final f in a.files) readPluginFile(f, bundled: a.bundled)],
+  });
+}
+
+/// QuickJS cannot be interrupted: a plugin that never returns costs one
+/// idle-priority thread until the app exits, and is reported as an error
+/// instead of stalling the others.
+Future<List<PluginInfo>> _readIsolated(
+  List<PluginFile> files, {
+  required bool bundled,
+  required String language,
+  required Duration timeout,
+}) async {
+  final skipped = files.where((f) => _hung.contains(f.sha256)).toList();
+  final todo = files.where((f) => !skipped.contains(f)).toList();
+  final out = <PluginInfo>[
+    for (final f in skipped) _failed(f, bundled, l10n.pluginTrustTimedOut),
+  ];
+  if (todo.isEmpty) return out;
+
+  final port = ReceivePort();
+  final done = Completer<List<PluginInfo>>();
+  int? thread;
+  final sub = port.listen((m) {
+    if (done.isCompleted) return;
+    if (m is Map && m['t'] == 'thread') {
+      thread = m['id'] as int;
+    } else if (m is Map && m['t'] == 'result') {
+      done.complete((m['infos'] as List).cast<PluginInfo>());
+    } else if (m is List) {
+      done.complete([for (final f in todo) _failed(f, bundled, '${m.first}')]);
+    } else if (m == null) {
+      done.complete([
+        for (final f in todo) _failed(f, bundled, l10n.pluginTrustLoadFailed),
+      ]);
     }
+  });
+  Isolate? isolate;
+  try {
+    isolate = await Isolate.spawn(
+      _probeMain,
+      _ProbeArgs(port.sendPort, todo, bundled, language),
+      onError: port.sendPort,
+      onExit: port.sendPort,
+    );
+    out.addAll(await done.future.timeout(timeout));
+  } on TimeoutException {
+    for (final f in todo) {
+      _hung.add(f.sha256);
+      out.add(_failed(f, bundled, l10n.pluginTrustTimedOut));
+    }
+    if (thread != null) deprioritizeThread(thread!);
+    isolate?.kill(priority: Isolate.immediate);
+  } finally {
+    await sub.cancel();
+    port.close();
   }
-  return byId.values.toList()..sort((a, b) => a.name.compareTo(b.name));
-});
+  return out;
+}
+
+/// Reads every plugin: [bundled] come from the app's own assets and [user]
+/// are the files the user approved. Each user plugin runs in its own
+/// isolate with a [timeout]. A user plugin replaces the bundled one with
+/// the same file name, and lists in [PluginInfo.overrides] the bundled
+/// plugins it replaces or shares devices with.
+Future<List<PluginInfo>> loadPlugins({
+  required List<PluginFile> bundled,
+  required List<PluginFile> user,
+  String language = 'en',
+  Duration timeout = pluginLoadTimeout,
+}) async {
+  final fromAssets = await _readIsolated(
+    bundled,
+    bundled: true,
+    language: language,
+    timeout: _bundledLoadTimeout,
+  );
+  final fromUser = [
+    for (final list in await Future.wait([
+      for (final f in user)
+        _readIsolated(
+          [f],
+          bundled: false,
+          language: language,
+          timeout: timeout,
+        ),
+    ]))
+      ...list,
+  ];
+
+  final replacedIds = {
+    for (final u in fromUser)
+      if (u.error == null) u.id,
+  };
+  final result = [
+    for (final b in fromAssets)
+      if (!replacedIds.contains(b.id)) b,
+  ];
+  for (final u in fromUser) {
+    if (u.error != null) {
+      result.add(u);
+      continue;
+    }
+    final userKeys = {for (final d in u.devices) d.key};
+    final names = {
+      for (final b in fromAssets)
+        if (b.id == u.id || b.devices.any((d) => userKeys.contains(d.key)))
+          b.name,
+    };
+    result.add(u.withOverrides(names.toList()..sort()));
+  }
+  return result..sort((a, b) => a.name.compareTo(b.name));
+}
+
+class PluginScan {
+  PluginScan(this.plugins, this.userPlugins, this.approvalsChanged);
+  final List<PluginInfo> plugins;
+  final List<UserPlugin> userPlugins;
+  final bool approvalsChanged;
+}
+
+/// Looks at the .js files in [userDir], settles [approvals] against them
+/// and loads the bundled plugins plus the user plugins that are approved.
+/// Files that are not approved are listed but never evaluated.
+Future<PluginScan> readAllPlugins({
+  required String userDir,
+  required List<PluginFile> bundled,
+  required PluginApprovals approvals,
+  required bool elevated,
+  String language = 'en',
+  Duration timeout = pluginLoadTimeout,
+}) async {
+  final files = await scanPluginFiles(userDir, language: language);
+  final changed = approvals.sync(files, elevated: elevated);
+  final loaded = await loadPlugins(
+    bundled: bundled,
+    user: [
+      for (final f in files)
+        if (approvals.trustOf(f) == PluginTrust.approved) f,
+    ],
+    language: language,
+    timeout: timeout,
+  );
+  final bundledIds = {
+    for (final b in bundled) p.basenameWithoutExtension(b.name).toLowerCase(),
+  };
+  final users = [
+    for (final f in files)
+      UserPlugin(
+        file: f,
+        trust: approvals.trustOf(f),
+        changed: approvals.changedSinceApproval(f),
+        replacesBundled: bundledIds.contains(
+          p.basenameWithoutExtension(f.name).toLowerCase(),
+        ),
+        overrides:
+            loaded.where((i) => i.path == f.path).firstOrNull?.overrides ??
+            const [],
+      ),
+  ];
+  return PluginScan(loaded, users, changed);
+}

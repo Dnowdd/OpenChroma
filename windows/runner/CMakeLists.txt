@@ -12,6 +12,7 @@ add_executable(${BINARY_NAME} WIN32
   "diagnostics.cpp"
   "elevation.cpp"
   "fan_control.cpp"
+  "security.cpp"
   "system_monitor.cpp"
   "tray.cpp"
   "flutter_window.cpp"
@@ -40,7 +41,8 @@ target_compile_definitions(${BINARY_NAME} PRIVATE "NOMINMAX")
 # Add dependency libraries and include directories. Add any application-specific
 # dependencies here.
 target_link_libraries(${BINARY_NAME} PRIVATE flutter flutter_wrapper_app)
-target_link_libraries(${BINARY_NAME} PRIVATE "dwmapi.lib" "dbghelp.lib" "ole32.lib" "pdh.lib" "dxgi.lib" "d3d11.lib" "d3dcompiler.lib" "setupapi.lib")
+target_link_libraries(${BINARY_NAME} PRIVATE "dwmapi.lib" "dbghelp.lib" "ole32.lib" "pdh.lib" "dxgi.lib" "d3d11.lib" "d3dcompiler.lib" "setupapi.lib" "version.lib" "taskschd.lib" "bcrypt.lib" "advapi32.lib" "oleaut32.lib" "shell32.lib")
+target_link_options(${BINARY_NAME} PRIVATE "/DEPENDENTLOADFLAG:0xA00")
 target_include_directories(${BINARY_NAME} PRIVATE "${CMAKE_SOURCE_DIR}")
 
 # Run the Flutter tool portions of the build. This must not be removed.

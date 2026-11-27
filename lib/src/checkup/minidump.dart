@@ -1,6 +1,8 @@
 import 'dart:io';
 import 'dart:typed_data';
 
+import '../system/native_security.dart';
+
 /// What a Windows kernel minidump (PAGEDU64 / triage format) says about a
 /// blue screen: its bug check, where it happened and which drivers' code
 /// was on the crashing thread's stack.
@@ -41,10 +43,13 @@ class KernelDump {
     0x139,
   }.contains(code);
 
+  static const maxDumpBytes = 64 * 1024 * 1024;
+
   /// Parses [file]; null when it is not a kernel minidump this reads.
   static KernelDump? read(File file) {
     final Uint8List b;
     try {
+      if (file.lengthSync() > maxDumpBytes) return null;
       b = file.readAsBytesSync();
     } catch (_) {
       return null;
@@ -81,7 +86,9 @@ class KernelDump {
             Uint8List.fromList(b.sublist(nameOff + 4, nameOff + 4 + len * 2)),
           ),
         );
-        drivers.add((base, size, name.split('\\').last.toLowerCase()));
+        final leaf = name.split('\\').last.toLowerCase();
+        if (!NativeSecurity.isSafeDriverName(leaf)) continue;
+        drivers.add((base, size, leaf));
       }
     }
     String? moduleAt(int addr) {

@@ -19,17 +19,17 @@ __declspec(dllexport) int OcIsElevated() {
   return ok ? 1 : 0;
 }
 
-// Runs [file] with [params] elevated, showing the UAC prompt. With [wait],
-// blocks until it exits and returns its exit code; otherwise returns 0 once
-// it started. Returns -1 when the prompt was declined or the launch failed.
-// A null [file] means this executable.
+// Runs this executable with [params] elevated, showing the UAC prompt. With
+// [wait], blocks until it exits and returns its exit code; otherwise returns
+// 0 once it started. Returns -1 when the prompt was declined or the launch
+// failed or [file] is not null: only this executable is ever elevated.
 __declspec(dllexport) int OcRunElevated(const wchar_t* file,
                                         const wchar_t* params, int wait) {
+  if (file) return -1;
   wchar_t self[MAX_PATH];
-  if (!file) {
-    GetModuleFileNameW(nullptr, self, MAX_PATH);
-    file = self;
-  }
+  const DWORD length = GetModuleFileNameW(nullptr, self, MAX_PATH);
+  if (length == 0 || length >= MAX_PATH) return -1;
+  file = self;
   SHELLEXECUTEINFOW info{sizeof(info)};
   info.fMask = wait ? SEE_MASK_NOCLOSEPROCESS : 0;
   info.lpVerb = L"runas";

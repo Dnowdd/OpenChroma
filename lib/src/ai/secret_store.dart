@@ -73,7 +73,7 @@ class SecretStore {
     if (plain.isEmpty) return '';
     final data = Uint8List.fromList(utf8.encode(plain));
     final out = _run(_protect, data);
-    return out == null ? 'plain:${base64Encode(data)}' : base64Encode(out);
+    return out == null ? '' : base64Encode(out);
   }
 
   /// Reverses [seal]; returns an empty string when it cannot be read (for

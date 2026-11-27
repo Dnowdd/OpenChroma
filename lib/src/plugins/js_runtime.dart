@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:ffi';
 
 import 'package:flutter_js/quickjs/quickjs_runtime2.dart';
 
@@ -13,9 +14,26 @@ class PluginError implements Exception {
   String toString() => message;
 }
 
+const pluginStackBytes = 512 * 1024;
+const pluginMemoryBytes = 64 * 1024 * 1024;
+
+// flutter_js 0.8.7's Windows bridge lacks jsSetMemoryLimit; asking for a limit throws.
+final bool memoryLimitSupported = () {
+  try {
+    return DynamicLibrary.open('quickjs_c_bridge.dll')
+        .providesSymbol('jsSetMemoryLimit');
+  } catch (_) {
+    return false;
+  }
+}();
+
 /// One QuickJS context running one plugin file for one device.
 class JsRuntime {
-  JsRuntime(HostHandler host) {
+  JsRuntime(HostHandler host)
+    : _js = QuickJsRuntime2(
+        stackSize: pluginStackBytes,
+        memoryLimit: memoryLimitSupported ? pluginMemoryBytes : null,
+      ) {
     _js.onMessage('h', (dynamic args) {
       final list = args as List;
       return host(list.first as String, list.sublist(1));
@@ -23,7 +41,7 @@ class JsRuntime {
     eval(pluginApiJs, name: 'openchroma-api.js');
   }
 
-  final QuickJsRuntime2 _js = QuickJsRuntime2();
+  final QuickJsRuntime2 _js;
 
   /// Evaluates [code] in global scope; throws [PluginError] on JS errors.
   Object? eval(String code, {String name = '<eval>'}) {

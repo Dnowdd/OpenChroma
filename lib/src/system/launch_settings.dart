@@ -1,11 +1,13 @@
 import 'dart:ffi';
 import 'dart:io';
-import 'dart:isolate';
 
 import 'package:ffi/ffi.dart';
 import 'package:flutter/foundation.dart';
 
 import '../fans/fan_service.dart';
+import '../i18n/l10n.dart';
+import 'native_security.dart';
+import 'system_paths.dart';
 
 typedef _RunElevatedNative = Int32 Function(
   Pointer<Utf16>,
@@ -28,27 +30,17 @@ class Elevation {
     }
   }();
 
-  /// Runs [file] elevated (UAC prompt) and waits for it on a background
-  /// isolate. Returns its exit code, or -1 when the prompt was declined.
-  static Future<int> run(String file, String params) =>
-      Isolate.run(() => _run(file, params, true));
-
   /// Starts this app again elevated with [args]; true when it launched.
-  static bool relaunch(List<String> args) =>
-      _run(null, args.map((a) => '"$a"').join(' '), false) == 0;
-
-  static int _run(String? file, String params, bool wait) {
+  static bool relaunch(List<String> args) {
     try {
       final run = DynamicLibrary.executable()
           .lookupFunction<_RunElevatedNative, _RunElevated>('OcRunElevated');
       return using((arena) {
-        final f = file == null
-            ? nullptr.cast<Utf16>()
-            : file.toNativeUtf16(allocator: arena);
-        return run(f, params.toNativeUtf16(allocator: arena), wait ? 1 : 0);
+        final params = args.map((a) => '"$a"').join(' ');
+        return run(nullptr, params.toNativeUtf16(allocator: arena), 0) == 0;
       });
     } catch (_) {
-      return -1;
+      return false;
     }
   }
 }
@@ -73,6 +65,9 @@ Future<void> restartAsAdmin({
   exit(0);
 }
 
+/// Why changing "start with Windows" cannot be done right now.
+enum StartupBlock { needsAdmin, installNotTrusted }
+
 /// "Always run as administrator", "start with Windows" and "keep running in
 /// the background", stored where Windows (or the runner) reads them, so they
 /// also apply to a packaged exe:
@@ -81,7 +76,10 @@ Future<void> restartAsAdmin({
 /// - start with Windows: a value under HKCU\...\Run, or, when it should
 ///   start elevated, a logon task with the highest run level (the Run key
 ///   cannot start elevated programs, and the task does so without a prompt).
-///   Both pass --hidden, so the app starts in the tray;
+///   Both pass --hidden, so the app starts in the tray. The task is only
+///   created or removed by an elevated app, and only when no program
+///   without administrator rights can change the install (a per-user
+///   install could be replaced to get administrator rights at logon);
 /// - background: RunInBackground under HKCU\Software\OpenChroma, read by
 ///   windows/runner/tray.cpp when the window closes.
 class LaunchSettings extends ChangeNotifier {
@@ -103,6 +101,7 @@ class LaunchSettings extends ChangeNotifier {
   /// Closing the window leaves the app in the tray.
   bool runInBackground = true;
   bool _task = false;
+  bool installSecure = true;
   bool busy = false;
   bool loaded = false;
 
@@ -110,14 +109,24 @@ class LaunchSettings extends ChangeNotifier {
   String? error;
 
   Future<void> load() async {
-    final layers = await Process.run('reg', ['query', _layersKey, '/v', exe]);
+    final layers = await Process.run(SystemPaths.tool('reg'), [
+      'query',
+      _layersKey,
+      '/v',
+      exe,
+    ]);
     alwaysAdmin =
         layers.exitCode == 0 && '${layers.stdout}'.contains('RUNASADMIN');
-    final run = await Process.run('reg', ['query', _runKey, '/v', _name]);
-    final task = await Process.run('schtasks', ['/Query', '/TN', _name]);
-    _task = task.exitCode == 0;
+    final run = await Process.run(SystemPaths.tool('reg'), [
+      'query',
+      _runKey,
+      '/v',
+      _name,
+    ]);
+    _task = await NativeSecurity.startupTaskExists();
+    installSecure = await NativeSecurity.installIsSecure();
     startWithWindows = run.exitCode == 0 || _task;
-    final bg = await Process.run('reg', [
+    final bg = await Process.run(SystemPaths.tool('reg'), [
       'query',
       _appKey,
       '/v',
@@ -131,9 +140,43 @@ class LaunchSettings extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// A logon task for the elevated start exists.
+  bool get hasStartupTask => _task;
+
+  /// What stops the next change of "start with Windows" (turning it off when
+  /// it is on, on when it is off); null when it can be done.
+  StartupBlock? get startupBlock =>
+      _blockFor(enable: !startWithWindows, admin: alwaysAdmin);
+
+  /// An elevated start is set up although the install can be changed
+  /// without administrator rights.
+  bool get startupTaskUntrusted => _task && !installSecure;
+
+  StartupBlock? _blockFor({required bool enable, required bool admin}) {
+    if (enable && admin) {
+      if (!installSecure) return StartupBlock.installNotTrusted;
+      if (!Elevation.isElevated) return StartupBlock.needsAdmin;
+    } else if (_task && !Elevation.isElevated) {
+      return StartupBlock.needsAdmin;
+    }
+    return null;
+  }
+
+  String _blockMessage(StartupBlock block) => switch (block) {
+    StartupBlock.needsAdmin => l10n.securityErrorNeedsAdmin,
+    StartupBlock.installNotTrusted => l10n.securityErrorInstallNotTrusted,
+  };
+
   Future<void> setAlwaysAdmin(bool value) => _change(() async {
+    if (startWithWindows) {
+      final block = _blockFor(enable: true, admin: value);
+      if (block != null) {
+        error = _blockMessage(block);
+        return;
+      }
+    }
     final r = value
-        ? await Process.run('reg', [
+        ? await Process.run(SystemPaths.tool('reg'), [
             'add',
             _layersKey,
             '/v',
@@ -144,9 +187,15 @@ class LaunchSettings extends ChangeNotifier {
             '~ RUNASADMIN',
             '/f',
           ])
-        : await Process.run('reg', ['delete', _layersKey, '/v', exe, '/f']);
+        : await Process.run(SystemPaths.tool('reg'), [
+            'delete',
+            _layersKey,
+            '/v',
+            exe,
+            '/f',
+          ]);
     if (r.exitCode != 0) {
-      error = 'Não foi possível alterar a configuração do Windows.';
+      error = l10n.systemErrorWindowsSetting;
       return;
     }
     // Startup must follow: only the task can start the app elevated.
@@ -154,7 +203,7 @@ class LaunchSettings extends ChangeNotifier {
   });
 
   Future<void> setRunInBackground(bool value) => _change(() async {
-    final r = await Process.run('reg', [
+    final r = await Process.run(SystemPaths.tool('reg'), [
       'add',
       _appKey,
       '/v',
@@ -165,7 +214,7 @@ class LaunchSettings extends ChangeNotifier {
       value ? '1' : '0',
       '/f',
     ]);
-    if (r.exitCode != 0) error = 'Não foi possível salvar a configuração.';
+    if (r.exitCode != 0) error = l10n.systemErrorSaveSetting;
   });
 
   Future<void> setStartWithWindows(bool value) =>
@@ -190,12 +239,34 @@ class LaunchSettings extends ChangeNotifier {
     final wantTask = enable && admin;
     final wantRun = enable && !admin;
 
-    // Change the task first: it needs the UAC prompt, and when that is
-    // declined startup stays as it was.
-    if (wantTask && !await _createTask()) return;
-    if (!wantTask && _task && !await _deleteTask()) return;
+    final block = _blockFor(enable: enable, admin: admin);
+    if (block != null) {
+      error = _blockMessage(block);
+      return;
+    }
+    if (wantTask) {
+      final result = await NativeSecurity.registerStartupTask(
+        l10n.systemTaskDescription,
+      );
+      if (result != TaskResult.done) {
+        error = switch (result) {
+          TaskResult.needsAdmin => l10n.securityErrorNeedsAdmin,
+          TaskResult.installNotTrusted => l10n.securityErrorInstallNotTrusted,
+          _ => l10n.securityErrorTaskNotCreated,
+        };
+        return;
+      }
+    } else if (_task) {
+      final result = await NativeSecurity.deleteStartupTask();
+      if (result != TaskResult.done) {
+        error = result == TaskResult.needsAdmin
+            ? l10n.securityErrorNeedsAdmin
+            : l10n.securityErrorTaskNotRemoved;
+        return;
+      }
+    }
     if (wantRun) {
-      final r = await Process.run('reg', [
+      final r = await Process.run(SystemPaths.tool('reg'), [
         'add',
         _runKey,
         '/v',
@@ -207,98 +278,16 @@ class LaunchSettings extends ChangeNotifier {
         '/f',
       ]);
       if (r.exitCode != 0) {
-        error = 'Não foi possível ativar a inicialização com o Windows.';
+        error = l10n.systemErrorEnableStartup;
       }
     } else {
-      await Process.run('reg', ['delete', _runKey, '/v', _name, '/f']);
+      await Process.run(SystemPaths.tool('reg'), [
+        'delete',
+        _runKey,
+        '/v',
+        _name,
+        '/f',
+      ]);
     }
-  }
-
-  Future<bool> _createTask() async {
-    final user =
-        '${Platform.environment['USERDOMAIN']}\\${Platform.environment['USERNAME']}';
-    final xml = File('${Directory.systemTemp.path}\\openchroma_task.xml');
-    // schtasks expects the XML in UTF-16 with a BOM.
-    final text = _taskXml(exe: exe, user: user);
-    final bytes = <int>[0xFF, 0xFE];
-    for (final unit in text.codeUnits) {
-      bytes
-        ..add(unit & 0xFF)
-        ..add(unit >> 8);
-    }
-    await xml.writeAsBytes(bytes);
-    try {
-      final args = ['/Create', '/TN', _name, '/XML', xml.path, '/F'];
-      final ok = await _schtasks(args);
-      if (!ok) {
-        error =
-            'A tarefa de inicialização não foi criada. '
-            'É preciso aceitar a permissão do Windows.';
-      }
-      return ok;
-    } finally {
-      if (await xml.exists()) await xml.delete();
-    }
-  }
-
-  Future<bool> _deleteTask() async {
-    final ok = await _schtasks(['/Delete', '/TN', _name, '/F']);
-    if (!ok) {
-      error =
-          'A tarefa de inicialização não foi removida. '
-          'É preciso aceitar a permissão do Windows.';
-    }
-    return ok;
-  }
-
-  /// Runs schtasks directly when already elevated, otherwise through UAC.
-  Future<bool> _schtasks(List<String> args) async {
-    if (Elevation.isElevated) {
-      return (await Process.run('schtasks', args)).exitCode == 0;
-    }
-    final params = args.map((a) => a.contains(' ') ? '"$a"' : a).join(' ');
-    return await Elevation.run('schtasks.exe', params) == 0;
-  }
-
-  static String _taskXml({required String exe, required String user}) {
-    String esc(String s) => s
-        .replaceAll('&', '&amp;')
-        .replaceAll('<', '&lt;')
-        .replaceAll('>', '&gt;');
-    final dir = File(exe).parent.path;
-    return '''<?xml version="1.0" encoding="UTF-16"?>
-<Task version="1.2" xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task">
-  <RegistrationInfo>
-    <Description>Abre o OpenChroma como administrador ao entrar no Windows.</Description>
-  </RegistrationInfo>
-  <Triggers>
-    <LogonTrigger>
-      <Enabled>true</Enabled>
-      <UserId>${esc(user)}</UserId>
-    </LogonTrigger>
-  </Triggers>
-  <Principals>
-    <Principal id="Author">
-      <UserId>${esc(user)}</UserId>
-      <LogonType>InteractiveToken</LogonType>
-      <RunLevel>HighestAvailable</RunLevel>
-    </Principal>
-  </Principals>
-  <Settings>
-    <MultipleInstancesPolicy>IgnoreNew</MultipleInstancesPolicy>
-    <DisallowStartIfOnBatteries>false</DisallowStartIfOnBatteries>
-    <StopIfGoingOnBatteries>false</StopIfGoingOnBatteries>
-    <ExecutionTimeLimit>PT0S</ExecutionTimeLimit>
-    <Priority>4</Priority>
-  </Settings>
-  <Actions Context="Author">
-    <Exec>
-      <Command>${esc(exe)}</Command>
-      <Arguments>--hidden</Arguments>
-      <WorkingDirectory>${esc(dir)}</WorkingDirectory>
-    </Exec>
-  </Actions>
-</Task>
-''';
   }
 }

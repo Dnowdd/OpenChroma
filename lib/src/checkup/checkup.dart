@@ -9,9 +9,12 @@ import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as p;
 
 import '../fans/fan_service.dart';
+import '../i18n/l10n.dart';
 import '../monitor/system_monitor.dart';
 import '../paths.dart';
 import '../system/launch_settings.dart';
+import '../system/native_security.dart';
+import '../system/system_paths.dart';
 import 'minidump.dart';
 
 /// The stress tests, by the id the native runner
@@ -577,11 +580,11 @@ class CheckupService extends ChangeNotifier {
     final pumpStopped = pumps.any((f) => (f.rpm ?? 1000) < 500);
     _slowPump = pumpStopped ? _slowPump + 1 : 0;
     if (_hotCpu >= _strikes) {
-      cancel('A CPU passou de ${maxCpuTemp.round()} °C');
+      cancel(l10n.checkupAbortCpuTemp(maxCpuTemp.round()));
     } else if (_hotGpu >= _strikes) {
-      cancel('A placa de vídeo passou de ${maxGpuTemp.round()} °C');
+      cancel(l10n.checkupAbortGpuTemp(maxGpuTemp.round()));
     } else if (_slowPump >= _strikes) {
-      cancel('A bomba do water cooler parou');
+      cancel(l10n.checkupAbortPump);
     }
   }
 
@@ -673,7 +676,7 @@ class CheckupService extends ChangeNotifier {
   /// Blue screens of the last 30 days, from the System event log.
   Future<List<BlueScreen>> _blueScreens() async {
     try {
-      final res = await Process.run('wevtutil', [
+      final res = await Process.run(SystemPaths.tool('wevtutil'), [
         'qe',
         'System',
         "/q:*[System[Provider[@Name='Microsoft-Windows-WER-SystemErrorReporting'] "
@@ -710,7 +713,7 @@ class CheckupService extends ChangeNotifier {
       const approved =
           r'Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved';
       Future<Map<String, String>> values(String key) async {
-        final res = await Process.run('reg', ['query', key]);
+        final res = await Process.run(SystemPaths.tool('reg'), ['query', key]);
         final out = <String, String>{};
         for (final m in RegExp(
           r'^\s{4}(.+?)\s{4}REG_\w+\s{4}(.*)$',
@@ -769,7 +772,7 @@ class CheckupService extends ChangeNotifier {
   /// non-Microsoft drivers on the blue screens' stacks.
   Future<(Map<String, int>, int)?> _dumpSuspects() async {
     try {
-      final windows = Platform.environment['SystemRoot'] ?? r'C:\Windows';
+      final windows = SystemPaths.windows;
       final programData =
           Platform.environment['ProgramData'] ?? r'C:\ProgramData';
       final files = <File>[];
@@ -777,7 +780,11 @@ class CheckupService extends ChangeNotifier {
         final d = Directory(dir);
         if (!d.existsSync()) return;
         for (final e in d.listSync(recursive: recursive, followLinks: false)) {
-          if (e is File && e.path.toLowerCase().endsWith('.dmp')) files.add(e);
+          if (e is File &&
+              e.path.toLowerCase().endsWith('.dmp') &&
+              NativeSecurity.fileOwnerTrusted(e.path)) {
+            files.add(e);
+          }
         }
       }
 
@@ -785,7 +792,7 @@ class CheckupService extends ChangeNotifier {
       for (final q in ['ReportQueue', 'ReportArchive']) {
         final d = Directory(p.join(programData, r'Microsoft\Windows\WER', q));
         if (!d.existsSync()) continue;
-        for (final k in d.listSync().whereType<Directory>()) {
+        for (final k in d.listSync(followLinks: false).whereType<Directory>()) {
           if (p.basename(k.path).startsWith('Kernel_')) add(k.path);
         }
       }
@@ -802,22 +809,10 @@ class CheckupService extends ChangeNotifier {
         }
       }
       // Drop drivers whose file says Microsoft; the list above is not complete.
-      if (counts.isNotEmpty) {
-        final drivers = p.join(windows, r'System32\drivers');
-        final paths = counts.keys
-            .map((n) => "'${p.join(drivers, n)}'")
-            .join(',');
-        final res = await Process.run('powershell', [
-          '-NoProfile',
-          '-Command',
-          "foreach (\$f in @($paths)) { if (Test-Path \$f) { (Split-Path \$f -Leaf) + '|' + (Get-Item \$f).VersionInfo.CompanyName } }",
-        ]);
-        for (final line in '${res.stdout}'.split('\n')) {
-          final parts = line.trim().split('|');
-          if (parts.length == 2 &&
-              parts[1].toLowerCase().contains('microsoft')) {
-            counts.remove(parts[0].toLowerCase());
-          }
+      for (final name in counts.keys.toList()) {
+        final company = NativeSecurity.driverCompany(name);
+        if (company != null && company.toLowerCase().contains('microsoft')) {
+          counts.remove(name);
         }
       }
       return (counts, read);
@@ -879,8 +874,10 @@ String _shortMaker(String maker) {
 
 // ---------------------------------------------------------------- Advice
 
-String _gb(double bytes) =>
-    (bytes / (1024 * 1024 * 1024)).toStringAsFixed(1).replaceAll('.', ',');
+String _gb(double bytes) {
+  final text = (bytes / (1024 * 1024 * 1024)).toStringAsFixed(1);
+  return l10n.localeName == 'pt' ? text.replaceAll('.', ',') : text;
+}
 
 /// Plain-rule advice from a report, worst first.
 List<Recommendation> recommendationsFor(CheckupReport r) {
@@ -891,9 +888,8 @@ List<Recommendation> recommendationsFor(CheckupReport r) {
     out.add(
       Recommendation(
         Severity.bad,
-        'Teste interrompido: ${r.abortReason}',
-        'O resfriamento não deu conta da carga. Confira o cooler (montagem, pasta '
-            'térmica, ventoinhas e bomba) antes de usar o PC em carga pesada.',
+        l10n.checkupAdviceAbortedTitle(r.abortReason!),
+        l10n.checkupAdviceAbortedDetail,
       ),
     );
   }
@@ -901,39 +897,37 @@ List<Recommendation> recommendationsFor(CheckupReport r) {
     if (t.status != 'done' && t.status != 'aborted') continue;
     if (t.cpuErrors > 0) {
       out.add(
-        const Recommendation(
+        Recommendation(
           Severity.bad,
-          'A CPU errou cálculos sob carga',
-          'Sinal de instabilidade. Desfaça overclock ou undervolt (PBO, Curve '
-              'Optimizer) e atualize o BIOS; se continuar, pode ser defeito.',
+          l10n.checkupAdviceCpuErrorsTitle,
+          l10n.checkupAdviceCpuErrorsDetail,
         ),
       );
     }
     if (t.gpuErrors > 0) {
       out.add(
-        const Recommendation(
+        Recommendation(
           Severity.bad,
-          'A placa de vídeo calculou errado',
-          'Remova overclock da GPU e atualize o driver de vídeo.',
+          l10n.checkupAdviceGpuErrorsTitle,
+          l10n.checkupAdviceGpuErrorsDetail,
         ),
       );
     }
     if (t.test == CheckupTest.memory && t.errors > 0) {
       out.add(
-        const Recommendation(
+        Recommendation(
           Severity.bad,
-          'A memória devolveu dados errados',
-          'Desative o EXPO/XMP no BIOS e teste de novo. Se continuar, teste um '
-              'pente por vez para achar o defeituoso.',
+          l10n.checkupAdviceMemoryErrorsTitle,
+          l10n.checkupAdviceMemoryErrorsDetail,
         ),
       );
     }
     if (t.test == CheckupTest.disk && t.errors > 0) {
       out.add(
-        const Recommendation(
+        Recommendation(
           Severity.bad,
-          'O disco devolveu dados diferentes dos gravados',
-          'Faça backup agora e verifique a saúde do disco.',
+          l10n.checkupAdviceDiskErrorsTitle,
+          l10n.checkupAdviceDiskErrorsDetail,
         ),
       );
     }
@@ -946,16 +940,16 @@ List<Recommendation> recommendationsFor(CheckupReport r) {
     out.add(
       Recommendation(
         Severity.bad,
-        s.blueScreens.length == 1
-            ? '1 tela azul nos últimos 30 dias'
-            : '${s.blueScreens.length} telas azuis nos últimos 30 dias',
+        l10n.checkupAdviceBlueScreensTitle(s.blueScreens.length),
         suspect != null
-            ? 'O driver ${suspect.key} aparece em ${suspect.value} de ${s.dumpsRead} '
-                  'registros de falha. Atualize ou desinstale o programa dono dele.'
+            ? l10n.checkupAdviceBlueScreensSuspect(
+                suspect.key,
+                suspect.value,
+                s.dumpsRead,
+              )
             : s.elevated
-            ? 'Os registros não apontam um driver de terceiros. Atualize o BIOS, o '
-                  'chipset e o driver de vídeo, e teste a memória.'
-            : 'Rode o checkup como administrador para descobrir o driver responsável.',
+            ? l10n.checkupAdviceBlueScreensNoSuspect
+            : l10n.checkupAdviceBlueScreensNeedAdmin,
       ),
     );
   }
@@ -966,10 +960,8 @@ List<Recommendation> recommendationsFor(CheckupReport r) {
     out.add(
       Recommendation(
         Severity.warning,
-        'A CPU chega a ${cpuMax.round()} °C em carga total',
-        'Está no limite térmico e perde desempenho. Melhore o resfriamento ou '
-            'limite a temperatura/potência no BIOS (Eco Mode na AMD, PL1/PL2 na '
-            'Intel).',
+        l10n.checkupAdviceCpuHotTitle(cpuMax.round()),
+        l10n.checkupAdviceCpuHotDetail,
       ),
     );
   }
@@ -979,8 +971,8 @@ List<Recommendation> recommendationsFor(CheckupReport r) {
     out.add(
       Recommendation(
         Severity.warning,
-        'A placa de vídeo chega a ${gpuMax.round()} °C',
-        'Melhore a ventilação do gabinete ou ajuste a curva das ventoinhas da GPU.',
+        l10n.checkupAdviceGpuHotTitle(gpuMax.round()),
+        l10n.checkupAdviceGpuHotDetail,
       ),
     );
   }
@@ -988,21 +980,20 @@ List<Recommendation> recommendationsFor(CheckupReport r) {
   final mods = s.modules;
   if (mods.length == 1) {
     out.add(
-      const Recommendation(
+      Recommendation(
         Severity.warning,
-        'Memória em single channel',
-        'Um pente só usa metade da largura de banda. Adicionar outro igual '
-            '(mesmo modelo) ativa o dual channel.',
+        l10n.checkupAdviceSingleChannelTitle,
+        l10n.checkupAdviceSingleChannelDetail,
       ),
     );
   } else if (mods.length >= 2) {
     final channels = mods.map((m) => m.channel).nonNulls.toSet();
     if (channels.length == 1 && mods.every((m) => m.channel != null)) {
       out.add(
-        const Recommendation(
+        Recommendation(
           Severity.warning,
-          'Os pentes estão no mesmo canal',
-          'Mude para os slots indicados no manual da placa (geralmente A2 e B2).',
+          l10n.checkupAdviceSameChannelTitle,
+          l10n.checkupAdviceSameChannelDetail,
         ),
       );
     }
@@ -1016,17 +1007,16 @@ List<Recommendation> recommendationsFor(CheckupReport r) {
       out.add(
         Recommendation(
           Severity.warning,
-          'A memória roda abaixo do que suporta',
-          '${m.configured} de ${m.speed} MT/s. Ative o EXPO (AMD) ou XMP (Intel) no BIOS.',
+          l10n.checkupAdviceSlowMemoryTitle,
+          l10n.checkupAdviceSlowMemoryDetail(m.configured, m.speed),
         ),
       );
     } else if (lowBase) {
       out.add(
         Recommendation(
           Severity.info,
-          'EXPO/XMP provavelmente desligado',
-          'A memória está na velocidade básica (${m.configured} MT/s). Se o pente '
-              'for de velocidade maior, ative o EXPO/XMP no BIOS.',
+          l10n.checkupAdviceProfileOffTitle,
+          l10n.checkupAdviceProfileOffDetail(m.configured),
         ),
       );
     }
@@ -1035,10 +1025,12 @@ List<Recommendation> recommendationsFor(CheckupReport r) {
     out.add(
       Recommendation(
         Severity.warning,
-        'Memória no limite',
-        '${_gb(s.memUsed)} de ${_gb(s.memTotal)} GB em uso e ${_gb(s.memCommitted)} GB '
-            'pedidos pelos programas; o excesso vai para o disco e deixa tudo lento. '
-            'Feche apps pesados ou adicione RAM.',
+        l10n.checkupAdviceMemoryFullTitle,
+        l10n.checkupAdviceMemoryFullDetail(
+          _gb(s.memUsed),
+          _gb(s.memTotal),
+          _gb(s.memCommitted),
+        ),
       ),
     );
   }
@@ -1050,9 +1042,8 @@ List<Recommendation> recommendationsFor(CheckupReport r) {
     out.add(
       Recommendation(
         Severity.warning,
-        'Disco do sistema quase cheio',
-        'Só ${_gb(free)} GB livres. Abaixo de 10% o Windows fica lento, perde '
-            'espaço para memória virtual e apaga registros de falhas.',
+        l10n.checkupAdviceDriveFullTitle,
+        l10n.checkupAdviceDriveFullDetail(_gb(free)),
       ),
     );
   }
@@ -1060,9 +1051,8 @@ List<Recommendation> recommendationsFor(CheckupReport r) {
     out.add(
       Recommendation(
         Severity.info,
-        '${s.startupApps} programas abrem com o Windows',
-        'Desative os que não usa todo dia em Gerenciador de Tarefas > '
-            'Aplicativos de inicialização.',
+        l10n.checkupAdviceStartupTitle(s.startupApps!),
+        l10n.checkupAdviceStartupDetail,
       ),
     );
   }
@@ -1070,9 +1060,8 @@ List<Recommendation> recommendationsFor(CheckupReport r) {
     out.add(
       Recommendation(
         Severity.info,
-        'O PC estava ocupado antes dos testes',
-        '${s.idleCpuUsage!.round()}% de uso da CPU em repouso: programas em segundo '
-            'plano esquentam o PC e afetam os resultados.',
+        l10n.checkupAdviceBusyTitle,
+        l10n.checkupAdviceBusyDetail(s.idleCpuUsage!.round()),
       ),
     );
   }
@@ -1081,11 +1070,10 @@ List<Recommendation> recommendationsFor(CheckupReport r) {
       ) &&
       r.tests.every((t) => t.maxCpuTemp == null)) {
     out.add(
-      const Recommendation(
+      Recommendation(
         Severity.info,
-        'Sem temperatura da CPU',
-        'Rode o checkup como administrador para medir a temperatura e '
-            'proteger a CPU durante os testes.',
+        l10n.checkupAdviceNoCpuTempTitle,
+        l10n.checkupAdviceNoCpuTempDetail,
       ),
     );
   }
@@ -1093,10 +1081,10 @@ List<Recommendation> recommendationsFor(CheckupReport r) {
       r.tests.every((t) => t.passed)) {
     out.insert(
       0,
-      const Recommendation(
+      Recommendation(
         Severity.good,
-        'Tudo certo',
-        'Nenhum erro nos testes e nada fora do normal no sistema.',
+        l10n.checkupAllGood,
+        l10n.checkupAdviceAllGoodDetail,
       ),
     );
   }

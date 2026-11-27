@@ -133,11 +133,21 @@ void _disposeWebview(WebviewController c) {
 /// Loads HTML effects into one WebView: maps the effect's folder to a
 /// virtual HTTPS host and installs the bootstrap script for each load.
 class _EffectLoader {
-  _EffectLoader(this.controller, this.host);
+  _EffectLoader(this.controller, this.host) {
+    controller.url.listen(_confine);
+  }
   final WebviewController controller;
   final String host;
   ScriptID? _scriptId;
   bool _mapped = false;
+  String? _page;
+
+  void _confine(String url) {
+    final page = _page;
+    if (page == null || url.isEmpty || url == 'about:blank') return;
+    if (Uri.tryParse(url)?.host == host) return;
+    controller.stop().then((_) => controller.loadUrl(page)).catchError((_) {});
+  }
 
   Future<void> load(
     EffectInfo e,
@@ -161,9 +171,9 @@ class _EffectLoader {
       p.dirname(e.path),
       WebviewHostResourceAccessKind.allow,
     );
-    await controller.loadUrl(
-      'https://$host/${Uri.encodeComponent(p.basename(e.path))}',
-    );
+    final page = 'https://$host/${Uri.encodeComponent(p.basename(e.path))}';
+    _page = page;
+    await controller.loadUrl(page);
   }
 }
 
@@ -340,7 +350,7 @@ class _HtmlEffectPreviewState extends State<_HtmlEffectPreview> {
     final e = widget.engine.currentEffect;
     if (e == null || e.kind != EffectKind.html) return;
     final values = effectPropValues(widget.engine, e);
-    final key = '${e.path}|${e.title}';
+    final key = '${e.path}|${e.baseTitle}';
     if (key != _loadedKey) {
       _loadedKey = key;
       _sentProps = Map.of(values);
