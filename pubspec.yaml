@@ -12,7 +12,7 @@ dependencies:
   flutter_localizations:
     sdk: flutter
   intl: any
-  crypto: ^3.0.7
+  crypto: ^3.0.8
   ffi: ^2.2.0
   flutter_js: ^0.8.7
   webview_windows: ^0.4.0
