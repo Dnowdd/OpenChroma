@@ -1,172 +1,273 @@
-# OpenChroma
+<div align="center">
 
-**English** | [Português (Brasil)](README.pt-BR.md)
+<img src="docs/screenshots/cover-wide.png" alt="OpenChroma: open RGB lighting, fan control and PC monitoring for Windows" width="100%">
+
+**A free, open-source, non-profit project for RGB lighting, fan control and PC monitoring on Windows.**
 
 [![CI](https://github.com/Dnowdd/OpenChroma/actions/workflows/ci.yml/badge.svg)](https://github.com/Dnowdd/OpenChroma/actions/workflows/ci.yml)
+[![Latest release](https://img.shields.io/github/v/release/Dnowdd/OpenChroma?include_prereleases&sort=semver&label=release)](https://github.com/Dnowdd/OpenChroma/releases)
 [![License: GPL-2.0-or-later](https://img.shields.io/badge/license-GPL--2.0--or--later-blue.svg)](LICENSE)
-[![Latest release](https://img.shields.io/github/v/release/Dnowdd/OpenChroma?include_prereleases&sort=semver)](https://github.com/Dnowdd/OpenChroma/releases)
-[![Platform: Windows](https://img.shields.io/badge/platform-Windows%2010%20%7C%2011-0078D6.svg)](#installation)
+[![Platform: Windows 10 | 11](https://img.shields.io/badge/platform-Windows%2010%20%7C%2011-0078D6.svg)](#-install)
+[![Built with Flutter](https://img.shields.io/badge/built%20with-Flutter-02569B.svg)](https://flutter.dev)
 
-Control your whole PC from one place: the RGB lighting of every device, the
-fans, the temperatures and the health of the system. Free, open source and
-made for Windows.
+**English** · [Português (Brasil)](README.pt-BR.md)
 
-> **Status: beta.** OpenChroma 0.9 is the first public release. Expect rough
-> edges, and please [report bugs](https://github.com/Dnowdd/OpenChroma/issues/new/choose).
-> Read the [disclaimer](#disclaimer--use-at-your-own-risk) before using it.
+[**Download**](https://github.com/Dnowdd/OpenChroma/releases) ·
+[Features](#-features) ·
+[Supported devices](#-supported-devices) ·
+[Write a plugin](docs/PLUGINS.md) ·
+[Roadmap](ROADMAP.md)
 
-![Home](docs/screenshots/home.png)
+</div>
 
-## What it does
+> [!NOTE]
+> **Beta.** 0.9 is the first public release. Expect rough edges and please
+> [report what you find](https://github.com/Dnowdd/OpenChroma/issues/new/choose).
+> OpenChroma talks to hardware at a low level, so read the
+> [disclaimer](#%EF%B8%8F-disclaimer) first.
 
-**Lighting**
-- 25 original effects: Aurora, Plasma, Lava, Campfire, Digital Rain, Starry
-  Sky, Rainbow, Solid Color, Heartbeat, Siren and more. Each one has color
-  and speed settings.
-- Effects that react to the PC's sound or the microphone (Spectrum, Neon
-  Equalizer, Beat, Sound Wave…).
-- Layout: place each device on a canvas and the effect "flows" across them
-  as if they were a single panel.
-- Profiles (Gaming, Work, Night, Off) that switch effect and brightness in
-  one click. Right-click a profile to save the current lighting into it.
-- Reactive light: the LEDs show the CPU or GPU temperature, from blue
-  (cool) to red (hot).
-- Import `.ocfx` effects (see below) or HTML pages with a canvas.
+<a href="docs/video/showcase.mp4"><img src="docs/video/showcase-preview.webp" alt="OpenChroma showcase preview" width="100%"></a>
 
-**Fans**
-- Reads and controls motherboard fans (ITE chips) and NVIDIA graphics card
-  fans, with Silent, Balanced and Turbo profiles or your own curve.
-- Mark which fan is the liquid cooler pump, so it never stops.
+## Why OpenChroma
 
-**Performance**
-- Real-time monitor: CPU and GPU usage and temperature, memory, disks,
-  network and the heaviest processes.
-- Diagnostics: CPU, memory, GPU and disk stress tests that check the results
-  (they don't just heat up the PC), hardware inventory, blue screen history
-  and recommendations.
+Your keyboard wants one app, the mouse another, the RAM a third, the
+motherboard a fourth, and none of them talk to each other. OpenChroma
+replaces all of them with a single, fast app that:
 
-**Alerts**
-- Windows notification when something gets too hot, memory or a disk fills
-  up, or the liquid cooler pump stops. Works with the app in the tray.
-- Optional: the LEDs flash red along with the alert.
+- 🌈 **Syncs every device** into one canvas, so an effect flows across the
+  keyboard, fans, RAM and GPU as if they were one panel.
+- 🌀 **Drives your fans** from temperature curves, motherboard and NVIDIA
+  GPU alike, and never lets the pump stop.
+- 📈 **Watches your PC**: live temperatures, usage, processes, stress tests
+  and blue screen history.
+- 🤖 **Explains it in plain words** with an optional AI assistant that reads
+  your real sensor data.
+- 🔓 **Stays open**: GPL, no account, no telemetry, no cloud. Drivers from
+  [OpenRGB](https://gitlab.com/CalcProgrammer1/OpenRGB) compiled right in,
+  and JavaScript plugins for anything else.
 
-**AI assistant**
-- Ask about your PC ("why is it slow?", "what heats up the GPU?"): the
-  assistant answers with the machine's real readings.
-- Ask for an effect ("make a calm blue effect") and apply it in one click.
-- Explains the diagnostics results and suggests what to do.
-- Works with your own key from Anthropic (Claude), OpenAI (GPT) or any
-  service compatible with the OpenAI API (OpenRouter, Groq, Ollama,
-  LM Studio…). The model list is fetched from the provider and updates by
-  itself.
+<div align="center">
+  <img src="docs/screenshots/home.png" alt="Home dashboard" width="92%">
+  <br><sub>The dashboard: profiles, the running effect, fans, temperatures and the assistant at a glance.</sub>
+</div>
 
-**Everyday use**
-- Closes to the tray and keeps taking care of lights and fans.
-- Can start with Windows, including as administrator without a UAC prompt
-  every time (only when installed for all users, in Program Files, so other
-  programs can't swap the files that run elevated).
-- English by default, with a Portuguese (Brazil) translation: switch it in
-  **Settings › General › Language**.
+## ✨ Features
 
-| Effects | Devices |
-|---|---|
-| ![Effects](docs/screenshots/effects.png) | ![Devices](docs/screenshots/devices.png) |
+<table>
+<tr>
+<td width="50%" valign="top">
 
-## Disclaimer / use at your own risk
+### 🎨 Lighting that flows
 
-OpenChroma talks to hardware at a low level. In particular, it:
+- **25+ original effects** (Aurora, Plasma, Lava, Campfire, Digital Rain,
+  Starry Sky, Neon Rings…), each with its own colors and speed.
+- **Sound reactive** effects driven by what's playing or by the mic.
+- **Profiles** (Gaming, Work, Night, Off) that switch by themselves when a
+  game or program opens.
+- **Reactive light**: the LEDs turn from blue to red with the CPU or GPU
+  temperature.
+- Import `.ocfx` effects or HTML canvas pages, or let the assistant
+  write one for you.
 
-- writes to the **SMBus** to control the RGB of RAM modules and graphics
-  cards;
-- **controls fan speeds**, including the liquid cooler pump if you set one;
-- installs the **[PawnIO](https://pawnio.eu) kernel driver** (needed for
-  SMBus, CPU temperature and motherboard fans);
-- can **run as administrator**, including at startup.
+</td>
+<td width="50%" valign="top">
 
-Wrong writes to hardware can, in rare cases, make a device misbehave,
-lose its settings or even become permanently damaged ("bricked"). OpenRGB,
-which most of OpenChroma's drivers come from, carries a similar warning.
-The software is provided **"as is", without warranty of any kind**, as
-stated in the [GPL](LICENSE). By using it you accept these risks.
+<img src="docs/screenshots/lighting.png" alt="Effects library">
 
-OpenChroma is an independent project. It is **not affiliated with, endorsed
-by or sponsored by** Razer, Corsair, ASUS, Logitech, Gigabyte, MSI, Kingston,
-Sony or any other brand mentioned here. All trademarks belong to their
-respective owners and are used only to identify compatible hardware.
+</td>
+</tr>
+<tr>
+<td width="50%" valign="top">
 
-## Installation
+<img src="docs/screenshots/layout.png" alt="Device layout canvas">
 
-Download the latest version from
-[Releases](https://github.com/Dnowdd/OpenChroma/releases):
+</td>
+<td width="50%" valign="top">
 
-- **`OpenChroma-x.y.z-setup.exe`**: the installer. By default it installs
-  for your user only, without administrator rights; pick "all users" to
-  install in Program Files, which is needed to start as administrator at
-  logon. It installs Microsoft WebView2 if it's missing.
-- **`OpenChroma-x.y.z-portable.zip`**: extract it to a folder and open
-  `openchroma.exe`. Nothing gets installed.
-- **`SHA256SUMS.txt`**: checksums to verify the download.
+### 🧩 One canvas for every device
 
-Requirements:
+- Drag, resize, **rotate and flip** each device and zone where it really is
+  on your desk.
+- **Auto arrange** in one click, with a preview and undo.
+- Click a zone and its LEDs blink, so you always know which is which.
+- Per-device brightness, color order calibration and LED counts for ARGB
+  headers.
+
+</td>
+</tr>
+<tr>
+<td width="50%" valign="top">
+
+### ⌨️ Devices, your way
+
+- Each device follows the app's effects **or runs its own hardware
+  effect**, with speed, brightness, direction and colors.
+- Battery levels for wireless gear.
+- **Screens on devices**: send images and GIFs to keyboard and cooler
+  displays, crop and zoom them, and add live CPU and GPU readings.
+
+</td>
+<td width="50%" valign="top">
+
+<img src="docs/screenshots/devices.png" alt="Devices">
+
+</td>
+</tr>
+<tr>
+<td width="50%" valign="top">
+
+<img src="docs/screenshots/screen-editor.png" alt="Round cooler screen editor">
+
+</td>
+<td width="50%" valign="top">
+
+### 🖼️ A real editor for device screens
+
+- Lay out text and **live values** (temperatures, usage, clocks, power) on
+  a round 480×480 AIO screen with snapping guides and shortcuts.
+- Images and GIFs with frame range, crop and zoom.
+- Built-in size limits keep the cooler safe.
+
+</td>
+</tr>
+<tr>
+<td width="50%" valign="top">
+
+### 🌀 Quiet when you work, cool when you play
+
+- Motherboard (ITE) and NVIDIA GPU fans.
+- **Silent, Balanced and Turbo** profiles or your own curve.
+- Mark the pump so it never stops, even if a curve says so.
+
+</td>
+<td width="50%" valign="top">
+
+<img src="docs/screenshots/fans.png" alt="Fan curve editor">
+
+</td>
+</tr>
+<tr>
+<td width="50%" valign="top">
+
+<img src="docs/screenshots/performance.png" alt="Performance monitor">
+
+</td>
+<td width="50%" valign="top">
+
+### 📈 Know what your PC is doing
+
+- CPU, GPU, memory, disks and network, live, with a one-minute history.
+- **Click any point on a chart** to see which processes were running then.
+- Sort processes by CPU or memory and spot the heavy ones.
+
+</td>
+</tr>
+<tr>
+<td width="50%" valign="top">
+
+### 🩺 Diagnostics that check the results
+
+- CPU, memory, GPU and disk **stress tests that verify the math**, not
+  just heat things up.
+- Hardware inventory, blue screen history with the drivers involved, and
+  clear recommendations.
+- Ask the assistant to explain the report.
+
+</td>
+<td width="50%" valign="top">
+
+<img src="docs/screenshots/checkup.png" alt="Diagnostics results">
+
+</td>
+</tr>
+</table>
+
+<a href="docs/video/showcase.mp4"><img src="docs/video/showcase-preview.webp" alt="OpenChroma showcase preview" width="100%"></a>
+
+[**Watch the full showcase**](docs/video/showcase.mp4)
+
+**A free, open-source, non-profit project for RGB lighting, fan control and PC monitoring on Windows.**
+
+- 🔔 **Alerts**: a Windows notification (and, if you want, a red flash on
+  the LEDs) when something runs hot, memory or a disk fills up, or the pump
+  stops.
+- 🤖 **AI assistant**: ask "why is my PC slow?" or "make a calm blue
+  effect". Bring your own key for Anthropic (Claude), OpenAI or any
+  OpenAI-compatible API, including local ones like Ollama and LM Studio.
+- 🪟 **Lives in the tray**, starts with Windows, keeps memory use low with
+  the window closed, and checks for updates (you can turn that off).
+- 🌍 **English and Português (Brasil)**: switch in Settings › General ›
+  Language.
+
+<div align="center">
+  <img src="docs/screenshots/settings.png" alt="Settings" width="80%">
+</div>
+
+## 📦 Install
+
+1. Download the latest **`OpenChroma-x.y.z-setup.exe`** from
+   [Releases](https://github.com/Dnowdd/OpenChroma/releases)
+   (or the **portable `.zip`** if you'd rather not install anything).
+2. Run it. The installer adds Microsoft WebView2 if it's missing and, if
+   you leave the box checked, the [PawnIO](https://pawnio.eu) driver used
+   for RAM and GPU lighting, CPU temperature and motherboard fans.
+3. **Close other RGB apps** (iCUE, G HUB, RGB Fusion, OpenRGB…): two apps
+   writing to the same LEDs make them flicker. OpenChroma warns you when it
+   finds one.
+
+<details>
+<summary><b>Requirements and good to know</b></summary>
 
 - Windows 10 (1809 or newer) or Windows 11, 64-bit.
-- [Microsoft WebView2](https://developer.microsoft.com/microsoft-edge/webview2/),
-  only for imported HTML effects. It ships with Windows 11; the installer
-  takes care of it on Windows 10.
-- The [PawnIO](https://pawnio.eu) driver for RAM and graphics card RGB, CPU
-  temperature and motherboard fans. The installer bundles the official setup
-  and installs it in the background. These features also need administrator
-  mode (there's a button for it in the app).
+- By default the installer installs for your user only, without
+  administrator rights. Choose **all users** to install in Program Files,
+  which is required to start as administrator at logon.
+- SMBus devices (RAM, GPUs), CPU temperature and motherboard fans need
+  administrator mode; there's a button for it in the app.
+- The app isn't code-signed yet, so SmartScreen may say "Windows protected
+  your PC" the first time: click **More info › Run anyway**. Every release
+  ships a `SHA256SUMS.txt` so you can verify the download.
 
-The executable isn't code-signed yet, so Windows SmartScreen may say
-"Windows protected your PC" the first time. Click **More info › Run anyway**.
+</details>
 
-Close other RGB programs (iCUE, G HUB, RGB Fusion, OpenRGB…) before using
-it: two programs writing to the same LEDs make the colors flicker.
-OpenChroma warns you when it finds one of them running.
+## 🔌 Supported devices
 
-## Supported devices
+The built-in drivers come from [OpenRGB](https://gitlab.com/CalcProgrammer1/OpenRGB),
+compiled into the app: **about 2,160 models from 189 families** of
+keyboards, mice, headsets, mousepads, motherboards, ARGB controllers, AIO
+coolers, RAM and graphics cards from ASUS, Corsair, Logitech, Razer,
+SteelSeries, HyperX, Gigabyte, MSI, NZXT, Lian Li, Cooler Master and more.
+No need to install OpenRGB.
 
-OpenChroma's drivers come from the open source code of
-[OpenRGB](https://gitlab.com/CalcProgrammer1/OpenRGB), compiled into the app
-itself: over a thousand keyboards, mice, headsets, mousepads, motherboards,
-ARGB controllers, liquid coolers, RAM modules and graphics cards from dozens
-of brands (ASUS, Corsair, Logitech, Razer, SteelSeries, HyperX, Gigabyte,
-MSI, NZXT, Lian Li, Cooler Master…). You don't need to install OpenRGB or any
-other program.
+<a href="docs/video/showcase.mp4"><img src="docs/video/showcase-preview.webp" alt="OpenChroma showcase preview" width="100%"></a>
 
-**Tested by the author** on real hardware:
+[**Watch the full showcase**](docs/video/showcase.mp4)
 
-| Device | How |
-|---|---|
-| Attack Shark K86 keyboard (per-key lighting, screen, clock) | Plugin |
-| Attack Shark X11 mouse (lighting, hardware effects, battery; wired and 2.4 GHz) | Plugin |
-| Logitech G403 HERO mouse | Plugin |
-| Sony DualShock 4 controller (with battery) | Plugin |
-| SmartMonitorX28 AIO cooler with round screen (CH9340 USB serial) | Plugin |
-| Kingston Fury DDR5 RAM | Built-in driver (SMBus) |
-| Gigabyte B650M AORUS ELITE AX ICE motherboard RGB | Built-in driver |
+**A free, open-source, non-profit project for RGB lighting, fan control and PC monitoring on Windows.**
 
-**Everything else is untested by this project.** Those devices use drivers
-inherited from OpenRGB that compile and pass the automated tests, but nobody
-has tried them with OpenChroma yet. They will probably work as well as they
-do in OpenRGB, but no promises. If you try one, please tell us how it went
-in an [issue](https://github.com/Dnowdd/OpenChroma/issues/new/choose), and use
-the device request form for hardware that isn't detected.
+| Device                                                                          | Through                 |
+| ------------------------------------------------------------------------------- | ----------------------- |
+| Attack Shark K86 keyboard: per-key lighting, screen, clock                      | Plugin                  |
+| Attack Shark X11 mouse: lighting, hardware effects, battery (wired and 2.4 GHz) | Plugin                  |
+| Logitech G403 HERO mouse                                                        | Plugin                  |
+| Sony DualShock 4 controller, with battery                                       | Plugin                  |
+| SmartMonitorX28 AIO cooler with round screen (CH9340 USB serial)                | Plugin                  |
+| Kingston Fury DDR5 RAM                                                          | Built-in driver (SMBus) |
+| Gigabyte B650M AORUS ELITE AX ICE motherboard RGB                               | Built-in driver         |
 
-- RAM and graphics cards with RGB use the SMBus, which needs administrator
-  mode and the [PawnIO](https://pawnio.eu) driver.
-- Motherboard ARGB headers: enter how many LEDs are connected to each one on
-  the Devices screen.
-- Each device can follow OpenChroma's effects or run one of the hardware's
-  own effects.
-- You can write JavaScript plugins for new devices or to improve existing
-  ones: see [docs/PLUGINS.md](docs/PLUGINS.md). The bundled plugins live in
-  [`assets/plugins`](assets/plugins).
+Everything else uses OpenRGB's drivers and **hasn't been tried with
+OpenChroma yet**. It should work as well as it does in OpenRGB, but no
+promises. Tried one? Tell us in an
+[issue](https://github.com/Dnowdd/OpenChroma/issues/new/choose). Device not
+detected? Use the **device request** form, or
+[write a plugin](docs/PLUGINS.md): a few dozen lines of JavaScript, reloaded
+live while you edit.
 
-## `.ocfx` effects
+## 🎛️ Make your own effects
 
-An effect is a JSON file with layers drawn from bottom to top:
+An `.ocfx` effect is a small JSON file with layers drawn bottom to top.
+Parameters become controls in the app, and `@bass`, `@mid`, `@treble`,
+`@level` and `@beat` follow the music.
 
 ```json
 {
@@ -175,68 +276,77 @@ An effect is a JSON file with layers drawn from bottom to top:
   "description": "Blues slowly coming and going.",
   "background": "#000814",
   "params": {
-    "speed": { "label": "Speed", "type": "number", "min": 0, "max": 100, "default": 25 },
+    "speed": {
+      "label": "Speed",
+      "type": "number",
+      "min": 0,
+      "max": 100,
+      "default": 25
+    },
     "color": { "label": "Color", "type": "color", "default": "#38BDF8" }
   },
   "layers": [
-    { "type": "gradient", "colors": ["#001D3D", "#003566", "#000814"], "angle": 20, "speed": "$speed" },
-    { "type": "wave", "color": "$color", "amplitude": 0.2, "thickness": 0.25, "speed": "$speed", "blend": "screen" }
+    {
+      "type": "gradient",
+      "colors": ["#001D3D", "#003566", "#000814"],
+      "angle": 20,
+      "speed": "$speed"
+    },
+    {
+      "type": "wave",
+      "color": "$color",
+      "amplitude": 0.2,
+      "thickness": 0.25,
+      "speed": "$speed",
+      "blend": "screen"
+    }
   ]
 }
 ```
 
-Layers: `solid`, `gradient`, `spectrum`, `pulse`, `wave`, `sweep`, `rings`,
-`sparkle`, `plasma`, `noise`, `fire`, `rain`, `stars`, `heartbeat`, `strobe`
-and, for audio, `bars`, `meter`, `ripple` and `flash`. A `"$name"` value uses
-the `name` parameter; `"@bass"`, `"@mid"`, `"@treble"`, `"@level"` and
-`"@beat"` use the live sound. The effects that ship with the app are in
-[`assets/effects`](assets/effects) and work as examples.
+<details>
+<summary><b>Layers, parameters and translations</b></summary>
 
-## Privacy
+- Layers: `solid`, `gradient`, `spectrum`, `pulse`, `wave`, `sweep`,
+  `rings`, `sparkle`, `plasma`, `noise`, `fire`, `rain`, `stars`,
+  `heartbeat`, `strobe` and, for audio, `bars`, `meter`, `ripple` and
+  `flash`.
+- `"$name"` reads the `name` parameter; `"@bass"` and friends read the live
+  sound.
+- An optional `i18n` block translates the name, description and parameter
+  labels:
 
-- There is no telemetry. The only automatic connection is a daily update
-  check against the GitHub releases API (turn it off in Settings › About);
-  it sends nothing about your PC.
-- The assistant's API key stays on this PC only, encrypted for your Windows
-  user (DPAPI), and only goes to the provider you chose, together with the
-  PC readings used to answer (hardware model, temperatures, usage, device
-  names and the names of the heaviest processes).
-- Plain HTTP is only accepted for AI servers running on this PC.
-- Settings are stored in `%APPDATA%\OpenChroma`.
+  ```json
+  "i18n": { "pt": { "name": "Oceano Calmo", "params": { "speed": "Velocidade", "color": "Cor" } } }
+  ```
 
-## For developers
+- The bundled effects in [`assets/effects`](assets/effects) are good
+  starting points.
 
-You need [Flutter](https://docs.flutter.dev/get-started/install/windows)
-3.47 or newer and Visual Studio 2022 (or newer) with the "Desktop
-development with C++" workload.
+</details>
 
-```powershell
-flutter pub get
-flutter run -d windows        # run in debug mode
-flutter test                  # tests
+## 🏗️ How it works
+
+```mermaid
+flowchart LR
+    FX[".ocfx effect<br/>or HTML page"] -->|"frame every ~33 ms<br/>320×200 canvas"| ENG["Engine<br/>samples each LED<br/>from the layout"]
+    SND["System audio / mic"] --> FX
+    SENS["Sensors<br/>CPU · GPU · RAM"] --> ENG
+    ENG --> DRV["oc_drivers.dll<br/>OpenRGB drivers<br/>one thread per controller"]
+    ENG --> PLG["JS plugins<br/>QuickJS, one isolate each"]
+    DRV --> HW1["USB · SMBus · HID"]
+    PLG --> HW2["HID · USB serial"]
 ```
 
-- [CONTRIBUTING.md](CONTRIBUTING.md): setup, tests, code style, translations
-  and how to send a pull request.
-- [docs/BUILDING.md](docs/BUILDING.md): building the `.exe` and the installer
-  and publishing a release.
-- [docs/PLUGINS.md](docs/PLUGINS.md): writing device plugins.
-- [ROADMAP.md](ROADMAP.md): what's still missing.
-- [CHANGELOG.md](CHANGELOG.md): what changed in each version.
-- [SECURITY.md](SECURITY.md): how to report a vulnerability.
-
-### How it works
+<details>
+<summary><b>Project layout</b></summary>
 
 ```
 lib/src/
-  engine/        engine: layout, samples the effect at each LED and sends it
-                 to the drivers; profiles, reactive light and alert flashing
+  engine/        layout, LED sampling, profiles, reactive light, alert flashing
   drivers/       bridge to the native drivers (oc_drivers.dll)
-  plugins/       JavaScript plugins: API, loading and each device's worker
-                 (QuickJS)
-  hid/           direct USB HID access through Windows, for the plugins
-  effects/       effect library, the .ocfx renderer in Dart and the WebView2
-                 host for imported HTML effects
+  plugins/       JavaScript plugins: API, loading, approval and workers
+  effects/       effect library, .ocfx renderer and WebView2 host
   fans/          fan curves and control
   monitor/       system readings (native side in windows/runner)
   checkup/       diagnostics and blue screen analysis
@@ -245,23 +355,66 @@ lib/src/
   ui/            the screens
 lib/l10n/        translations (English and Portuguese)
 windows/runner/  native code: monitor, fans (PawnIO/NvAPI), stress tests,
-                 audio capture, tray and elevation
-windows/drivers/ oc_drivers.dll: the OpenRGB drivers with OpenChroma's C API
-                 (oc_drivers.cpp)
-third_party/openrgb/  copy of the OpenRGB code used by the drivers
+                 audio capture, tray, elevation and security checks
+windows/drivers/ oc_drivers.dll: OpenRGB drivers behind OpenChroma's C API
+third_party/openrgb/  the OpenRGB code used by the drivers
 ```
 
-Every ~33 ms the effect draws a frame on a 320x200 canvas: `.ocfx` effects
-directly in Dart, imported HTML effects in a WebView2 page that only opens
-while one of them is active. The app computes each LED's color from the
-device's position in the layout and hands it to the driver, which writes to
-the hardware on its own thread.
+</details>
 
-## License
+## 🔒 Privacy and security
 
-OpenChroma is free software under the GPL-2.0-or-later ([LICENSE](LICENSE)).
-The drivers come from OpenRGB; the bundled third-party code and its licenses
-are listed in [THIRD_PARTY.md](THIRD_PARTY.md).
+- **No telemetry, no account.** The only automatic connection is a daily
+  update check against the GitHub releases API, which you can turn off in
+  Settings › About.
+- The AI assistant is off until you add a key. The key is encrypted for
+  your Windows user (DPAPI) and only goes to the provider you chose, along
+  with the PC readings used to answer. Plain HTTP is only allowed for
+  servers on your own PC.
+- Plugins you add yourself only run after you approve them, and must be
+  approved again when they change while the app runs as administrator.
+- Settings live in `%APPDATA%\OpenChroma`.
+- Found a vulnerability? See [SECURITY.md](SECURITY.md).
 
-The PawnIO modules in `assets/pawnio` are distributed under the LGPL 2.1
-(see `assets/pawnio/COPYING.txt`).
+## ⚠️ Disclaimer
+
+OpenChroma writes to the **SMBus** (RAM and GPU lighting), **controls fan
+speeds** (including the pump), installs the **[PawnIO](https://pawnio.eu)
+kernel driver** and can **run as administrator**. Wrong writes to hardware
+can, in rare cases, make a device misbehave, lose its settings or become
+permanently damaged. OpenRGB carries a similar warning. The software is
+provided **"as is", without warranty of any kind**, as stated in the
+[GPL](LICENSE). By using it you accept these risks.
+
+OpenChroma is an independent project, **not affiliated with, endorsed by or
+sponsored by** Razer, Corsair, ASUS, Logitech, Gigabyte, MSI, Kingston, Sony
+or any other brand mentioned here. Trademarks belong to their owners and
+are used only to identify compatible hardware.
+
+## 🤝 Contributing
+
+Bug reports, device tests, plugins, translations and code are all welcome.
+
+```powershell
+flutter pub get
+flutter run -d windows   # Flutter 3.47+ and Visual Studio 2022 with C++ desktop
+flutter test
+```
+
+- [CONTRIBUTING.md](CONTRIBUTING.md): setup, tests, code style and
+  translations.
+- [docs/PLUGINS.md](docs/PLUGINS.md): device plugins in JavaScript.
+- [docs/BUILDING.md](docs/BUILDING.md): building the installer and
+  releases.
+- [ROADMAP.md](ROADMAP.md) · [CHANGELOG.md](CHANGELOG.md)
+
+## 📄 License
+
+OpenChroma is free software under the **GPL-2.0-or-later** ([LICENSE](LICENSE)).
+The drivers come from OpenRGB; bundled third-party code and licenses are
+listed in [THIRD_PARTY.md](THIRD_PARTY.md). The PawnIO modules in
+`assets/pawnio` are LGPL-2.1 (see `assets/pawnio/COPYING.txt`).
+
+<div align="center">
+<sub>Made for people who just want their PC to look good and run cool.</sub>
+</div>
