@@ -1,88 +1,94 @@
-# O que falta no OpenChroma
+# What's missing in OpenChroma
 
-Lista do que ainda não existe ou está incompleto, mais ou menos em ordem de
-prioridade. Atualize quando algo for feito.
+A list of what doesn't exist yet or is incomplete, roughly in priority order.
+Update it when something gets done.
 
 ## 1. Drivers
 
-Os drivers vêm do OpenRGB, compilados dentro do app (`windows/drivers` e
-`third_party/openrgb`), mais os plugins JavaScript do OpenChroma
-([docs/PLUGINS.md](docs/PLUGINS.md)). O OpenChroma não depende nem conversa
-com o SignalRGB ou com o OpenRGB instalado.
+The drivers come from OpenRGB, compiled into the app (`windows/drivers` and
+`third_party/openrgb`), plus OpenChroma's JavaScript plugins
+([docs/PLUGINS.md](docs/PLUGINS.md)). OpenChroma doesn't depend on or talk
+to SignalRGB or an installed OpenRGB.
 
-- [x] Núcleo nativo com os drivers do OpenRGB e uma API nossa
+- [x] Native core with the OpenRGB drivers and our own API
       (`oc_drivers.dll`).
-- [x] Remover tudo do SignalRGB.
-- [x] Licença GPL-2.0-or-later.
-- [x] Formato de plugin próprio em JavaScript, com prioridade sobre os
-      drivers embutidos.
-- [x] Primeiros plugins migrados e melhorados: DualShock 4 (com bateria),
-      teclados ROYUAN (com limite de escrita) e Logitech G403 HERO (sem gravar
-      na memória do mouse).
-- [x] Bateria de dispositivos sem fio (plugins).
-- [x] Escolher um efeito do próprio hardware em vez das cores do app.
-- [x] Ajustar velocidade, brilho, direção e cores dos efeitos do hardware
-      (drivers embutidos e plugins).
-- [x] Rotina de atualização do OpenRGB (`scripts/update-openrgb.ps1`).
-- [x] Recarregar plugins sem reiniciar o app (sozinho ao salvar o `.js`).
-- [x] Teclado ROYUAN com cor ao vivo, sem piscar (testado no Attack Shark
-      K86, a 30 atualizações por segundo).
-- [x] Bateria que o Windows já conhece (Bluetooth): aparece no dispositivo
-      quando ele também tem luz e numa lista "Outros sem fio" quando não tem.
-- [x] Plugin novo: Attack Shark X11 (luz, efeitos do mouse e bateria, no
-      cabo e pelo receptor 2.4 GHz), protocolo aprendido do app oficial e
-      testado no mouse.
-- [x] Todos os drivers de Windows do OpenRGB embutidos (~2.160 modelos de
-      189 famílias, incluindo Razer, Corsair, SteelSeries, Logitech e HyperX),
-      menos os 4 da seção 2.
-- [ ] Bateria dos mouses e headsets sem fio da Razer, Corsair, SteelSeries e
-      HyperX (a luz já funciona pelos drivers embutidos; o OpenRGB não lê
-      bateria). **Precisa do aparelho para testar.**
-- [x] Attack Shark K86 tecla por tecla, com a posição real de cada tecla:
-      efeitos parados aparecem tecla por tecla (gravados na imagem 3 do
-      teclado) e os que se mexem vão como uma cor só, porque o teclado não
-      recebe cor por tecla ao vivo (nem o app oficial faz isso). As 3 imagens
-      do teclado também aparecem como efeitos dele.
-- [x] Tela do K86: mandar imagem ou GIF (aba Tela no dispositivo), e o
-      relógio do teclado acertado sozinho.
+- [x] Remove everything from SignalRGB.
+- [x] GPL-2.0-or-later license.
+- [x] Our own JavaScript plugin format, with priority over the built-in
+      drivers.
+- [x] First plugins migrated and improved: DualShock 4 (with battery),
+      ROYUAN keyboards (with a write limit) and Logitech G403 HERO (without
+      writing to the mouse's memory).
+- [x] Battery of wireless devices (plugins).
+- [x] Pick one of the hardware's own effects instead of the app's colors.
+- [x] Adjust speed, brightness, direction and colors of hardware effects
+      (built-in drivers and plugins).
+- [x] OpenRGB update routine (`scripts/update-openrgb.ps1`).
+- [x] Reload plugins without restarting the app (automatically when the
+      `.js` is saved).
+- [x] ROYUAN keyboard with live color, without flickering (tested on the
+      Attack Shark K86, at 30 updates per second).
+- [x] Battery that Windows already knows about (Bluetooth): shown on the
+      device when it also has lighting, and in an "Other wireless" list when
+      it doesn't.
+- [x] New plugin: Attack Shark X11 (lighting, mouse effects and battery,
+      wired and through the 2.4 GHz receiver), protocol learned from the
+      official app and tested on the mouse.
+- [x] All of OpenRGB's Windows drivers built in (~2,160 models from 189
+      families, including Razer, Corsair, SteelSeries, Logitech and HyperX),
+      except the 4 in section 2.
+- [ ] Battery of Razer, Corsair, SteelSeries and HyperX wireless mice and
+      headsets (lighting already works through the built-in drivers;
+      OpenRGB doesn't read the battery). **Needs the device to test.**
+- [x] Attack Shark K86 key by key, with the real position of each key:
+      static effects show key by key (written to the keyboard's image 3) and
+      moving ones go as a single color, because the keyboard doesn't take
+      live per-key color (not even the official app does that). The
+      keyboard's 3 images also show up as its effects.
+- [x] K86 screen: send an image or GIF (Screen tab on the device), and the
+      keyboard clock set automatically.
 
-## 2. Dispositivos que ainda não funcionam
+## 2. Devices that don't work yet
 
-- [ ] Drivers de rede que ficaram de fora: Philips Hue, Nanoleaf (precisam de
-      TLS/mDNS) e E1.31 (a `libe131` é Apache-2.0, incompatível com a GPL-2.0).
-      Dá para reescrever o E1.31, que é um protocolo simples.
-- [ ] Teclados QMK/VIA (o driver do OpenRGB depende do Qt).
-- [ ] Telas LCD de water coolers e gabinetes.
+- [ ] Network drivers that were left out: Philips Hue, Nanoleaf (they need
+      TLS/mDNS) and E1.31 (`libe131` is Apache-2.0, incompatible with
+      GPL-2.0). E1.31 is a simple protocol and could be rewritten.
+- [ ] QMK/VIA keyboards (the OpenRGB driver depends on Qt).
+- [ ] LCD screens of liquid coolers and cases (beyond the ones plugins
+      already drive, such as the SmartMonitor cooler).
 
-## 3. Iluminação
+## 3. Lighting
 
-- [ ] Efeito que copia as cores da tela (ambilight).
-- [ ] Editor visual de efeitos `.ocfx`, sem precisar escrever JSON.
-- [ ] Rotação no layout (hoje só posição e tamanho).
-- [ ] Biblioteca de componentes ARGB: escolher "fan de 120 mm com 16 LEDs"
-      em vez de digitar a quantidade de LEDs.
-- [x] Trocar de perfil sozinho quando um jogo ou programa abre (e voltar
-      quando ele fecha).
-- [ ] Mais efeitos próprios (todos os efeitos do OpenChroma são exclusivos;
-      nunca copiar efeitos de outros apps).
+- [ ] Effect that copies the screen colors (ambilight).
+- [ ] Visual `.ocfx` effect editor, without writing JSON.
+- [x] Rotation in the layout (zones can be rotated and flipped).
+- [ ] ARGB component library: pick "120 mm fan with 16 LEDs" instead of
+      typing the LED count.
+- [x] Switch profiles automatically when a game or program opens (and
+      switch back when it closes).
+- [ ] More original effects (every OpenChroma effect is exclusive; never
+      copy effects from other apps).
 
-## 4. Ventoinhas e sensores
+## 4. Fans and sensors
 
-- [ ] Mais chips de placa-mãe além dos ITE (Nuvoton, Fintek).
-- [ ] Ventoinhas de placas de vídeo AMD e Intel (hoje só NVIDIA).
-- [ ] Usar a temperatura do líquido do water cooler nas curvas.
+- [ ] More motherboard chips beyond ITE (Nuvoton, Fintek).
+- [ ] AMD and Intel graphics card fans (only NVIDIA today).
+- [ ] Use the liquid cooler's coolant temperature in fan curves.
 
 ## 5. App
 
-- [ ] **Macros universais**: gravar e disparar macros de teclado e mouse
-      pelo próprio app, para qualquer marca, sem depender da memória de cada
-      aparelho.
-- [ ] **Atualização automática**: avisar e baixar a versão nova do GitHub.
-- [ ] **Assinatura de código** do `.exe` e do instalador, para o Windows não
-      mostrar o aviso do SmartScreen ("o Windows protegeu seu computador").
-- [ ] App em inglês (hoje só português).
-- [ ] Build automático no GitHub Actions: compilar, rodar os testes e anexar
-      os arquivos na release ao criar uma tag.
-- [ ] Versão para Windows ARM64.
-- [ ] Relatório de erros opcional (hoje os crashes ficam só em
+- [ ] **Universal macros**: record and trigger keyboard and mouse macros from
+      the app itself, for any brand, without relying on each device's memory.
+- [x] Update notifications: a daily check of the GitHub releases (can be
+      turned off) with a banner and a download link.
+- [ ] **Automatic updates**: download and install the new version from the
+      app itself.
+- [ ] **Code signing** of the `.exe` and the installer, so Windows doesn't
+      show the SmartScreen warning ("Windows protected your PC").
+- [x] App in English (default), with Portuguese (Brazil) as an option.
+- [x] Automatic build on GitHub Actions: compile, run the tests and attach
+      the files to the release when a tag is created.
+- [ ] Windows ARM64 version.
+- [x] "Copy diagnostics" in Settings › About, to paste into an issue.
+- [ ] Optional error reporting (today crashes only go to
       `%APPDATA%\OpenChroma\crash.log`).

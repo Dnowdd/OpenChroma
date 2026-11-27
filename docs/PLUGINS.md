@@ -1,160 +1,200 @@
-# Plugins de dispositivos
+# Device plugins
 
-Um plugin é um arquivo `.js` que ensina o OpenChroma a falar com um
-dispositivo USB HID: quais modelos ele atende, quantos LEDs eles têm e quais
-bytes mandar para pintar cada um. Os plugins têm prioridade sobre os drivers
-embutidos: quando um plugin declara um modelo, os drivers embutidos nem abrem
-aquele dispositivo.
+A plugin is a `.js` file that teaches OpenChroma how to talk to a USB HID
+device: which models it supports, how many LEDs they have and which bytes to
+send to paint each one. Plugins take priority over the built-in drivers:
+when a plugin declares a model, the built-in drivers don't even open that
+device.
 
-- Plugins que vêm com o app: [`assets/plugins`](../assets/plugins).
-- Seus plugins: `%APPDATA%\OpenChroma\plugins` (Configurações › Plugins de
-  dispositivos › Abrir pasta). Um arquivo com o mesmo nome de um plugin
-  incluído substitui o incluído. O app recarrega sozinho quando um `.js` da
-  pasta é salvo, criado ou apagado (ou pelo botão de recarregar, ao lado de
-  "Abrir pasta"): só os dispositivos daquele plugin reiniciam, e um modelo
-  que um plugin passa a atender sai dos drivers embutidos na hora.
+- Plugins that ship with the app: [`assets/plugins`](../assets/plugins).
+  They are read straight from the app's own assets (never from a copy in
+  `%APPDATA%`), so they cannot be changed from outside the install.
+- Your plugins: `%APPDATA%\OpenChroma\plugins` (Settings › Device plugins ›
+  Open folder). A user plugin only runs after you approve it (see
+  [Security](#security)). A file with the same name as a bundled plugin, or
+  one that declares the same devices, replaces the bundled one once
+  approved, and the approval dialog says so. The app watches the folder:
+  saving, creating or deleting a `.js` (or the reload button next to "Open
+  folder") reloads the plugins, and only the devices of the plugins that
+  changed restart. A model that a plugin starts supporting leaves the
+  built-in drivers right away.
 
-Cada dispositivo roda o seu plugin numa instância separada do QuickJS
-(JavaScript ES2020), sem acesso a arquivos, rede ou outros dispositivos.
+Each device runs its plugin in a separate QuickJS instance (JavaScript
+ES2020), with no access to files, the network or other devices.
 
-## Exemplo
+## Security
+
+A plugin is code that runs inside OpenChroma, often with administrator
+rights (SMBus access needs them), and it can send any report to the USB
+devices it declares. So:
+
+- **Approval on first use.** A user plugin is not even evaluated until you
+  approve it. New or modified files show "N new plugins need your approval"
+  on the Devices page; the dialog lists file name, path, size, date and the
+  SHA-256 of each one. The approval is stored in `settings.json` as
+  `{file name: SHA-256}` and is bound to that exact content: the plugin
+  that runs is the text that was hashed, not a second read of the file.
+  A refusal is remembered until the file changes.
+- **Edits.** When OpenChroma runs as administrator, any change to an
+  approved file makes it pending again. When it does not (the usual way to
+  develop a plugin), a file you approved once keeps its approval as you
+  edit it, so hot reload stays smooth; a new file name always asks.
+  Limitation: `settings.json` is as writable as the plugins folder, so
+  malware that can write both could pre-approve its own file. The approval
+  stops code that only drops a `.js`.
+- **Limits.** Each user plugin is read in its own isolate with a 3 second
+  limit and a 512 KB JavaScript stack (64 MB heap when the QuickJS bridge
+  exports `jsSetMemoryLimit`, which the current Windows build does not). QuickJS
+  cannot be interrupted, so a plugin that loops forever is reported as an
+  error and its thread is left at idle priority until the app exits; it is
+  not tried again until the file changes. A running plugin that stops
+  answering for 20 seconds is marked as failed the same way.
+- **Devices.** A plugin only gets the HID/serial collections of the VID:PID
+  pairs it declares (the worker enforces it again on its side), and never
+  FIDO security keys (usage page `0xF1D0`).
+
+## Example
 
 ```js
 plugin({
-  name: 'Mouse Exemplo',
-  vendor: 'Exemplo',
+  name: 'Example Mouse',
+  vendor: 'Example',
   type: 'mouse',
-  devices: [{ vid: 0x1234, pid: 0x5678, name: 'Exemplo M1' }],
+  devices: [{ vid: 0x1234, pid: 0x5678, name: 'Example M1' }],
   endpoint: { interface: 1, usagePage: 0xFF00 },
   zones: [
     { name: 'Logo', leds: 1 },
-    { name: 'Roda', leds: 1 }
+    { name: 'Wheel', leds: 1 }
   ],
 
   start: function (dev) {
-    dev.write([0x01, 0x10]); // modo controlado pelo software
+    dev.write([0x01, 0x10]); // software-controlled mode
   },
 
   render: function (dev, colors) {
-    // colors: [r, g, b] de cada LED, na ordem das zonas
+    // colors: [r, g, b] of each LED, in zone order
     dev.write([0x02].concat(colors));
   },
 
   stop: function (dev) {
-    dev.write([0x01, 0x00]); // devolve o controle ao mouse
+    dev.write([0x01, 0x00]); // give control back to the mouse
   }
 });
 ```
 
-## A descrição
+## The description
 
-| Campo | Obrigatório | O que é |
+| Field | Required | What it is |
 |---|---|---|
-| `name` | sim | Nome do plugin. |
-| `vendor` | não | Fabricante. |
-| `type` | não | `keyboard`, `mouse`, `headset`, `mousepad`, `motherboard`, `gpu`, `ram`, `ledstrip`, `cooler`, `gamepad`, `speakers`, `microphone`, `case` ou `other`. Define o desenho do dispositivo no app. |
-| `devices` | sim | Lista de `{ vid, pid, name }` atendidos. |
-| `serial` | não | `{ baud }` quando os aparelhos são portas seriais USB (COMx) e não HID: o app acha a porta pelo VID:PID, abre em 8N1 sem controle de fluxo e `dev.write`/`dev.read` passam a mandar e ler bytes crus. `endpoint` não se aplica. |
-| `endpoint` | não | Qual coleção HID abrir: um objeto com os campos que precisam bater (`interface`, `usagePage`, `usage`, `collection`) ou uma função `(endpoints) => índice` (-1 recusa). Sem ele, a primeira coleção. |
-| `zones` | sim | Grupos de LEDs, na ordem das cores: `{ name, leds }` (uma fileira) ou `{ name, width, height, map }` (matriz; `map` tem `width × height` posições com o índice do LED na zona ou `-1`). Pode ser uma função `(dev) => zonas`, chamada depois do `start`. |
-| `modes` | não | Efeitos do próprio hardware: `[{ id, name, speed, brightness, colors, random }]`. O usuário escolhe na tela do dispositivo. Só `id` e `name` são obrigatórios; os outros campos mostram controles para o efeito (veja [Efeitos do hardware](#efeitos-do-hardware)). Também pode ser uma função. |
-| `screen` | não | A tela do aparelho, se tiver: `{ width, height, maxFrames, round }` (`maxFrames` é quantos quadros ela guarda, padrão 100; `round: true` para telas redondas; `liveValues: n` se a tela desenha sozinha até `n` valores ao vivo, como temperatura da CPU). Mostra a aba Tela no dispositivo. Também pode ser uma função. |
-| `settings` | não | Opções mostradas no app: `{ nome: { label, type, default, min, max, values, description } }`, com `type` `number`, `boolean`, `color` ou `combobox`. Num dispositivo com `screen`, a opção `brightness` é o brilho da tela: aparece no painel de brilho do app e chega ao plugin já multiplicada pelo brilho geral, dentro de `min` e `max`. |
-| `fps` | não | Quadros por segundo de `render` (padrão 30, máximo 60). |
-| `pollMs` | não | Intervalo de `poll` em milissegundos (padrão 1000). |
+| `name` | yes | Plugin name. |
+| `vendor` | no | Manufacturer. |
+| `type` | no | `keyboard`, `mouse`, `headset`, `mousepad`, `motherboard`, `gpu`, `ram`, `ledstrip`, `cooler`, `gamepad`, `speakers`, `microphone`, `case` or `other`. Sets the device artwork in the app. |
+| `devices` | yes | List of supported `{ vid, pid, name }`. |
+| `serial` | no | `{ baud }` when the devices are USB serial ports (COMx) rather than HID: the app finds the port by VID:PID, opens it as 8N1 without flow control, and `dev.write`/`dev.read` send and read raw bytes. `endpoint` doesn't apply. |
+| `endpoint` | no | Which HID collection to open: an object with the fields that must match (`interface`, `usagePage`, `usage`, `collection`) or a function `(endpoints) => index` (-1 refuses). Without it, the first collection. |
+| `zones` | yes | Groups of LEDs, in color order: `{ name, leds }` (a single row) or `{ name, width, height, map }` (a matrix; `map` has `width × height` positions holding the LED index within the zone, or `-1`). Can be a function `(dev) => zones`, called after `start`. |
+| `modes` | no | The hardware's own effects: `[{ id, name, speed, brightness, colors, random }]`. The user picks one on the device screen. Only `id` and `name` are required; the other fields show controls for the effect (see [Hardware effects](#hardware-effects)). Can also be a function. |
+| `screen` | no | The device's screen, if it has one: `{ width, height, maxFrames, round }` (`maxFrames` is how many frames it stores, default 100; `round: true` for round screens; `liveValues: n` if the screen draws up to `n` live values by itself, such as the CPU temperature). Shows the Screen tab on the device. Can also be a function. |
+| `settings` | no | Options shown in the app: `{ name: { label, type, default, min, max, values, description } }`, with `type` `number`, `boolean`, `color` or `combobox`. On a device with `screen`, the `brightness` option is the screen brightness: it shows up in the app's brightness panel and reaches the plugin already multiplied by the global brightness, within `min` and `max`. |
+| `fps` | no | Frames per second for `render` (default 30, max 60). |
+| `pollMs` | no | `poll` interval in milliseconds (default 1000). |
 
-## As funções
+## The functions
 
-Todas recebem `dev` primeiro; `this` é o próprio objeto do plugin, então dá
-para guardar estado nele (`this.ultimaCor = ...`).
+All of them get `dev` first; `this` is the plugin object itself, so you can
+keep state on it (`this.lastColor = ...`).
 
-| Função | Quando |
+| Function | When |
 |---|---|
-| `start(dev)` | Ao abrir o dispositivo. Retornar `false` recusa o dispositivo. |
-| `render(dev, colors)` | A cada quadro, com as cores de todos os LEDs (`[r, g, b, r, g, b, ...]`, 0 a 255, já com o brilho aplicado). O app só chama quando as cores mudam. |
-| `mode(dev, id, opções)` | O usuário escolheu um efeito do hardware (`id` de `modes`) ou mudou as opções dele, ou `null` para voltar às cores do app. |
-| `poll(dev)` | A cada `pollMs`: ler bateria, estado etc. |
-| `settingChanged(dev, nome, valor)` | O usuário mudou uma opção. |
-| `showImage(dev, imagem)` | O usuário mandou uma imagem ou GIF para a tela: `{ width, height, frames, delays }`, com o número de quadros e quanto cada um dura (ms). Pegue cada quadro com `dev.frame(i)` e avise o andamento com `dev.progress(x)`. Os valores ao vivo vêm em `widgets`: `{ x, y, width, height, color (RGB565), channel, glyphHeight, glyphWidths }`, com os glifos de "0" a "9", "." e "-" em `dev.widgetGlyphs(i)`. Retorne `true` se o aparelho aceitou. |
-| `values(dev, valores)` | A cada segundo, quando a imagem da tela tem valores ao vivo: um número (ou `null`) por canal, na ordem de `imagem.widgets[i].channel`. |
-| `stop(dev)` | O app vai fechar ou o dispositivo foi desativado. |
+| `start(dev)` | When the device is opened. Returning `false` refuses the device. |
+| `render(dev, colors)` | Every frame, with the colors of all LEDs (`[r, g, b, r, g, b, ...]`, 0 to 255, brightness already applied). The app only calls it when the colors change. |
+| `mode(dev, id, options)` | The user picked a hardware effect (`id` from `modes`) or changed its options, or `null` to go back to the app's colors. |
+| `poll(dev)` | Every `pollMs`: read the battery, state and so on. |
+| `settingChanged(dev, name, value)` | The user changed an option. |
+| `showImage(dev, image)` | The user sent an image or GIF to the screen: `{ width, height, frames, delays }`, with the number of frames and how long each one lasts (ms). Get each frame with `dev.frame(i)` and report progress with `dev.progress(x)`. Live values come in `widgets`: `{ x, y, width, height, color (RGB565), channel, glyphHeight, glyphWidths }`, with the glyphs for "0" to "9", "." and "-" in `dev.widgetGlyphs(i)`. Return `true` if the device accepted it. |
+| `values(dev, values)` | Every second, when the screen image has live values: one number (or `null`) per channel, in the order of `image.widgets[i].channel`. |
+| `stop(dev)` | The app is closing or the device was disabled. |
 
-## Efeitos do hardware
+## Hardware effects
 
-Cada efeito em `modes` pode declarar o que o usuário ajusta:
+Each effect in `modes` can declare what the user adjusts:
 
-| Campo | O que é |
+| Field | What it is |
 |---|---|
-| `speed` | `{ min, max, default }`: `min` é o mais lento e `max` o mais rápido, mesmo que `min` seja o número maior (como em aparelhos que medem a velocidade em tempo por ciclo). |
-| `brightness` | `{ min, max, default }`, do mais fraco ao mais forte. |
-| `colors` | Quantas cores o efeito usa (`1`), ou `{ min, max, default: ['#ff0000', ...] }` para deixar o usuário escolher quantas. Sem `default`, as cores começam brancas. |
-| `random` | `true` se o aparelho também sabe escolher as cores sozinho (arco-íris). Começa ligado. |
+| `speed` | `{ min, max, default }`: `min` is the slowest and `max` the fastest, even if `min` is the larger number (as on devices that measure speed as time per cycle). |
+| `brightness` | `{ min, max, default }`, from dimmest to brightest. |
+| `colors` | How many colors the effect uses (`1`), or `{ min, max, default: ['#ff0000', ...] }` to let the user choose how many. Without `default`, the colors start white. |
+| `random` | `true` if the device can also pick colors by itself (rainbow). Starts on. |
 
-`mode(dev, id, opções)` recebe os valores escolhidos (ou os `default`):
-`{ speed, brightness, colors: [[r, g, b], ...], random }`, só com os campos
-que o efeito declarou. A função é chamada de novo a cada mudança, então
-mande o comando completo do efeito.
+`mode(dev, id, options)` gets the chosen values (or the `default`s):
+`{ speed, brightness, colors: [[r, g, b], ...], random }`, with only the
+fields the effect declared. The function is called again on every change, so
+send the effect's full command.
 
 ```js
 modes: [
-  { id: 0x02, name: 'Respirar', speed: { min: 0, max: 4, default: 2 }, colors: 1, random: true },
-  { id: 0x00, name: 'Desligado' }
+  { id: 0x02, name: 'Breathing', speed: { min: 0, max: 4, default: 2 }, colors: 1, random: true },
+  { id: 0x00, name: 'Off' }
 ],
 
-mode: function (dev, id, opcoes) {
-  if (id === null) return; // o próximo render manda as cores do app
-  var cor = opcoes.random ? [0, 0, 0] : opcoes.colors[0];
-  dev.write([0x01, id, opcoes.speed, opcoes.random ? 1 : 0].concat(cor));
+mode: function (dev, id, options) {
+  if (id === null) return; // the next render sends the app's colors
+  var color = options.random ? [0, 0, 0] : options.colors[0];
+  dev.write([0x01, id, options.speed, options.random ? 1 : 0].concat(color));
 }
 ```
 
-Quando `zones`, `modes` ou `screen` são funções, elas rodam depois do `start`, com `this` sendo o plugin: dá para depender do que o `start` descobriu (como o modelo do aparelho).
+When `zones`, `modes` or `screen` are functions, they run after `start`,
+with `this` being the plugin: they can depend on what `start` found out
+(such as the device model).
 
-## O objeto `dev`
+## The `dev` object
 
-| Membro | O que faz |
+| Member | What it does |
 |---|---|
 | `dev.info` | `{ vid, pid, serial, product, manufacturer, name }`. |
-| `dev.write(bytes)` | Relatório de saída; `bytes[0]` é o ID do relatório (0 se o dispositivo não usa IDs). Completa com zeros até o tamanho do relatório. Retorna os bytes escritos ou -1. |
-| `dev.read(tamanho, timeoutMs)` | Próximo relatório de entrada (ID 0 removido), ou `[]` se nada chegar a tempo (padrão 100 ms). |
-| `dev.sendFeature(bytes)` | Relatório de feature; `bytes[0]` é o ID. |
-| `dev.getFeature(id, tamanho)` | Lê um relatório de feature. |
-| `dev.getInputReport(id, tamanho)` | Lê um relatório de entrada pelo canal de controle. |
-| `dev.clearInput()` | Descarta relatórios de entrada acumulados. |
-| `dev.endpoints()` | Todas as coleções HID do dispositivo. |
-| `dev.useEndpoint(filtro)` | Passa a usar outra coleção (ex.: um mouse com comandos curtos numa e longos noutra). |
-| `dev.sleep(ms)` | Espera. |
-| `dev.log(...)` | Mensagem no log do dispositivo. |
-| `dev.setting(nome)` | Valor atual de uma opção. |
-| `dev.setBattery(percentual, carregando)` | Mostra a bateria no app. |
-| `dev.frame(i)` | Quadro `i` da imagem que vai para a tela: `[r, g, b, ...]` linha por linha, já no tamanho de `screen`. |
-| `dev.jpeg(i, qualidade)` | O quadro `i` já codificado em JPEG (qualidade de 10 a 100, padrão 85), para telas que recebem JPEG. |
-| `dev.widgetGlyphs(i)` | Os glifos do valor ao vivo `i`: um byte de opacidade por pixel, glifo após glifo, linha por linha. |
-| `dev.progress(x)` | Andamento de um envio demorado, de 0 a 1 (aparece na aba Tela). |
-| `dev.localTime()` | A hora local do PC: `[ano, mês, dia, hora, minuto, segundo]`. O `Date` do JavaScript aqui só conhece UTC. |
+| `dev.write(bytes)` | Output report; `bytes[0]` is the report ID (0 if the device doesn't use IDs). Padded with zeros up to the report size. Returns the bytes written or -1. |
+| `dev.read(size, timeoutMs)` | Next input report (ID 0 removed), or `[]` if nothing arrives in time (default 100 ms). |
+| `dev.sendFeature(bytes)` | Feature report; `bytes[0]` is the ID. |
+| `dev.getFeature(id, size)` | Reads a feature report. |
+| `dev.getInputReport(id, size)` | Reads an input report through the control channel. |
+| `dev.clearInput()` | Discards queued input reports. |
+| `dev.endpoints()` | All HID collections of the device. |
+| `dev.useEndpoint(filter)` | Switches to another collection (e.g. a mouse with short commands on one and long ones on another). |
+| `dev.sleep(ms)` | Waits. |
+| `dev.log(...)` | Message in the device log. |
+| `dev.setting(name)` | Current value of an option. |
+| `dev.setBattery(percent, charging)` | Shows the battery in the app. |
+| `dev.frame(i)` | Frame `i` of the image going to the screen: `[r, g, b, ...]` row by row, already at the `screen` size. |
+| `dev.jpeg(i, quality)` | Frame `i` already encoded as JPEG (quality 10 to 100, default 85), for screens that take JPEG. |
+| `dev.widgetGlyphs(i)` | The glyphs of live value `i`: one opacity byte per pixel, glyph after glyph, row by row. |
+| `dev.progress(x)` | Progress of a long upload, from 0 to 1 (shown on the Screen tab). |
+| `dev.localTime()` | The PC's local time: `[year, month, day, hour, minute, second]`. JavaScript's `Date` here only knows UTC. |
 
-## Boas práticas
+## Good practices
 
-- **Não grave na memória do dispositivo a cada quadro.** Muitos dispositivos
-  salvam a cor quando recebem o comando de modo; se for o caso, use o modo
-  "sem salvar" do aparelho (como no `logitech-g403-hero.js`) ou limite a taxa
-  (como no `royuan-keyboard.js`).
-- **Não regrave o que você não entende.** Se o comando de cor leva junto
-  outras configurações (tempo de suspensão, debounce dos botões...), não
-  confie numa leitura para copiá-las: há aparelhos que devolvem a leitura
-  cortada. Use valores conhecidos ou ofereça-os como opções (como no
-  `attack-shark-x11.js`).
-- Se o aparelho só manda a bateria quando não está ocupado, pare de escrever
-  de vez em quando para ouvi-la (como no `attack-shark-x11.js`).
-- Em `stop`, deixe o dispositivo num estado sensato: apagado ou de volta ao
-  efeito salvo nele.
-- Plugins baseados em código do OpenRGB continuam GPL-2.0-or-later: mantenha
-  o crédito e a linha `SPDX-License-Identifier` no topo, como nos incluídos.
+- **Don't write to the device's memory every frame.** Many devices save the
+  color when they get the mode command; if that's the case, use the device's
+  "don't save" mode (as in `logitech-g403-hero.js`) or limit the rate (as in
+  `royuan-keyboard.js`).
+- **Don't rewrite what you don't understand.** If the color command also
+  carries other settings (sleep timeout, button debounce...), don't trust a
+  read to copy them: some devices return a truncated read. Use known values
+  or offer them as options (as in `attack-shark-x11.js`).
+- **Respect the device's limits.** If a device has a maximum upload size,
+  frame count or write rate, enforce it in the plugin; never bypass it to
+  squeeze in more.
+- If the device only sends the battery level when it isn't busy, stop
+  writing once in a while to listen for it (as in `attack-shark-x11.js`).
+- In `stop`, leave the device in a sensible state: off, or back to the
+  effect saved in it.
+- Plugins based on OpenRGB code stay GPL-2.0-or-later: keep the credit and
+  the `SPDX-License-Identifier` line at the top, like the bundled ones.
 
-## Testar
+## Testing
 
-`test/plugins_test.dart` roda os plugins incluídos contra um dispositivo falso
-e confere os bytes que eles mandam. Para um plugin novo, siga o mesmo modelo:
+`test/plugins_test.dart` runs the bundled plugins against a fake device and
+checks the bytes they send. For a new plugin, follow the same pattern:
 
 ```powershell
 flutter build windows --release
