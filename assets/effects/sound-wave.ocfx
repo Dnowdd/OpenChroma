@@ -1,17 +1,27 @@
 {
   "openchroma": 1,
-  "name": "Onda Sonora",
-  "description": "Uma onda de luz que cresce com o volume e corre pelo setup.",
+  "name": "Sound Wave",
+  "description": "A wave of light that grows with the volume and runs across your setup.",
   "author": "OpenChroma",
+  "i18n": {
+    "pt": {
+      "name": "Onda Sonora",
+      "description": "Uma onda de luz que cresce com o volume e corre pelo setup.",
+      "params": {
+        "color": "Cor da onda",
+        "speed": "Velocidade"
+      }
+    }
+  },
   "background": "#020814",
   "params": {
     "color": {
-      "label": "Cor da onda",
+      "label": "Wave color",
       "type": "color",
       "default": "#3CFFB4"
     },
     "speed": {
-      "label": "Velocidade",
+      "label": "Speed",
       "type": "number",
       "min": 0,
       "max": 100,

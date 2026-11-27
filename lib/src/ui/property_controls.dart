@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-import '../i18n/pt_br.dart';
+import '../i18n/l10n.dart';
+import '../i18n/terms.dart';
 import 'theme.dart';
 import 'widgets.dart';
 
@@ -30,6 +31,7 @@ class PropertyControl extends StatelessWidget {
     this.max = 100,
     this.step,
     this.values = const [],
+    this.optionLabel = localizeTerm,
   });
 
   final String label;
@@ -41,11 +43,12 @@ class PropertyControl extends StatelessWidget {
   final double max;
   final double? step;
   final List<String> values;
+  final String Function(String value) optionLabel;
 
   @override
   Widget build(BuildContext context) {
-    final description = tooltip.isEmpty ? null : tr(tooltip);
-    final label = tr(this.label);
+    final description = tooltip.isEmpty ? null : localizeTerm(tooltip);
+    final label = localizeTerm(this.label);
     switch (type) {
       case 'boolean':
         return OcRow(
@@ -63,7 +66,7 @@ class PropertyControl extends StatelessWidget {
           trailing: OcSelect(
             value: current,
             options: values,
-            labelOf: tr,
+            labelOf: optionLabel,
             onChanged: onChanged,
             width: 168,
           ),
@@ -220,7 +223,7 @@ class _ColorPickerDialogState extends State<_ColorPickerDialog> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const Text('Cor', style: OcText.label),
+              Text(l10n.paramColorPickerTitle, style: OcText.label),
               const SizedBox(height: 12),
               LayoutBuilder(
                 builder: (context, box) {
@@ -379,13 +382,13 @@ class _ColorPickerDialogState extends State<_ColorPickerDialog> {
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
                   OcButton(
-                    label: 'Cancelar',
+                    label: l10n.paramColorPickerCancel,
                     variant: OcButtonVariant.ghost,
                     onPressed: () => Navigator.pop(context),
                   ),
                   const SizedBox(width: 8),
                   OcButton(
-                    label: 'Aplicar',
+                    label: l10n.paramColorPickerApply,
                     variant: OcButtonVariant.primary,
                     onPressed: () => Navigator.pop(context, color),
                   ),

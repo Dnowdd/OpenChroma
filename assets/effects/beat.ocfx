@@ -1,12 +1,21 @@
 {
   "openchroma": 1,
-  "name": "Batida",
-  "description": "Cada batida da música dispara um anel de luz que se espalha pelo setup.",
+  "name": "Beat",
+  "description": "Every beat of the music sends a ring of light across your setup.",
   "author": "OpenChroma",
+  "i18n": {
+    "pt": {
+      "name": "Batida",
+      "description": "Cada batida da música dispara um anel de luz que se espalha pelo setup.",
+      "params": {
+        "speed": "Velocidade dos anéis"
+      }
+    }
+  },
   "background": "#03040A",
   "params": {
     "speed": {
-      "label": "Velocidade dos anéis",
+      "label": "Ring speed",
       "type": "number",
       "min": 10,
       "max": 100,

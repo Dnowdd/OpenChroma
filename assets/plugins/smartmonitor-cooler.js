@@ -177,11 +177,11 @@ plugin({
   zones: [],
   screen: { width: SIZE, height: SIZE, maxFrames: 100, round: true, liveValues: CHANNELS },
   settings: {
-    screenOn: { label: 'Tela ligada', type: 'boolean', default: true },
-    brightness: { label: 'Brilho da tela', type: 'number', default: 100, min: 1, max: 100 },
-    quality: { label: 'Qualidade do JPEG', type: 'number', default: 80, min: 40, max: 100 },
+    screenOn: { label: 'Screen on', type: 'boolean', default: true },
+    brightness: { label: 'Screen brightness', type: 'number', default: 100, min: 1, max: 100 },
+    quality: { label: 'JPEG quality', type: 'number', default: 80, min: 40, max: 100 },
     direction: {
-      label: 'Rotação da tela',
+      label: 'Screen rotation',
       type: 'combobox',
       default: '0°',
       values: ['0°', '90°', '180°', '270°']

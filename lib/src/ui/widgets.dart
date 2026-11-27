@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../i18n/l10n.dart';
 import 'accent.dart';
 import 'theme.dart';
 
@@ -491,13 +492,9 @@ class OcBadge extends StatelessWidget {
 }
 
 class OcSearchField extends StatelessWidget {
-  const OcSearchField({
-    super.key,
-    required this.onChanged,
-    this.hint = 'Buscar',
-  });
+  const OcSearchField({super.key, required this.onChanged, this.hint});
   final ValueChanged<String> onChanged;
-  final String hint;
+  final String? hint;
 
   @override
   Widget build(BuildContext context) => SizedBox(
@@ -509,7 +506,7 @@ class OcSearchField extends StatelessWidget {
       maxLines: null,
       textAlignVertical: TextAlignVertical.center,
       style: const TextStyle(fontSize: 12.5, color: Oc.text),
-      decoration: _fieldDecoration(hint).copyWith(
+      decoration: _fieldDecoration(hint ?? l10n.commonSearch).copyWith(
         prefixIcon: const Icon(Icons.search, size: 16, color: Oc.textTertiary),
         prefixIconConstraints: const BoxConstraints(minWidth: 32),
       ),

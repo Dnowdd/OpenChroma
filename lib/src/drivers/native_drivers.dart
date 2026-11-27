@@ -81,7 +81,7 @@ class DriverDevice {
       final v = '${j[k] ?? ''}'.trim();
       if (v.isNotEmpty) return v;
     }
-    return 'Dispositivo';
+    return 'Device';
   }
 
   static List<DriverZone> _zones(List raw) {

@@ -1,0 +1,40 @@
+{
+  "pluginTrustTimedOut": "The plugin took too long to start and was stopped.",
+  "pluginTrustLoadFailed": "The plugin stopped while loading.",
+  "pluginTrustTooLarge": "The file is larger than 1 MB.",
+  "pluginTrustUnresponsive": "The plugin stopped responding.",
+  "pluginTrustBanner": "{count, plural, =1{1 new plugin needs your approval} other{{count} new plugins need your approval}}",
+  "@pluginTrustBanner": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "pluginTrustReview": "Review",
+  "pluginTrustTitle": "Device plugins",
+  "pluginTrustIntro": "A plugin is a program that runs inside OpenChroma and can send any command to your USB devices. Approve only plugins from a source you trust.",
+  "pluginTrustElevated": "OpenChroma is running as administrator, so an approved plugin runs with administrator rights.",
+  "pluginTrustPending": "Waiting for approval",
+  "pluginTrustApproved": "Approved",
+  "pluginTrustDenied": "Not allowed",
+  "pluginTrustApprove": "Approve",
+  "pluginTrustDeny": "Don't allow",
+  "pluginTrustRevoke": "Revoke",
+  "pluginTrustClose": "Close",
+  "pluginTrustPath": "Path",
+  "pluginTrustSize": "Size",
+  "pluginTrustModified": "Modified",
+  "pluginTrustHash": "SHA-256",
+  "pluginTrustChanged": "Changed since you approved it",
+  "pluginTrustReplaces": "Replaces the built-in plugin with the same file name",
+  "pluginTrustOverrides": "Replaces the built-in plugin: {names}",
+  "@pluginTrustOverrides": {
+    "placeholders": {
+      "names": {
+        "type": "String"
+      }
+    }
+  },
+  "pluginTrustEmpty": "There are no plugins in your plugins folder. Built-in plugins don't need approval."
+}

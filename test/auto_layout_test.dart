@@ -174,7 +174,7 @@ void main() {
         tester.getTopLeft(zoneOverlay) -
         tester.getTopLeft(find.byType(LiveCanvas));
     final originalPosition = position();
-    await tap('Auto Arrange');
+    await tap('Auto arrange');
     expect(find.text('Preview'), findsOneWidget);
     final previewPosition = position();
     expect(previewPosition, isNot(originalPosition));
@@ -182,7 +182,7 @@ void main() {
     await tap('Cancel');
     expect((position() - originalPosition).distance, lessThan(0.001));
     expect(engine.layoutOf(keyboard, zone).toJson(), original);
-    await tap('Auto Arrange');
+    await tap('Auto arrange');
     await tap('Apply');
     expect(
       engine.layoutOf(keyboard, zone).toJson(),

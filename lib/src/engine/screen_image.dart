@@ -3,6 +3,8 @@ import 'dart:math' as math;
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
+import '../i18n/l10n.dart';
+
 /// A device's own screen, as its plugin declares it.
 class ScreenSpec {
   const ScreenSpec(
@@ -43,7 +45,7 @@ class ScreenSpec {
 /// A text drawn over the image, placed and sized relative to the screen.
 class ScreenText {
   const ScreenText({
-    this.text = 'Texto',
+    this.text = 'Text',
     this.x = .5,
     this.y = .5,
     this.size = .1,
@@ -119,26 +121,39 @@ class ScreenText {
 
 /// A live value a screen can show.
 class ScreenSource {
-  const ScreenSource(this.key, this.label, this.unit, this.digits);
+  const ScreenSource(this.key, this.unit, this.digits);
   final String key;
-  final String label;
   final String unit;
 
   /// The most digits the value takes, to size its box.
   final int digits;
 
   static const all = [
-    ScreenSource('cpu.temp', 'Temperatura da CPU', '°C', 3),
-    ScreenSource('cpu.usage', 'Uso da CPU', '%', 3),
-    ScreenSource('cpu.clock', 'Clock da CPU', 'MHz', 4),
-    ScreenSource('cpu.power', 'Consumo da CPU', 'W', 3),
-    ScreenSource('gpu.temp', 'Temperatura da GPU', '°C', 3),
-    ScreenSource('gpu.usage', 'Uso da GPU', '%', 3),
-    ScreenSource('gpu.clock', 'Clock da GPU', 'MHz', 4),
-    ScreenSource('gpu.power', 'Consumo da GPU', 'W', 3),
-    ScreenSource('gpu.fan', 'Ventoinha da GPU', '%', 3),
-    ScreenSource('ram.usage', 'Uso da RAM', '%', 3),
+    ScreenSource('cpu.temp', '°C', 3),
+    ScreenSource('cpu.usage', '%', 3),
+    ScreenSource('cpu.clock', 'MHz', 4),
+    ScreenSource('cpu.power', 'W', 3),
+    ScreenSource('gpu.temp', '°C', 3),
+    ScreenSource('gpu.usage', '%', 3),
+    ScreenSource('gpu.clock', 'MHz', 4),
+    ScreenSource('gpu.power', 'W', 3),
+    ScreenSource('gpu.fan', '%', 3),
+    ScreenSource('ram.usage', '%', 3),
   ];
+
+  String get label => switch (key) {
+    'cpu.temp' => l10n.screenSourceCpuTemp,
+    'cpu.usage' => l10n.screenSourceCpuUsage,
+    'cpu.clock' => l10n.screenSourceCpuClock,
+    'cpu.power' => l10n.screenSourceCpuPower,
+    'gpu.temp' => l10n.screenSourceGpuTemp,
+    'gpu.usage' => l10n.screenSourceGpuUsage,
+    'gpu.clock' => l10n.screenSourceGpuClock,
+    'gpu.power' => l10n.screenSourceGpuPower,
+    'gpu.fan' => l10n.screenSourceGpuFan,
+    'ram.usage' => l10n.screenSourceRamUsage,
+    _ => key,
+  };
 
   static ScreenSource? byKey(String? key) =>
       all.where((s) => s.key == key).firstOrNull;

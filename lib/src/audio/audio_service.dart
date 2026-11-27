@@ -2,16 +2,24 @@ import 'dart:ffi';
 
 import 'package:ffi/ffi.dart';
 
+import '../i18n/l10n.dart';
+
 /// Where audio-reactive effects listen.
 enum AudioSource {
-  off(0, 'Desligado'),
-  system(1, 'Som do PC'),
-  microphone(2, 'Microfone'),
-  both(3, 'Som do PC e microfone');
+  off(0),
+  system(1),
+  microphone(2),
+  both(3);
 
-  const AudioSource(this.code, this.label);
+  const AudioSource(this.code);
   final int code;
-  final String label;
+
+  String get label => switch (this) {
+    off => l10n.audioSourceOff,
+    system => l10n.audioSourceSystem,
+    microphone => l10n.audioSourceMicrophone,
+    both => l10n.audioSourceBoth,
+  };
 
   static AudioSource byName(String? name) =>
       values.where((s) => s.name == name).firstOrNull ?? AudioSource.system;

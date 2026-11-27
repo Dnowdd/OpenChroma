@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:isolate';
 import 'dart:math' as math;
+import 'dart:ui' show Locale;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
@@ -13,11 +14,17 @@ import '../effects/effect_library.dart';
 import '../drivers/native_drivers.dart';
 import '../hid/hid_ffi.dart';
 import '../hid/serial_ffi.dart';
+import '../i18n/l10n.dart';
+import '../i18n/terms.dart';
 import '../plugins/plugin_library.dart';
+import '../plugins/plugin_trust.dart';
 import '../plugins/plugin_worker.dart';
+import '../plugins/thread_priority.dart';
 import '../system/batteries.dart';
+import '../system/launch_settings.dart' show Elevation;
 import '../system/processes.dart';
 import '../paths.dart';
+import 'legacy_names.dart';
 import 'screen_image.dart';
 
 export 'screen_image.dart'
@@ -171,6 +178,9 @@ class DeviceInstance {
   /// Plugin isolate link.
   SendPort? port;
   ReceivePort? inbox;
+  Isolate? worker;
+  int? workerThread;
+  DateTime lastBeat = DateTime.now();
 
   /// While set, zone $1 shows the pure color ($2, $3, $4) and every other
   /// LED is dark (the color-order assistant).
@@ -215,7 +225,7 @@ class DeviceInstance {
       if (!used.add(key)) key = 'zone:${z.name}#$i';
       final label = device.zones.length == 1 || z.name.isEmpty
           ? name
-          : '$name · ${z.name}';
+          : '$name · ${localizeTerm(z.name)}';
       if (z.isMatrix) {
         final positions = <List<int>>[], leds = <int>[];
         for (var y = 0; y < z.height; y++) {
@@ -259,17 +269,40 @@ class DeviceInstance {
 class LightProfile {
   LightProfile({
     required this.id,
-    required this.name,
+    required String name,
     required this.icon,
     this.effect,
     Map<String, dynamic>? props,
     this.brightness = 100,
     List<String>? apps,
   }) : props = props ?? {},
-       apps = apps ?? [];
+       apps = apps ?? [] {
+    _name = name;
+  }
 
   final String id;
-  String name;
+  late String _name;
+
+  static String? _builtinName(String id, AppLocalizations l) => switch (id) {
+    'game' => l.engineProfileGame,
+    'work' => l.engineProfileWork,
+    'night' => l.engineProfileNight,
+    'off' => l.engineProfileOff,
+    _ => null,
+  };
+
+  /// The name to show: a built-in profile the user never renamed follows the
+  /// UI language, whichever language its name was saved in.
+  String get name {
+    final builtin = _builtinName(id, l10n);
+    if (builtin == null) return _name;
+    final untouched = ['en', 'pt'].any(
+      (code) => _builtinName(id, lookupAppLocalizations(Locale(code))) == _name,
+    );
+    return untouched ? builtin : _name;
+  }
+
+  set name(String value) => _name = value;
 
   /// Icon key, see the profiles card.
   String icon;
@@ -285,7 +318,7 @@ class LightProfile {
 
   Map<String, Object?> toJson() => {
     'id': id,
-    'name': name,
+    'name': _name,
     'icon': icon,
     'effect': effect,
     'props': props,
@@ -304,22 +337,32 @@ class LightProfile {
   );
 
   static List<LightProfile> defaults() => [
-    LightProfile(id: 'game', name: 'Jogo', icon: 'game', effect: 'Anéis Neon'),
+    LightProfile(
+      id: 'game',
+      name: l10n.engineProfileGame,
+      icon: 'game',
+      effect: 'neon-rings.ocfx',
+    ),
     LightProfile(
       id: 'work',
-      name: 'Trabalho',
+      name: l10n.engineProfileWork,
       icon: 'work',
-      effect: 'Oceano',
+      effect: 'ocean.ocfx',
       brightness: 60,
     ),
     LightProfile(
       id: 'night',
-      name: 'Noite',
+      name: l10n.engineProfileNight,
       icon: 'night',
-      effect: 'Respiração',
+      effect: 'breathing.ocfx',
       brightness: 20,
     ),
-    LightProfile(id: 'off', name: 'Desligado', icon: 'off', brightness: 0),
+    LightProfile(
+      id: 'off',
+      name: l10n.engineProfileOff,
+      icon: 'off',
+      brightness: 0,
+    ),
   ];
 }
 
@@ -385,6 +428,7 @@ class Engine extends ChangeNotifier {
 
   Future<void> start() async {
     _loadSettings();
+    if (migrateLegacyNames(_settings)) _save();
     brightness = (_settings['brightness'] as int?) ?? 100;
     _loadAuto();
     audioSource = AudioSource.byName(_settings['audioSource'] as String?);
@@ -398,7 +442,7 @@ class Engine extends ChangeNotifier {
     final saved = _settings['effect'] as String?;
     currentEffect =
         effects.where((e) => e.path == saved).firstOrNull ??
-        effects.where((e) => e.title == 'Aurora').firstOrNull ??
+        _effectByRef('aurora.ocfx') ??
         effects.firstOrNull;
     notifyListeners();
 
@@ -408,7 +452,8 @@ class Engine extends ChangeNotifier {
     } catch (_) {}
 
     // Plugins claim their devices before the native drivers look.
-    await _installBundledPlugins();
+    _approvals = PluginApprovals.fromJson(_settings['pluginApprovals']);
+    await _loadBundledPlugins();
     await _readPlugins();
     for (final key in _pluginModels.keys) {
       drivers.claimHid(key >> 16, key & 0xFFFF);
@@ -418,6 +463,10 @@ class Engine extends ChangeNotifier {
     _pluginScan = Timer.periodic(
       const Duration(seconds: 3),
       (_) => _scanPluginDevices(),
+    );
+    _pluginWatchdog = Timer.periodic(
+      const Duration(seconds: 2),
+      (_) => _checkPluginHealth(),
     );
 
     // Detection runs on the drivers' threads; poll the result.
@@ -620,11 +669,44 @@ class Engine extends ChangeNotifier {
   Set<String> get _favorites =>
       ((_settings['favorites'] ??= <dynamic>[]) as List).cast<String>().toSet();
 
-  bool isFavorite(EffectInfo e) => _favorites.contains(e.title);
+  /// Every name an effect has been known by: its file name, its title in
+  /// each language it ships, so saved references keep working when the UI
+  /// language (and so the title) changes.
+  static Set<String> _effectRefs(EffectInfo e) {
+    final doc = e.definition;
+    final i18n = doc?['i18n'];
+    return {
+      e.title.toLowerCase(),
+      p.basename(e.path).toLowerCase(),
+      if (doc?['name'] case final String name) name.toLowerCase(),
+      if (i18n is Map)
+        for (final t in i18n.values)
+          if (t is Map)
+            if (t['name'] case final String name) name.toLowerCase(),
+    };
+  }
+
+  EffectInfo? _effectByRef(String? ref) {
+    if (ref == null) return null;
+    final lower = ref.toLowerCase();
+    return effects.where((e) => e.title == ref).firstOrNull ??
+        effects.where((e) => _effectRefs(e).contains(lower)).firstOrNull;
+  }
+
+  bool isFavorite(EffectInfo e) {
+    final refs = _effectRefs(e);
+    return _favorites.any((f) => refs.contains(f.toLowerCase()));
+  }
 
   void toggleFavorite(EffectInfo e) {
+    final refs = _effectRefs(e);
     final favs = _favorites;
-    if (!favs.remove(e.title)) favs.add(e.title);
+    final saved = favs.where((f) => refs.contains(f.toLowerCase())).toList();
+    if (saved.isEmpty) {
+      favs.add(e.baseTitle);
+    } else {
+      favs.removeAll(saved);
+    }
     _settings['favorites'] = favs.toList()..sort();
     _save();
     notifyListeners();
@@ -635,29 +717,29 @@ class Engine extends ChangeNotifier {
   EffectInfo importEffect(String sourcePath) {
     final ext = p.extension(sourcePath).toLowerCase();
     if (!{'.ocfx', '.json', '.html'}.contains(ext)) {
-      throw const FormatException('Use um arquivo .ocfx, .json ou .html.');
+      throw FormatException(l10n.engineImportBadExtension);
     }
     // Validate before copying so a bad file never enters the library.
     final probe = ext == '.html'
         ? parseHtmlEffect(sourcePath, imported: true, force: true)
         : parseOcfx(sourcePath, imported: true);
     if (probe == null) {
-      throw const FormatException('Não foi possível ler esse arquivo.');
+      throw FormatException(l10n.engineImportUnreadable);
     }
     Directory(importedEffectsDir).createSync(recursive: true);
-    final base = probe.title
+    final base = probe.baseTitle
         .toLowerCase()
         .replaceAll(RegExp(r'[^a-z0-9]+'), '-')
         .replaceAll(RegExp(r'^-|-$'), '');
     final target = p.join(
       importedEffectsDir,
-      '${base.isEmpty ? 'efeito' : base}${ext == '.json' ? '.ocfx' : ext}',
+      '${base.isEmpty ? 'effect' : base}${ext == '.json' ? '.ocfx' : ext}',
     );
     File(sourcePath).copySync(target);
     _scanEffects();
     final added = effects.firstWhere(
       (e) => p.equals(e.path, target),
-      orElse: () => effects.firstWhere((e) => e.title == probe.title),
+      orElse: () => effects.firstWhere((e) => e.baseTitle == probe.baseTitle),
     );
     selectEffect(added);
     return added;
@@ -699,10 +781,14 @@ class Engine extends ChangeNotifier {
 
   List<LightProfile> get profiles {
     final raw = _settings['profiles'];
-    if (raw is List && raw.isNotEmpty) {
-      return [for (final p in raw) LightProfile.fromJson(p as Map)];
+    final list = raw is List && raw.isNotEmpty
+        ? [for (final p in raw) LightProfile.fromJson(p as Map)]
+        : LightProfile.defaults();
+    for (final profile in list) {
+      final effect = _effectByRef(profile.effect);
+      if (effect != null) profile.effect = effect.title;
     }
-    return LightProfile.defaults();
+    return list;
   }
 
   String? get activeProfile => _settings['profile'] as String?;
@@ -720,7 +806,7 @@ class Engine extends ChangeNotifier {
     try {
       final effect = profile.effect == null
           ? null
-          : effects.where((e) => e.title == profile.effect).firstOrNull;
+          : _effectByRef(profile.effect);
       if (effect != null) {
         effectSettings(effect)
           ..clear()
@@ -1036,7 +1122,7 @@ class Engine extends ChangeNotifier {
 
   String coverPath(EffectInfo e) {
     var h = 0x811c9dc5; // FNV-1a, stable across runs
-    for (final c in '${e.path.toLowerCase()}|${e.title}'.codeUnits) {
+    for (final c in '${e.path.toLowerCase()}|${e.baseTitle}'.codeUnits) {
       h = ((h ^ c) * 0x01000193) & 0xffffffff;
     }
     return p.join(_coverDir, '${h.toRadixString(16)}.png');
@@ -1061,12 +1147,15 @@ class Engine extends ChangeNotifier {
   }
 
   // ---------------------------------------------------------------- plugins
-  /// OpenChroma plugins (assets/plugins and the user's plugins folder).
   List<PluginInfo> plugins = [];
+
+  List<UserPlugin> userPlugins = [];
   late final String pluginsDir = p.join(dataDir, 'plugins');
-  late final String _bundledPluginsDir = p.join(pluginsDir, 'bundled');
+  List<PluginFile> _bundledPlugins = [];
+  PluginApprovals _approvals = PluginApprovals();
   final Map<int, (PluginInfo, PluginDevice)> _pluginModels = {};
   Timer? _pluginScan;
+  Timer? _pluginWatchdog;
   bool _scanningPlugins = false;
   int _nextPluginId = -1;
   StreamSubscription<FileSystemEvent>? _pluginWatch;
@@ -1076,31 +1165,61 @@ class Engine extends ChangeNotifier {
   /// The built-in drivers still have to learn which devices plugins took.
   bool _claimsPending = false;
 
-  /// Copies the bundled plugins out of the assets.
-  Future<void> _installBundledPlugins() async {
-    final dir = Directory(_bundledPluginsDir);
-    if (dir.existsSync()) dir.deleteSync(recursive: true);
-    dir.createSync(recursive: true);
+  int get pluginsPending =>
+      userPlugins.where((u) => u.trust == PluginTrust.pending).length;
+
+  Future<void> _loadBundledPlugins() async {
+    try {
+      Directory(p.join(pluginsDir, 'bundled')).deleteSync(recursive: true);
+    } catch (_) {}
     final manifest = await AssetManifest.loadFromAssetBundle(rootBundle);
-    for (final asset in manifest.listAssets()) {
-      if (!asset.startsWith('assets/plugins/')) continue;
-      File(p.join(_bundledPluginsDir, p.basename(asset)))
-          .writeAsStringSync(await rootBundle.loadString(asset));
-    }
+    final assets = [
+      for (final a in manifest.listAssets())
+        if (a.startsWith('assets/plugins/') && a.endsWith('.js')) a,
+    ]..sort();
+    _bundledPlugins = [
+      for (final a in assets)
+        PluginFile.bundled(p.basename(a), await rootBundle.loadString(a)),
+    ];
   }
 
-  /// Reads every plugin and which models each one drives.
+  void _saveApprovals() {
+    _settings['pluginApprovals'] = _approvals.toJson();
+    _save();
+  }
+
   Future<void> _readPlugins() async {
-    plugins = await loadPlugins(
-      bundledDir: _bundledPluginsDir,
+    final scan = await readAllPlugins(
       userDir: pluginsDir,
+      bundled: _bundledPlugins,
+      approvals: _approvals,
+      elevated: Elevation.isElevated,
+      language: l10n.localeName,
     );
+    if (scan.approvalsChanged) _saveApprovals();
+    plugins = scan.plugins;
+    userPlugins = scan.userPlugins;
     _pluginModels.clear();
-    for (final pl in plugins) {
+    for (final pl in [
+      ...plugins.where((pl) => pl.bundled),
+      ...plugins.where((pl) => !pl.bundled),
+    ]) {
       for (final model in pl.devices) {
         _pluginModels[model.key] = (pl, model);
       }
     }
+  }
+
+  Future<void> approvePlugin(UserPlugin u) {
+    _approvals.approve(u.file);
+    _saveApprovals();
+    return reloadPlugins();
+  }
+
+  Future<void> denyPlugin(UserPlugin u) {
+    _approvals.deny(u.file);
+    _saveApprovals();
+    return reloadPlugins();
   }
 
   /// Reloads the plugins shortly after a .js file in [pluginsDir] changes
@@ -1210,6 +1329,7 @@ class Engine extends ChangeNotifier {
         if (!_pluginModels.containsKey(e.vendorId << 16 | e.productId)) {
           continue;
         }
+        if (e.usagePage == 0xF1D0) continue;
         final key =
             'plugin|${e.vendorId.toRadixString(16)}:'
             '${e.productId.toRadixString(16)}|${e.serial}';
@@ -1265,7 +1385,7 @@ class Engine extends ChangeNotifier {
         _onPluginMessage(d, msg);
       } else if (msg is List) {
         // An uncaught error in the plugin's isolate (it is about to exit).
-        d.error = 'O plugin parou: ${msg.first}';
+        d.error = l10n.enginePluginStopped('${msg.first}');
       } else if (msg == null) {
         _onPluginExit(d);
       }
@@ -1275,15 +1395,19 @@ class Engine extends ChangeNotifier {
       for (final e in d.plugin!.settings.entries) e.key: e.value['default'],
       ...((ds['props'] as Map?) ?? {}).cast<String, Object?>(),
     }..updateAll((name, v) => _pluginValue(d, name, v));
-    await Isolate.spawn(
+    d.lastBeat = DateTime.now();
+    d.worker = await Isolate.spawn(
       pluginWorkerMain,
       PluginWorkerArgs(
         sendPort: inbox.sendPort,
-        pluginPath: d.plugin!.path,
+        pluginName: p.basename(d.plugin!.path),
+        pluginSource: d.plugin!.source,
+        allowedModels: {for (final m in d.plugin!.devices) m.key},
         endpoints: [for (final e in endpoints) e.toJson()],
         settings: values,
         deviceName: d.device.name,
         serialBaud: d.plugin!.serialBaud,
+        language: l10n.localeName,
       ),
       debugName: 'plugin ${d.key}',
       onError: inbox.sendPort,
@@ -1339,6 +1463,10 @@ class Engine extends ChangeNotifier {
     switch (m['t']) {
       case 'port':
         d.port = m['port'] as SendPort;
+      case 'thread':
+        d.workerThread = m['id'] as int;
+      case 'beat':
+        d.lastBeat = DateTime.now();
       case 'layout':
         final j = jsonDecode(m['layout'] as String) as Map;
         d.update(
@@ -1385,7 +1513,7 @@ class Engine extends ChangeNotifier {
         notifyListeners();
       case 'rejected':
         d.status = 'unsupported';
-        d.error = 'O plugin não reconheceu este dispositivo.';
+        d.error = l10n.enginePluginRejected;
         notifyListeners();
       case 'stopped':
         d._screenDone?.complete(false);
@@ -1427,12 +1555,12 @@ class Engine extends ChangeNotifier {
     try {
       if (edit.sources.length > spec.liveValues) {
         d.screenError = spec.liveValues == 0
-            ? 'Esta tela não mostra valores ao vivo.'
-            : 'Esta tela mostra até ${spec.liveValues} valores ao vivo diferentes.';
+            ? l10n.engineScreenNoLiveValues
+            : l10n.engineScreenMaxLiveValues(spec.liveValues);
         return false;
       }
       final image = await loadScreenImage(path, spec, edit: edit);
-      if (image.frames.isEmpty) throw const FormatException('imagem vazia');
+      if (image.frames.isEmpty) throw const FormatException('empty image');
       final widgets = await renderScreenWidgets(spec, edit);
       final done = d._screenDone = Completer<bool>();
       port.send({
@@ -1463,11 +1591,11 @@ class Engine extends ChangeNotifier {
           ..remove('screenFill');
         _save();
       } else {
-        d.screenError = 'O dispositivo não aceitou a imagem.';
+        d.screenError = l10n.engineScreenRejected;
       }
       return ok;
     } catch (e) {
-      d.screenError = 'Não foi possível abrir a imagem.';
+      d.screenError = l10n.engineScreenCannotOpen;
       return false;
     } finally {
       d.screenProgress = null;
@@ -1523,6 +1651,25 @@ class Engine extends ChangeNotifier {
       devices.remove(d.key);
       notifyListeners();
     }
+  }
+
+  static const _pluginSilence = Duration(seconds: 20);
+
+  // A JavaScript busy loop cannot be interrupted; park its thread instead.
+  void _checkPluginHealth() {
+    final now = DateTime.now();
+    var changed = false;
+    for (final d in devices.values) {
+      if (d.source != DeviceSource.plugin || d.port == null) continue;
+      if (d.status != 'running' && d.status != 'starting') continue;
+      if (now.difference(d.lastBeat) < _pluginSilence) continue;
+      d.status = 'error';
+      d.error = l10n.pluginTrustUnresponsive;
+      deprioritizeThread(d.workerThread ?? 0);
+      d.worker?.kill(priority: Isolate.immediate);
+      changed = true;
+    }
+    if (changed) notifyListeners();
   }
 
   /// Changes one of a plugin's settings for device [d].
@@ -2244,6 +2391,7 @@ class Engine extends ChangeNotifier {
     _rescan?.cancel();
     _devicePoll?.cancel();
     _pluginScan?.cancel();
+    _pluginWatchdog?.cancel();
     _batteryCheck?.cancel();
     _screenValues?.cancel();
     _pluginWatch?.cancel();

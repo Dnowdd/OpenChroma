@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 
 import '../effects/effect_library.dart';
 import '../engine/engine.dart';
+import '../i18n/l10n.dart';
 import 'accent.dart';
 import 'property_controls.dart';
 import 'theme.dart';
@@ -57,11 +58,11 @@ class _EffectsPageState extends State<EffectsPage> {
                   children: [
                     OcSegmented<String>(
                       value: _filter,
-                      options: const [
-                        ('all', 'Todos'),
-                        ('favorites', 'Favoritos'),
-                        ('audio', 'Com som'),
-                        ('imported', 'Importados'),
+                      options: [
+                        ('all', l10n.effectsFilterAll),
+                        ('favorites', l10n.effectsFilterFavorites),
+                        ('audio', l10n.effectsFilterAudio),
+                        ('imported', l10n.effectsFilterImported),
                       ],
                       onChanged: (v) => setState(() => _filter = v),
                     ),
@@ -69,13 +70,13 @@ class _EffectsPageState extends State<EffectsPage> {
                     SizedBox(
                       width: 260,
                       child: OcSearchField(
-                        hint: 'Buscar efeitos',
+                        hint: l10n.effectsSearchHint,
                         onChanged: (s) => setState(() => _query = s),
                       ),
                     ),
                     const SizedBox(width: 10),
                     OcButton(
-                      label: 'Importar',
+                      label: l10n.effectsImport,
                       icon: Icons.add_rounded,
                       variant: OcButtonVariant.primary,
                       onPressed: () => showImportDialog(context, engine),
@@ -131,25 +132,25 @@ class _EffectsPageState extends State<EffectsPage> {
   }
 
   Widget _empty(BuildContext context) => switch (_filter) {
-    'favorites' when _query.isEmpty => const EmptyState(
+    'favorites' when _query.isEmpty => EmptyState(
       icon: Icons.star_outline_rounded,
-      title: 'Nenhum favorito ainda',
-      message: 'Passe o mouse sobre um efeito e clique na estrela para guardá-lo aqui.',
+      title: l10n.effectsEmptyFavoritesTitle,
+      message: l10n.effectsEmptyFavoritesMessage,
     ),
     'imported' when _query.isEmpty => EmptyState(
       icon: Icons.file_upload_outlined,
-      title: 'Nenhum efeito importado',
-      message: 'Crie um efeito em .ocfx ou traga um arquivo .html.',
+      title: l10n.effectsEmptyImportedTitle,
+      message: l10n.effectsEmptyImportedMessage,
       action: OcButton(
-        label: 'Importar efeito',
+        label: l10n.effectsImportEffect,
         icon: Icons.add_rounded,
         onPressed: () => showImportDialog(context, widget.engine),
       ),
     ),
-    _ => const EmptyState(
+    _ => EmptyState(
       icon: Icons.search_off_rounded,
-      title: 'Nada encontrado',
-      message: 'Tente outro termo de busca.',
+      title: l10n.effectsNotFoundTitle,
+      message: l10n.effectsNotFoundMessage,
     ),
   };
 }
@@ -245,9 +246,9 @@ class _EffectCard extends StatelessWidget {
                 ),
               ),
               if (effect.usesAudio)
-                const Tooltip(
-                  message: 'Reage ao som',
-                  child: Icon(
+                Tooltip(
+                  message: l10n.effectsReactsToSound,
+                  child: const Icon(
                     Icons.graphic_eq_rounded,
                     size: 15,
                     color: Oc.textTertiary,
@@ -268,7 +269,7 @@ class _FavoriteButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Tooltip(
-    message: active ? 'Remover dos favoritos' : 'Favoritar',
+    message: active ? l10n.effectsRemoveFavorite : l10n.effectsAddFavorite,
     child: Hover(
       onTap: onTap,
       builder: (context, h) => AnimatedContainer(
@@ -307,9 +308,9 @@ class _LiveChip extends StatelessWidget {
       children: [
         OcStatusDot(color: LiveAccent.of(context), size: 6),
         const SizedBox(width: 7),
-        const Text(
-          'Ao vivo',
-          style: TextStyle(
+        Text(
+          l10n.effectsLive,
+          style: const TextStyle(
             fontSize: 11.5,
             fontWeight: FontWeight.w500,
             color: Colors.white,
@@ -460,20 +461,25 @@ class _Inspector extends StatelessWidget {
                       icon: favorite
                           ? Icons.star_rounded
                           : Icons.star_outline_rounded,
-                      tooltip: favorite ? 'Remover dos favoritos' : 'Favoritar',
+                      tooltip: favorite
+                          ? l10n.effectsRemoveFavorite
+                          : l10n.effectsAddFavorite,
                       onPressed: () => engine.toggleFavorite(effect),
                     ),
                     if (effect.imported)
                       OcIconButton(
                         icon: Icons.delete_outline_rounded,
-                        tooltip: 'Remover efeito importado',
+                        tooltip: l10n.effectsRemoveImported,
                         onPressed: () => _confirmRemove(context),
                       ),
                   ],
                 ),
                 if (showAuthor) ...[
                   const SizedBox(height: 2),
-                  Text('por ${effect.author}', style: OcText.caption),
+                  Text(
+                    l10n.effectsByAuthor(effect.author),
+                    style: OcText.caption,
+                  ),
                 ],
                 if (effect.description.isNotEmpty) ...[
                   const SizedBox(height: 10),
@@ -482,9 +488,9 @@ class _Inspector extends StatelessWidget {
                 const SizedBox(height: 28),
                 if (effect.properties.isNotEmpty) ...[
                   SectionLabel(
-                    'Ajustes',
+                    l10n.effectsAdjustments,
                     trailing: OcButton(
-                      label: 'Restaurar',
+                      label: l10n.effectsReset,
                       variant: OcButtonVariant.ghost,
                       onPressed: () {
                         for (final prop in effect.properties) {
@@ -502,6 +508,8 @@ class _Inspector extends StatelessWidget {
                       for (final prop in effect.properties)
                         PropertyControl(
                           label: prop.label,
+                          tooltip: prop.tooltip,
+                          optionLabel: prop.optionLabel,
                           type: prop.type,
                           min: prop.min,
                           max: prop.max,
@@ -513,10 +521,7 @@ class _Inspector extends StatelessWidget {
                     ],
                   ),
                 ] else
-                  const Text(
-                    'Este efeito não tem ajustes.',
-                    style: OcText.caption,
-                  ),
+                  Text(l10n.effectsNoAdjustments, style: OcText.caption),
               ],
             ),
           ),
@@ -538,24 +543,24 @@ class _Inspector extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Remover "${effect.title}"?', style: OcText.label),
-                const SizedBox(height: 8),
-                const Text(
-                  'O efeito sai da biblioteca. O arquivo original que você importou não é apagado.',
-                  style: OcText.secondary,
+                Text(
+                  l10n.effectsRemoveTitle(effect.title),
+                  style: OcText.label,
                 ),
+                const SizedBox(height: 8),
+                Text(l10n.effectsRemoveMessage, style: OcText.secondary),
                 const SizedBox(height: 20),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.end,
                   children: [
                     OcButton(
-                      label: 'Cancelar',
+                      label: l10n.effectsCancel,
                       variant: OcButtonVariant.ghost,
                       onPressed: () => Navigator.pop(context, false),
                     ),
                     const SizedBox(width: 8),
                     OcButton(
-                      label: 'Remover',
+                      label: l10n.effectsRemove,
                       variant: OcButtonVariant.danger,
                       onPressed: () => Navigator.pop(context, true),
                     ),
@@ -573,24 +578,25 @@ class _Inspector extends StatelessWidget {
 
 // -------------------------------------------------------------------- import
 
-const _effectTypes = XTypeGroup(
-  label: 'Efeitos',
-  extensions: ['ocfx', 'json', 'html'],
+XTypeGroup get _effectTypes => XTypeGroup(
+  label: l10n.effectsFileTypeEffects,
+  extensions: const ['ocfx', 'json', 'html'],
 );
 
-const ocfxTemplate = r'''{
+String get ocfxTemplate =>
+    '''{
   "openchroma": 1,
-  "name": "Meu efeito",
-  "description": "Uma frase curta sobre o efeito.",
-  "author": "Seu nome",
+  "name": "${l10n.effectsTemplateName}",
+  "description": "${l10n.effectsTemplateDescription}",
+  "author": "${l10n.effectsTemplateAuthor}",
   "background": "#05060A",
   "params": {
-    "speed": { "label": "Velocidade", "type": "number", "min": 0, "max": 100, "default": 40 },
-    "color": { "label": "Cor", "type": "color", "default": "#4C8DFF" }
+    "speed": { "label": "${l10n.effectsTemplateSpeed}", "type": "number", "min": 0, "max": 100, "default": 40 },
+    "color": { "label": "${l10n.effectsTemplateColor}", "type": "color", "default": "#4C8DFF" }
   },
   "layers": [
-    { "type": "gradient", "colors": ["#0B1E3D", "#24124D", "#0B1E3D"], "angle": 20, "speed": "$speed" },
-    { "type": "wave", "color": "$color", "amplitude": 0.2, "frequency": 1.5, "thickness": 0.25, "speed": "$speed", "blend": "screen" }
+    { "type": "gradient", "colors": ["#0B1E3D", "#24124D", "#0B1E3D"], "angle": 20, "speed": "\$speed" },
+    { "type": "wave", "color": "\$color", "amplitude": 0.2, "frequency": 1.5, "thickness": 0.25, "speed": "\$speed", "blend": "screen" }
   ]
 }
 ''';
@@ -623,15 +629,18 @@ class _ImportDialogState extends State<_ImportDialog> {
     } on FormatException catch (e) {
       setState(() => _error = e.message);
     } catch (e) {
-      setState(() => _error = 'Não foi possível importar: $e');
+      setState(() => _error = l10n.effectsImportFailed('$e'));
     }
   }
 
   Future<void> _saveTemplate() async {
     final loc = await getSaveLocation(
-      suggestedName: 'meu-efeito.ocfx',
+      suggestedName: l10n.effectsTemplateFileName,
       acceptedTypeGroups: [
-        const XTypeGroup(label: 'Efeito OpenChroma', extensions: ['ocfx']),
+        XTypeGroup(
+          label: l10n.effectsFileTypeOpenChroma,
+          extensions: const ['ocfx'],
+        ),
       ],
     );
     if (loc == null) return;
@@ -649,35 +658,27 @@ class _ImportDialogState extends State<_ImportDialog> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const Text('Importar efeito', style: OcText.title),
+            Text(l10n.effectsImportEffect, style: OcText.title),
             const SizedBox(height: 8),
-            const Text(
-              'Traga um efeito .ocfx, o formato do OpenChroma, ou uma página .html que '
-              'desenhe num canvas de 320×200.',
-              style: OcText.secondary,
-            ),
+            Text(l10n.effectsImportIntro, style: OcText.secondary),
             const SizedBox(height: 20),
-            const OcPanel(
+            OcPanel(
               children: [
                 _FormatRow(
                   icon: Icons.layers_outlined,
-                  title: 'Camadas',
-                  text:
-                      'gradient, spectrum, wave, pulse, sweep, rings, sparkle e solid, '
-                      'empilhadas com blend normal, screen, add, multiply ou overlay.',
+                  title: l10n.effectsFormatLayers,
+                  text: l10n.effectsFormatLayersText,
                 ),
                 _FormatRow(
                   icon: Icons.tune_rounded,
-                  title: 'Parâmetros',
-                  text:
-                      r'Declare em "params" e use como "$name" em qualquer camada. '
-                      'Eles viram controles no app.',
+                  title: l10n.effectsFormatParams,
+                  text: l10n.effectsFormatParamsText,
                 ),
               ],
             ),
             if (_saved != null) ...[
               const SizedBox(height: 12),
-              Text('Modelo salvo em $_saved', style: OcText.caption),
+              Text(l10n.effectsTemplateSaved(_saved!), style: OcText.caption),
             ],
             if (_error != null) ...[
               const SizedBox(height: 14),
@@ -698,20 +699,20 @@ class _ImportDialogState extends State<_ImportDialog> {
             Row(
               children: [
                 OcButton(
-                  label: 'Salvar modelo',
+                  label: l10n.effectsSaveTemplate,
                   icon: Icons.download_rounded,
                   variant: OcButtonVariant.ghost,
                   onPressed: _saveTemplate,
                 ),
                 const Spacer(),
                 OcButton(
-                  label: 'Cancelar',
+                  label: l10n.effectsCancel,
                   variant: OcButtonVariant.ghost,
                   onPressed: () => Navigator.pop(context),
                 ),
                 const SizedBox(width: 8),
                 OcButton(
-                  label: 'Escolher arquivo',
+                  label: l10n.effectsChooseFile,
                   variant: OcButtonVariant.primary,
                   onPressed: _pick,
                 ),

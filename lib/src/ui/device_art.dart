@@ -4,29 +4,46 @@ import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 
 import '../engine/engine.dart';
+import '../i18n/l10n.dart';
 import 'theme.dart';
 
 /// The kinds of device OpenChroma draws its own artwork for.
 enum DeviceKind {
-  keyboard('Teclado'),
-  mouse('Mouse'),
-  headset('Headset'),
-  mousepad('Mousepad'),
-  motherboard('Placa-mãe'),
-  gpu('Placa de vídeo'),
-  ram('Memória'),
-  fan('Ventoinhas'),
-  cooler('Water cooler'),
-  controller('Controladora'),
-  strip('Fita de LED'),
-  speakers('Caixas de som'),
-  microphone('Microfone'),
-  gamepad('Controle'),
-  pcCase('Gabinete'),
-  other('Dispositivo');
+  keyboard,
+  mouse,
+  headset,
+  mousepad,
+  motherboard,
+  gpu,
+  ram,
+  fan,
+  cooler,
+  controller,
+  strip,
+  speakers,
+  microphone,
+  gamepad,
+  pcCase,
+  other;
 
-  const DeviceKind(this.label);
-  final String label;
+  String get label => switch (this) {
+    keyboard => l10n.devicesKindKeyboard,
+    mouse => l10n.devicesKindMouse,
+    headset => l10n.devicesKindHeadset,
+    mousepad => l10n.devicesKindMousepad,
+    motherboard => l10n.devicesKindMotherboard,
+    gpu => l10n.devicesKindGpu,
+    ram => l10n.devicesKindRam,
+    fan => l10n.devicesKindFan,
+    cooler => l10n.devicesKindCooler,
+    controller => l10n.devicesKindController,
+    strip => l10n.devicesKindStrip,
+    speakers => l10n.devicesKindSpeakers,
+    microphone => l10n.devicesKindMicrophone,
+    gamepad => l10n.devicesKindGamepad,
+    pcCase => l10n.devicesKindCase,
+    other => l10n.devicesKindOther,
+  };
 }
 
 /// Picks the artwork from the plugin's device type, falling back to the

@@ -8,6 +8,7 @@ import '../checkup/checkup.dart';
 import '../effects/effect_library.dart';
 import '../engine/engine.dart';
 import '../fans/fan_service.dart';
+import '../i18n/l10n.dart';
 import '../monitor/system_monitor.dart';
 import 'ai_service.dart';
 
@@ -72,7 +73,7 @@ class Assistant extends ChangeNotifier {
   EffectInfo applyEffect(Map<String, dynamic> effect) {
     final dir = Directory.systemTemp.createTempSync('openchroma-ai');
     try {
-      final file = File(p.join(dir.path, 'efeito.ocfx'))
+      final file = File(p.join(dir.path, 'effect.ocfx'))
         ..writeAsStringSync(const JsonEncoder.withIndent('  ').convert(effect));
       return engine.importEffect(file.path);
     } finally {
@@ -103,7 +104,7 @@ class Assistant extends ChangeNotifier {
             dir.deleteSync(recursive: true);
           }
           final text = reply.replaceFirst(m.group(0)!, '').trim();
-          return (text.isEmpty ? 'Pronto, fiz o efeito.' : text, doc);
+          return (text.isEmpty ? l10n.aiEffectDone : text, doc);
         }
       } catch (_) {}
     }
@@ -113,28 +114,30 @@ class Assistant extends ChangeNotifier {
   String _systemPrompt() {
     final b = StringBuffer()
       ..writeln(
-        'Você é o assistente do OpenChroma, um app para Windows que controla '
-        'iluminação RGB, ventoinhas e monitora o PC. Responda em português do '
-        'Brasil, de forma curta e direta (no máximo uns 6 parágrafos curtos), '
-        'sem markdown pesado. Use os dados abaixo, que são leituras reais '
-        'deste PC agora. Se um dado não estiver disponível, diga isso em vez '
-        'de inventar. Não peça para o usuário colar dados que já estão aqui.',
+        'You are the assistant of OpenChroma, a Windows app that controls RGB '
+        'lighting and fans and monitors the PC. Always answer in '
+        '${l10n.localeName == 'pt' ? 'Brazilian Portuguese' : 'English'}, '
+        'the language of the app interface, short and direct (at most about 6 '
+        'short paragraphs), without heavy markdown. Use the data below, which '
+        'are real readings from this PC right now. If a value is not '
+        'available, say so instead of making it up. Do not ask the user to '
+        'paste data that is already here.',
       )
       ..writeln()
-      ..writeln('## Estado do PC')
+      ..writeln('## PC state')
       ..writeln(describeSystem(monitor.snapshot))
       ..writeln()
-      ..writeln('## Iluminação')
-      ..writeln('Efeito atual: ${engine.currentEffect?.title ?? 'nenhum'}')
-      ..writeln('Brilho: ${engine.brightness}%')
+      ..writeln('## Lighting')
+      ..writeln('Current effect: ${engine.currentEffect?.title ?? 'none'}')
+      ..writeln('Brightness: ${engine.brightness}%')
       ..writeln(
-        'Efeitos disponíveis: ${engine.effects.map((e) => e.title).join(', ')}',
+        'Available effects: ${engine.effects.map((e) => e.title).join(', ')}',
       )
       ..writeln(
-        'Dispositivos: ${engine.devices.values.map((d) => '${d.name} (${d.status})').join(', ').ifEmpty('nenhum detectado')}',
+        'Devices: ${engine.devices.values.map((d) => '${d.name} (${d.status})').join(', ').ifEmpty('none detected')}',
       )
       ..writeln()
-      ..writeln('## Ventoinhas')
+      ..writeln('## Fans')
       ..writeln(_fans())
       ..writeln()
       ..writeln(_ocfxGuide);
@@ -143,9 +146,9 @@ class Assistant extends ChangeNotifier {
 
   String _fans() {
     final s = fans.snapshot;
-    if (s == null || s.fans.isEmpty) return 'Sem leitura de ventoinhas.';
+    if (s == null || s.fans.isEmpty) return 'No fan readings.';
     return [
-      'Perfil: ${fans.profile.name}',
+      'Profile: ${fans.profile.name}',
       for (final f in s.fans.where(fans.isConnected))
         '${fans.nameOf(f)}: ${f.rpm?.round() ?? '?'} RPM'
             '${f.duty == null ? '' : ', ${f.duty!.round()}%'}',
@@ -153,15 +156,16 @@ class Assistant extends ChangeNotifier {
   }
 
   static const _ocfxGuide = '''
-## Criar efeitos
-Se o usuário pedir um efeito de luz, responda com uma frase curta e um bloco
-```ocfx contendo um JSON neste formato (cores em #RRGGBB):
-{"openchroma": 1, "name": "Nome curto", "description": "Uma frase.",
+## Creating effects
+If the user asks for a light effect, reply with one short sentence and a
+```ocfx block containing JSON in this format (colors as #RRGGBB). Write the
+name, description and parameter labels in the language of your reply:
+{"openchroma": 1, "name": "Short name", "description": "One sentence.",
  "background": "#000000",
- "params": {"speed": {"label": "Velocidade", "type": "number", "min": 0, "max": 100, "default": 40},
-            "color": {"label": "Cor", "type": "color", "default": "#3B82F6"}},
+ "params": {"speed": {"label": "Speed", "type": "number", "min": 0, "max": 100, "default": 40},
+            "color": {"label": "Color", "type": "color", "default": "#3B82F6"}},
  "layers": [ ... ]}
-Camadas (desenhadas de baixo para cima; "blend": normal|screen|add|multiply|overlay; "opacity" 0..1):
+Layers (drawn bottom to top; "blend": normal|screen|add|multiply|overlay; "opacity" 0..1):
 - solid {color}
 - gradient {colors:[...], angle, scale, speed}
 - spectrum {angle, scale, speed, saturation, lightness}
@@ -169,7 +173,7 @@ Camadas (desenhadas de baixo para cima; "blend": normal|screen|add|multiply|over
 - wave {color, amplitude, frequency, thickness, position, speed}
 - sweep {color, width, speed, bounce}
 - rings {colors:[...], spacing, thickness, x, y, speed}
-- sparkle {color ou "random", density, size, speed}
+- sparkle {color or "random", density, size, speed}
 - plasma {colors:[...], scale, speed}
 - fire {colors:[...], height, speed}
 - rain {color, density, length, speed}
@@ -177,33 +181,33 @@ Camadas (desenhadas de baixo para cima; "blend": normal|screen|add|multiply|over
 - noise {colors:[...], scale, speed}
 - heartbeat {color, speed}
 - strobe {colors:[...], speed}
-Valores podem ser "\$nome" para usar um parâmetro. Velocidade vai de 0 a 100.
-Camadas de áudio (bars, meter, ripple, flash) só fazem sentido se o usuário pedir algo que reage ao som.''';
+Values can be "\$name" to use a parameter. Speed goes from 0 to 100.
+Audio layers (bars, meter, ripple, flash) only make sense if the user asks for something that reacts to sound.''';
 }
 
 /// Plain-text summary of a monitor reading, for model context.
 String describeSystem(SystemSnapshot? s) {
-  if (s == null) return 'Leituras ainda não disponíveis.';
+  if (s == null) return 'Readings not available yet.';
   String n(double? v, [int d = 0]) => v == null ? '?' : v.toStringAsFixed(d);
   String gb(double bytes) => '${(bytes / (1 << 30)).toStringAsFixed(1)} GB';
   final lines = <String>[
-    'CPU: ${s.cpu.name}, ${s.cpu.cores} núcleos/${s.cpu.threads} threads, '
-        'uso ${n(s.cpu.usage)}%, ${n(s.cpu.clock)} MHz, '
-        'temperatura ${s.cpu.temp == null ? 'indisponível (${s.cpu.sensor.name})' : '${n(s.cpu.temp)} °C'}, '
-        'potência ${n(s.cpu.power)} W',
+    'CPU: ${s.cpu.name}, ${s.cpu.cores} cores/${s.cpu.threads} threads, '
+        'usage ${n(s.cpu.usage)}%, ${n(s.cpu.clock)} MHz, '
+        'temperature ${s.cpu.temp == null ? 'unavailable (${s.cpu.sensor.name})' : '${n(s.cpu.temp)} °C'}, '
+        'power ${n(s.cpu.power)} W',
     for (final g in s.gpus)
-      'GPU: ${g.name}${g.integrated ? ' (integrada)' : ''}, uso ${n(g.usage)}%, '
-          '${n(g.temp)} °C, ${n(g.power)} W, ventoinha ${n(g.fan)}%, '
-          'VRAM ${n((g.memUsed ?? 0) / (1 << 20))} de ${n((g.memTotal ?? 0) / (1 << 20))} MB',
-    'Memória: ${gb(s.memory.used)} de ${gb(s.memory.total)} em uso '
-        '(${n(s.memory.percent)}%), commit ${gb(s.memory.committed)} de ${gb(s.memory.commitLimit)}',
+      'GPU: ${g.name}${g.integrated ? ' (integrated)' : ''}, usage ${n(g.usage)}%, '
+          '${n(g.temp)} °C, ${n(g.power)} W, fan ${n(g.fan)}%, '
+          'VRAM ${n((g.memUsed ?? 0) / (1 << 20))} of ${n((g.memTotal ?? 0) / (1 << 20))} MB',
+    'Memory: ${gb(s.memory.used)} of ${gb(s.memory.total)} in use '
+        '(${n(s.memory.percent)}%), commit ${gb(s.memory.committed)} of ${gb(s.memory.commitLimit)}',
     for (final v in s.volumes)
-      'Disco ${v.letter}: ${gb(v.free)} livres de ${gb(v.total)}',
+      'Drive ${v.letter}: ${gb(v.free)} free of ${gb(v.total)}',
     for (final d in s.disks)
-      if (d.temp != null) 'SSD/HD ${d.model}: ${n(d.temp)} °C',
-    'Ligado há ${s.uptime.inHours} h ${s.uptime.inMinutes % 60} min',
-    'Processos que mais usam CPU: ${(s.processes.toList()..sort((a, b) => b.cpu.compareTo(a.cpu))).take(6).map((p) => '${p.name} ${p.cpu.toStringAsFixed(1)}%').join(', ')}',
-    'Processos que mais usam memória: ${(s.processes.toList()..sort((a, b) => b.memory.compareTo(a.memory))).take(6).map((p) => '${p.name} ${gb(p.memory)}').join(', ')}',
+      if (d.temp != null) 'SSD/HDD ${d.model}: ${n(d.temp)} °C',
+    'Uptime ${s.uptime.inHours} h ${s.uptime.inMinutes % 60} min',
+    'Top processes by CPU: ${(s.processes.toList()..sort((a, b) => b.cpu.compareTo(a.cpu))).take(6).map((p) => '${p.name} ${p.cpu.toStringAsFixed(1)}%').join(', ')}',
+    'Top processes by memory: ${(s.processes.toList()..sort((a, b) => b.memory.compareTo(a.memory))).take(6).map((p) => '${p.name} ${gb(p.memory)}').join(', ')}',
   ];
   return lines.join('\n');
 }
@@ -214,39 +218,39 @@ String describeCheckup(CheckupReport r) {
   String n(double? v, [int d = 0]) => v == null ? '?' : v.toStringAsFixed(d);
   final b = StringBuffer()
     ..writeln(
-      'Diagnóstico de ${r.started.toIso8601String()} (plano ${r.plan.name})',
+      'Checkup from ${r.started.toIso8601String()} (plan ${r.plan.name})',
     )
-    ..writeln('Placa-mãe: ${s.board}, BIOS ${s.bios}')
+    ..writeln('Motherboard: ${s.board}, BIOS ${s.bios}')
     ..writeln('CPU: ${s.cpuName} (AVX2: ${s.avx2}); GPU: ${s.gpuName}')
     ..writeln(
-      'Memória: ${n(s.memTotal / (1 << 30), 1)} GB, ${s.modules.length} de ${s.slots} slots: '
-      '${s.modules.map((m) => '${m.maker} ${m.part} ${m.megabytes} MB ${m.configured}/${m.speed} MT/s canal ${m.channel ?? '?'}').join('; ')}',
+      'Memory: ${n(s.memTotal / (1 << 30), 1)} GB, ${s.modules.length} of ${s.slots} slots: '
+      '${s.modules.map((m) => '${m.maker} ${m.part} ${m.megabytes} MB ${m.configured}/${m.speed} MT/s channel ${m.channel ?? '?'}').join('; ')}',
     )
     ..writeln(
-      'Disco do sistema: ${n((s.driveFree ?? 0) / (1 << 30))} GB livres de ${n((s.driveTotal ?? 0) / (1 << 30))} GB',
+      'System drive: ${n((s.driveFree ?? 0) / (1 << 30))} GB free of ${n((s.driveTotal ?? 0) / (1 << 30))} GB',
     )
     ..writeln(
-      'Em repouso: CPU ${n(s.idleCpuTemp)} °C, uso ${n(s.idleCpuUsage)}%; apps na inicialização: ${s.startupApps ?? '?'}',
+      'At idle: CPU ${n(s.idleCpuTemp)} °C, usage ${n(s.idleCpuUsage)}%; startup apps: ${s.startupApps ?? '?'}',
     )
     ..writeln(
-      'Telas azuis recentes: ${s.blueScreens.length} (${s.blueScreens.take(10).map((x) => '${x.code} em ${x.time.toIso8601String().substring(0, 10)}').join(', ')})',
+      'Recent blue screens: ${s.blueScreens.length} (${s.blueScreens.take(10).map((x) => '${x.code} on ${x.time.toIso8601String().substring(0, 10)}').join(', ')})',
     )
     ..writeln(
-      'Drivers suspeitos nas telas azuis: ${s.suspects.isEmpty ? 'nenhum identificado' : s.suspects.entries.map((e) => '${e.key} (${e.value}x)').join(', ')}',
+      'Suspect drivers in the blue screens: ${s.suspects.isEmpty ? 'none identified' : s.suspects.entries.map((e) => '${e.key} (${e.value}x)').join(', ')}',
     );
-  if (r.abortReason != null) b.writeln('Interrompido: ${r.abortReason}');
+  if (r.abortReason != null) b.writeln('Aborted: ${r.abortReason}');
   for (final t in r.tests) {
     b.writeln(
-      'Teste ${t.test.id}: ${t.status}, erros ${t.errors}, '
-      'CPU máx ${n(t.maxCpuTemp)} °C a ${n(t.avgCpuClock)} MHz e ${n(t.avgCpuPower)} W, '
-      'GPU máx ${n(t.maxGpuTemp)} °C a ${n(t.avgGpuPower)} W'
-      '${t.memWrite > 0 ? ', memória ${n(t.memWrite, 1)}/${n(t.memRead, 1)} GB/s' : ''}'
+      'Test ${t.test.id}: ${t.status}, errors ${t.errors}, '
+      'CPU max ${n(t.maxCpuTemp)} °C at ${n(t.avgCpuClock)} MHz and ${n(t.avgCpuPower)} W, '
+      'GPU max ${n(t.maxGpuTemp)} °C at ${n(t.avgGpuPower)} W'
+      '${t.memWrite > 0 ? ', memory ${n(t.memWrite, 1)}/${n(t.memRead, 1)} GB/s' : ''}'
       '${t.gpuTflops > 0 ? ', ${n(t.gpuTflops, 1)} TFLOPS' : ''}'
-      '${t.diskWrite > 0 ? ', disco ${n(t.diskWrite)}/${n(t.diskRead)} MB/s' : ''}'
+      '${t.diskWrite > 0 ? ', disk ${n(t.diskWrite)}/${n(t.diskRead)} MB/s' : ''}'
       '${t.error.isEmpty ? '' : ', ${t.error}'}',
     );
   }
-  b.writeln('Recomendações do app:');
+  b.writeln('App recommendations:');
   for (final rec in recommendationsFor(r)) {
     b.writeln('- [${rec.severity.name}] ${rec.title}: ${rec.detail}');
   }

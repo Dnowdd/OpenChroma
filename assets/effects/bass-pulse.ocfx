@@ -1,22 +1,33 @@
 {
   "openchroma": 1,
-  "name": "Pulso do Grave",
-  "description": "Todo o setup acende no ritmo do grave, como um subwoofer de luz.",
+  "name": "Bass Pulse",
+  "description": "Your whole setup lights up to the beat of the bass, like a subwoofer made of light.",
   "author": "OpenChroma",
+  "i18n": {
+    "pt": {
+      "name": "Pulso do Grave",
+      "description": "Todo o setup acende no ritmo do grave, como um subwoofer de luz.",
+      "params": {
+        "color": "Cor",
+        "backgroundColor": "Cor de fundo",
+        "intensity": "Intensidade"
+      }
+    }
+  },
   "background": "#000000",
   "params": {
     "color": {
-      "label": "Cor",
+      "label": "Color",
       "type": "color",
       "default": "#FF2D55"
     },
     "backgroundColor": {
-      "label": "Cor de fundo",
+      "label": "Background color",
       "type": "color",
       "default": "#1A0010"
     },
     "intensity": {
-      "label": "Intensidade",
+      "label": "Intensity",
       "type": "number",
       "min": 10,
       "max": 100,

@@ -1,0 +1,32 @@
+{
+  "aboutSection": "About",
+  "aboutUpdateAvailable": "Version {version} is available.",
+  "aboutUpdateBanner": "OpenChroma {version} is available.",
+  "aboutChecking": "Checking for updates…",
+  "aboutDevBuild": "Development build: update checks are off.",
+  "aboutUpToDate": "You're up to date.",
+  "aboutDownload": "Download",
+  "aboutCheckNow": "Check now",
+  "aboutDismiss": "Dismiss",
+  "aboutAutoCheck": "Check for updates automatically",
+  "aboutAutoCheckDescription": "Once a day, OpenChroma asks GitHub for the latest release. Nothing about your PC is sent.",
+  "aboutReportProblem": "Report a problem",
+  "aboutReportProblemDescription": "Copy a diagnostics summary (app and Windows version, devices and errors; no serial numbers) and paste it into a GitHub issue.",
+  "aboutCopyDiagnostics": "Copy diagnostics",
+  "aboutDiagnosticsCopied": "Diagnostics copied to the clipboard.",
+  "aboutOpenIssue": "Open an issue",
+  "@aboutUpdateAvailable": {
+    "placeholders": {
+      "version": {
+        "type": "String"
+      }
+    }
+  },
+  "@aboutUpdateBanner": {
+    "placeholders": {
+      "version": {
+        "type": "String"
+      }
+    }
+  }
+}

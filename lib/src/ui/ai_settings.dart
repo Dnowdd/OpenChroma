@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../ai/ai_service.dart';
+import '../i18n/l10n.dart';
 import 'theme.dart';
 import 'widgets.dart';
 
@@ -26,7 +27,7 @@ class AiSettingsPanel extends StatelessWidget {
               Icons.hub_rounded,
               color: Color(0xFF5E5CE6),
             ),
-            title: 'Provedor',
+            title: l10n.aiProvider,
             trailing: OcSelect(
               value: p.name,
               options: [for (final v in AiProvider.values) v.name],
@@ -40,12 +41,11 @@ class AiSettingsPanel extends StatelessWidget {
               Icons.key_rounded,
               color: Color(0xFFFF9F0A),
             ),
-            title: 'Chave de API',
+            title: l10n.aiApiKey,
             description: switch (p) {
-              AiProvider.anthropic => 'Crie em console.anthropic.com.',
-              AiProvider.openai => 'Crie em platform.openai.com.',
-              AiProvider.compatible =>
-                'Opcional para servidores locais (Ollama, LM Studio).',
+              AiProvider.anthropic => l10n.aiKeyHintAnthropic,
+              AiProvider.openai => l10n.aiKeyHintOpenai,
+              AiProvider.compatible => l10n.aiKeyHintCompatible,
             },
             trailing: SizedBox(
               width: 300,
@@ -62,10 +62,8 @@ class AiSettingsPanel extends StatelessWidget {
                 Icons.link_rounded,
                 color: Color(0xFF40C8E0),
               ),
-              title: 'Endereço da API',
-              description:
-                  'Ex.: https://openrouter.ai/api/v1, '
-                  'http://localhost:11434/v1 (Ollama).',
+              title: l10n.aiBaseUrl,
+              description: l10n.aiBaseUrlHint,
               trailing: SizedBox(
                 width: 300,
                 child: _TextField(
@@ -81,16 +79,16 @@ class AiSettingsPanel extends StatelessWidget {
               Icons.psychology_rounded,
               color: Color(0xFFBF5AF2),
             ),
-            title: 'Modelo',
+            title: l10n.aiModel,
             description:
                 error ??
                 (loading
-                    ? 'Buscando os modelos disponíveis…'
+                    ? l10n.aiModelsLoading
                     : !g.configured
-                    ? 'Informe a chave para ver os modelos.'
+                    ? l10n.aiModelsNeedKey
                     : g.models.isEmpty
-                    ? 'Nenhum modelo encontrado.'
-                    : '${g.models.length} disponíveis, atualizado sozinho.'),
+                    ? l10n.aiModelsNone
+                    : l10n.aiModelsAvailable(g.models.length)),
             trailing: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -108,7 +106,7 @@ class AiSettingsPanel extends StatelessWidget {
                 const SizedBox(width: 8),
                 OcIconButton(
                   icon: Icons.refresh_rounded,
-                  tooltip: 'Atualizar lista',
+                  tooltip: l10n.aiRefreshList,
                   onPressed: g.configured && !loading
                       ? () => ai.refreshModels(p)
                       : null,
@@ -171,11 +169,14 @@ class _SecretFieldState extends State<_SecretField> {
             enableSuggestions: false,
             onSubmitted: widget.onSubmitted,
             style: OcText.mono.copyWith(color: Oc.text),
-            decoration: const InputDecoration(
+            decoration: InputDecoration(
               isCollapsed: true,
               border: InputBorder.none,
-              hintText: 'Cole a chave aqui',
-              hintStyle: TextStyle(fontSize: 12.5, color: Oc.textTertiary),
+              hintText: l10n.aiPasteKey,
+              hintStyle: const TextStyle(
+                fontSize: 12.5,
+                color: Oc.textTertiary,
+              ),
             ),
           ),
         ),
@@ -183,7 +184,7 @@ class _SecretFieldState extends State<_SecretField> {
           icon: _visible
               ? Icons.visibility_off_outlined
               : Icons.visibility_outlined,
-          tooltip: _visible ? 'Esconder' : 'Mostrar',
+          tooltip: _visible ? l10n.aiHide : l10n.aiShow,
           size: 28,
           onPressed: () => setState(() => _visible = !_visible),
         ),

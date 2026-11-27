@@ -1,3 +1,7 @@
+import '../system/update_check.dart';
+import 'about_panel.dart';
+import '../i18n/l10n.dart';
+
 import 'dart:io';
 import 'dart:math' as math;
 import 'dart:typed_data';
@@ -28,6 +32,7 @@ import 'settings_page.dart';
 import 'theme.dart';
 import 'widgets.dart';
 import 'window_frame.dart';
+import '../system/system_paths.dart';
 
 /// Page indices, also used by --page=N and OC_PAGE.
 abstract final class Pages {
@@ -48,6 +53,8 @@ class Shell extends StatefulWidget {
     required this.alerts,
     required this.ai,
     required this.assistant,
+    required this.language,
+    required this.updates,
     this.initialPage,
   });
   final Engine engine;
@@ -56,6 +63,8 @@ class Shell extends StatefulWidget {
   final AlertService alerts;
   final AiService ai;
   final Assistant assistant;
+  final LanguageController language;
+  final UpdateChecker updates;
   final int? initialPage;
 
   @override
@@ -75,12 +84,12 @@ class _ShellState extends State<Shell> {
     fans: widget.fans,
   );
 
-  static const _nav = [
-    (Icons.home_outlined, Icons.home_rounded, 'Início'),
-    (Icons.auto_awesome_outlined, Icons.auto_awesome, 'Iluminação'),
-    (Icons.keyboard_alt_outlined, Icons.keyboard_alt, 'Dispositivos'),
-    (Icons.air_rounded, Icons.air_rounded, 'Ventoinhas'),
-    (Icons.speed_outlined, Icons.speed_rounded, 'Desempenho'),
+  static List<(IconData, IconData, String)> get _nav => [
+    (Icons.home_outlined, Icons.home_rounded, l10n.shellNavHome),
+    (Icons.auto_awesome_outlined, Icons.auto_awesome, l10n.shellNavLighting),
+    (Icons.keyboard_alt_outlined, Icons.keyboard_alt, l10n.shellNavDevices),
+    (Icons.air_rounded, Icons.air_rounded, l10n.shellNavFans),
+    (Icons.speed_outlined, Icons.speed_rounded, l10n.shellNavPerformance),
   ];
 
   // Pages only sample the system monitor while someone can see them; in
@@ -156,6 +165,18 @@ class _ShellState extends State<Shell> {
                                           names: engine.conflicts,
                                         ),
                                 ),
+                                ListenableBuilder(
+                                  listenable: widget.updates,
+                                  builder: (context, _) {
+                                    final u = widget.updates.available;
+                                    return u == null
+                                        ? const SizedBox.shrink()
+                                        : _UpdateBanner(
+                                            update: u,
+                                            onDismiss: widget.updates.dismiss,
+                                          );
+                                  },
+                                ),
                                 ValueListenableBuilder(
                                   valueListenable: webviewProblem,
                                   builder: (context, problem, _) =>
@@ -216,6 +237,8 @@ class _ShellState extends State<Shell> {
                                                 engine: engine,
                                                 ai: widget.ai,
                                                 alerts: widget.alerts,
+                                                language: widget.language,
+                                                updates: widget.updates,
                                               ),
                                             ],
                                           ),
@@ -285,11 +308,14 @@ class _LightingPageState extends State<_LightingPage> {
         padding: Oc.headerInsets,
         child: Row(
           children: [
-            Text('Iluminação', style: OcText.pageTitle.copyWith(fontSize: 28)),
+            Text(
+              l10n.lightingTitle,
+              style: OcText.pageTitle.copyWith(fontSize: 28),
+            ),
             const Spacer(),
             OcSegmented<int>(
               value: _tab,
-              options: const [(0, 'Efeitos'), (1, 'Layout')],
+              options: [(0, l10n.shellTabEffects), (1, l10n.shellTabLayout)],
               onChanged: (v) => setState(() => _tab = v),
             ),
           ],
@@ -335,7 +361,7 @@ class _PerformancePageState extends State<_PerformancePage> {
     final tabs = [
       OcSegmented<int>(
         value: _tab,
-        options: const [(0, 'Monitor'), (1, 'Diagnóstico')],
+        options: [(0, l10n.shellTabMonitor), (1, l10n.shellTabDiagnostics)],
         onChanged: (v) => setState(() => _tab = v),
       ),
     ];
@@ -405,7 +431,7 @@ class _Rail extends StatelessWidget {
               children: [
                 _RailButton(
                   icon: Icons.tune_rounded,
-                  label: 'Configurações',
+                  label: l10n.shellNavSettings,
                   selected: index == Pages.settings,
                   onTap: () => onSelect(Pages.settings),
                 ),
@@ -414,8 +440,8 @@ class _Rail extends StatelessWidget {
                       ? Icons.verified_user_rounded
                       : Icons.shield_outlined,
                   label: elevated
-                      ? 'Modo administrador ativo'
-                      : 'Reiniciar como administrador',
+                      ? l10n.shellAdminActive
+                      : l10n.shellRestartAsAdmin,
                   selected: false,
                   dot: elevated ? Oc.success : null,
                   onTap: elevated
@@ -583,14 +609,11 @@ class _ConflictBanner extends StatelessWidget {
               TextSpan(
                 children: [
                   TextSpan(
-                    text: '${names.join(', ')} está aberto. ',
+                    text:
+                        '${l10n.shellConflictOpen(names.join(', '), names.length)} ',
                     style: const TextStyle(fontWeight: FontWeight.w600),
                   ),
-                  const TextSpan(
-                    text:
-                        'Dois programas nos mesmos LEDs fazem as cores '
-                        'piscarem. Feche-o, inclusive na bandeja.',
-                  ),
+                  TextSpan(text: l10n.shellConflictAdvice),
                 ],
               ),
               style: const TextStyle(fontSize: 12.5, color: Oc.warning),
@@ -600,6 +623,51 @@ class _ConflictBanner extends StatelessWidget {
       ),
     ),
   );
+}
+
+class _UpdateBanner extends StatelessWidget {
+  const _UpdateBanner({required this.update, required this.onDismiss});
+  final AvailableUpdate update;
+  final VoidCallback onDismiss;
+
+  @override
+  Widget build(BuildContext context) {
+    final accent = LiveAccent.of(context);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(0, 0, 20, 8),
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(18, 8, 8, 8),
+        decoration: BoxDecoration(
+          color: accent.withValues(alpha: .08),
+          borderRadius: Oc.r12,
+          border: Border.all(color: accent.withValues(alpha: .22)),
+        ),
+        child: Row(
+          children: [
+            Icon(Icons.system_update_alt_rounded, size: 17, color: accent),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                l10n.aboutUpdateBanner(update.version),
+                style: const TextStyle(fontSize: 12.5, color: Oc.text),
+              ),
+            ),
+            OcButton(
+              label: l10n.aboutDownload,
+              icon: Icons.download_rounded,
+              onPressed: () => openReleasePage(update.url),
+            ),
+            const SizedBox(width: 4),
+            OcIconButton(
+              icon: Icons.close_rounded,
+              tooltip: l10n.aboutDismiss,
+              onPressed: onDismiss,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 class _WebviewBanner extends StatelessWidget {
@@ -619,17 +687,16 @@ class _WebviewBanner extends StatelessWidget {
         children: [
           const Icon(Icons.error_outline_rounded, size: 17, color: Oc.warning),
           const SizedBox(width: 10),
-          const Expanded(
+          Expanded(
             child: Text(
-              'Os efeitos precisam do Microsoft WebView2, que não está '
-              'instalado neste PC.',
-              style: TextStyle(fontSize: 12.5, color: Oc.warning),
+              l10n.shellWebviewMissing,
+              style: const TextStyle(fontSize: 12.5, color: Oc.warning),
             ),
           ),
           OcButton(
-            label: 'Baixar o WebView2',
+            label: l10n.shellWebviewDownload,
             icon: Icons.download_rounded,
-            onPressed: () => Process.run('explorer', [
+            onPressed: () => Process.run(SystemPaths.explorer, [
               'https://go.microsoft.com/fwlink/p/?LinkId=2124703',
             ]),
           ),
@@ -699,7 +766,7 @@ class NowPlayingBar extends StatelessWidget {
                                   children: [
                                     Text(
                                       engine.currentEffect?.title ??
-                                          'Nenhum efeito',
+                                          l10n.commonNoEffect,
                                       overflow: TextOverflow.ellipsis,
                                       style: OcText.label.copyWith(
                                         fontSize: 14,
@@ -756,10 +823,10 @@ class NowPlayingBar extends StatelessWidget {
   }
 
   static String _devicesLabel(Engine e) {
-    if (e.brightness == 0) return 'Desligado · efeito pausado';
-    if (e.paused) return 'Pausado';
+    if (e.brightness == 0) return l10n.shellPlayerOffPaused;
+    if (e.paused) return l10n.commonPaused;
     final n = e.devices.values.where((d) => d.status == 'running').length;
-    return n == 1 ? 'Ao vivo em 1 dispositivo' : 'Ao vivo em $n dispositivos';
+    return l10n.shellPlayerLiveOnDevices(n);
   }
 }
 

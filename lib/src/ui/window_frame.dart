@@ -3,6 +3,7 @@ import 'dart:ffi' hide Size;
 import 'package:flutter/material.dart';
 import 'package:flutter/gestures.dart' show kPrimaryButton;
 
+import '../i18n/l10n.dart';
 import 'logo.dart';
 import 'theme.dart';
 import 'widgets.dart';
@@ -100,7 +101,7 @@ class _TitleBarState extends State<TitleBar> {
               children: [
                 _WindowButton(
                   icon: Icons.remove_rounded,
-                  tooltip: 'Minimizar',
+                  tooltip: l10n.windowMinimize,
                   onTap: AppWindow.minimize,
                 ),
                 const SizedBox(width: 4),
@@ -109,13 +110,13 @@ class _TitleBarState extends State<TitleBar> {
                       ? Icons.filter_none_rounded
                       : Icons.crop_square_rounded,
                   iconSize: maximized ? 13 : 15,
-                  tooltip: maximized ? 'Restaurar' : 'Maximizar',
+                  tooltip: maximized ? l10n.windowRestore : l10n.windowMaximize,
                   onTap: AppWindow.toggleMaximize,
                 ),
                 const SizedBox(width: 4),
                 _WindowButton(
                   icon: Icons.close_rounded,
-                  tooltip: 'Fechar',
+                  tooltip: l10n.windowClose,
                   danger: true,
                   onTap: AppWindow.close,
                 ),

@@ -1,29 +1,41 @@
 {
   "openchroma": 1,
-  "name": "Sirene",
-  "description": "Vermelho e azul alternando, metade de cada lado.",
+  "name": "Siren",
+  "description": "Red and blue alternating, half on each side.",
   "author": "OpenChroma",
+  "i18n": {
+    "pt": {
+      "name": "Sirene",
+      "description": "Vermelho e azul alternando, metade de cada lado.",
+      "params": {
+        "speed": "Velocidade",
+        "first": "Cor 1",
+        "second": "Cor 2",
+        "split": "Lados separados"
+      }
+    }
+  },
   "background": "#000000",
   "params": {
     "speed": {
-      "label": "Velocidade",
+      "label": "Speed",
       "type": "number",
       "min": 0,
       "max": 100,
       "default": 35
     },
     "first": {
-      "label": "Cor 1",
+      "label": "Color 1",
       "type": "color",
       "default": "#EF4444"
     },
     "second": {
-      "label": "Cor 2",
+      "label": "Color 2",
       "type": "color",
       "default": "#2563EB"
     },
     "split": {
-      "label": "Lados separados",
+      "label": "Separate sides",
       "type": "boolean",
       "default": true
     }

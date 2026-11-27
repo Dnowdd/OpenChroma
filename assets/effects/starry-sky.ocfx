@@ -1,19 +1,29 @@
 {
   "openchroma": 1,
-  "name": "Céu Estrelado",
-  "description": "Estrelas piscando sobre um azul noturno que passa devagar.",
+  "name": "Starry Sky",
+  "description": "Stars twinkling over a night blue that drifts slowly by.",
   "author": "OpenChroma",
+  "i18n": {
+    "pt": {
+      "name": "Céu Estrelado",
+      "description": "Estrelas piscando sobre um azul noturno que passa devagar.",
+      "params": {
+        "speed": "Velocidade",
+        "stars": "Estrelas"
+      }
+    }
+  },
   "background": "#02030A",
   "params": {
     "speed": {
-      "label": "Velocidade",
+      "label": "Speed",
       "type": "number",
       "min": 0,
       "max": 100,
       "default": 15
     },
     "stars": {
-      "label": "Estrelas",
+      "label": "Stars",
       "type": "number",
       "min": 10,
       "max": 160,

@@ -5,21 +5,24 @@ import 'package:flutter/material.dart';
 import '../drivers/hardware_mode.dart';
 import '../drivers/native_drivers.dart' show DriverZone;
 import '../engine/engine.dart';
+import '../i18n/l10n.dart';
+import '../i18n/terms.dart';
 import '../system/batteries.dart';
 import 'color_order.dart';
 import 'device_art.dart';
+import 'plugin_approval.dart';
 import 'property_controls.dart';
 import 'screen_tab.dart';
 import 'theme.dart';
 import 'widgets.dart';
 
 (Color, String) statusStyle(String status) => switch (status) {
-  'running' => (Oc.success, 'Conectado'),
-  'starting' => (Oc.warning, 'Iniciando'),
-  'error' => (Oc.danger, 'Erro'),
-  'disabled' => (Oc.textTertiary, 'Desativado'),
-  'unsupported' => (Oc.textTertiary, 'Não suportado'),
-  _ => (Oc.textTertiary, 'Parado'),
+  'running' => (Oc.success, l10n.devicesStatusConnected),
+  'starting' => (Oc.warning, l10n.devicesStatusStarting),
+  'error' => (Oc.danger, l10n.devicesStatusError),
+  'disabled' => (Oc.textTertiary, l10n.devicesStatusDisabled),
+  'unsupported' => (Oc.textTertiary, l10n.devicesStatusUnsupported),
+  _ => (Oc.textTertiary, l10n.devicesStatusStopped),
 };
 
 String deviceKind(DeviceInstance d) => deviceKindOf(d.type, d.name).label;
@@ -74,20 +77,19 @@ class _DevicesPageState extends State<DevicesPage> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             PageHeader(
-              title: 'Dispositivos',
+              title: l10n.devicesTitle,
               subtitle: engine.scanning
-                  ? 'Procurando…'
-                  : running == 1
-                  ? '1 conectado'
-                  : '$running conectados',
+                  ? l10n.devicesScanning
+                  : l10n.devicesConnectedCount(running),
               actions: [
                 OcButton(
-                  label: 'Procurar',
+                  label: l10n.devicesScan,
                   icon: Icons.refresh_rounded,
                   onPressed: engine.refreshDevices,
                 ),
               ],
             ),
+            PluginApprovalBanner(engine: engine),
             Expanded(
               child: Padding(
                 padding: Oc.pageInsets,
@@ -117,9 +119,14 @@ class _DevicesPageState extends State<DevicesPage> {
                                 }),
                               ),
                             if (engine.otherBatteries.isNotEmpty) ...[
-                              const Padding(
-                                padding: EdgeInsets.fromLTRB(10, 18, 10, 6),
-                                child: SectionLabel('Outros sem fio'),
+                              Padding(
+                                padding: const EdgeInsets.fromLTRB(
+                                  10,
+                                  18,
+                                  10,
+                                  6,
+                                ),
+                                child: SectionLabel(l10n.devicesOtherWireless),
                               ),
                               for (final b in engine.otherBatteries)
                                 _BatteryTile(battery: b),
@@ -151,24 +158,21 @@ class _DevicesPageState extends State<DevicesPage> {
                             : EmptyState(
                                 icon: Icons.usb_rounded,
                                 title: engine.scanning
-                                    ? 'Procurando dispositivos'
+                                    ? l10n.devicesScanningTitle
                                     : !engine.drivers.available
-                                    ? 'Drivers indisponíveis'
-                                    : 'Nenhum dispositivo',
+                                    ? l10n.devicesDriversUnavailable
+                                    : l10n.devicesNone,
                                 message: engine.scanning
                                     ? (engine.detectionStep.isEmpty
-                                          ? 'Isso leva alguns segundos.'
+                                          ? l10n.devicesScanTakesSeconds
                                           : '${engine.detectionPercent}% · ${engine.detectionStep}')
                                     : !engine.drivers.available
-                                    ? 'Os drivers não foram encontrados nesta instalação. '
-                                          'Reinstale o OpenChroma.'
-                                    : 'Conecte um dispositivo compatível. Se outro programa de RGB '
-                                          'estiver aberto, feche-o antes. Memórias e placas de '
-                                          'vídeo precisam do modo administrador e do PawnIO.',
+                                    ? l10n.devicesDriversMissing
+                                    : l10n.devicesNoneHint,
                                 action: engine.scanning
                                     ? null
                                     : OcButton(
-                                        label: 'Procurar novamente',
+                                        label: l10n.devicesScanAgain,
                                         icon: Icons.refresh_rounded,
                                         onPressed: engine.refreshDevices,
                                       ),
@@ -360,16 +364,12 @@ class _DeviceDetailState extends State<_DeviceDetail> {
                     children: [
                       OcBadge(label, dot: color, color: Oc.text),
                       OcBadge(deviceKind(d)),
-                      OcBadge(
-                        d.device.ledCount == 1
-                            ? '1 LED'
-                            : '${d.device.ledCount} LEDs',
-                      ),
+                      OcBadge(l10n.devicesLedCount(d.device.ledCount)),
                       if (d.battery != null)
                         OcBadge(
                           d.charging
-                              ? 'Carregando · ${d.battery}%'
-                              : 'Bateria ${d.battery}%',
+                              ? l10n.devicesCharging(d.battery!)
+                              : l10n.devicesBattery(d.battery!),
                           dot: d.battery! <= 15 && !d.charging
                               ? Oc.danger
                               : Oc.success,
@@ -382,14 +382,16 @@ class _DeviceDetailState extends State<_DeviceDetail> {
             ),
             if (engine.isCustomized(d)) ...[
               OcButton(
-                label: 'Restaurar padrão',
+                label: l10n.devicesRestoreDefaults,
                 icon: Icons.restart_alt_rounded,
                 onPressed: () => _confirmReset(context, engine, d),
               ),
               const SizedBox(width: 16),
             ],
             Tooltip(
-              message: d.status == 'disabled' ? 'Ativar' : 'Desativar',
+              message: d.status == 'disabled'
+                  ? l10n.devicesEnable
+                  : l10n.devicesDisable,
               child: OcSwitch(
                 value: d.status != 'disabled',
                 onChanged: (v) => engine.setDeviceEnabled(d, v),
@@ -418,9 +420,9 @@ class _DeviceDetailState extends State<_DeviceDetail> {
           child: OcSegmented<String>(
             value: _tab == 'screen' && d.screen == null ? 'lighting' : _tab,
             options: [
-              ('lighting', 'Iluminação'),
-              if (d.screen != null) ('screen', 'Tela'),
-              ('info', 'Detalhes'),
+              ('lighting', l10n.devicesTabLighting),
+              if (d.screen != null) ('screen', l10n.devicesTabScreen),
+              ('info', l10n.devicesTabDetails),
             ],
             onChanged: (v) => setState(() => _tab = v),
           ),
@@ -437,52 +439,53 @@ class _DeviceDetailState extends State<_DeviceDetail> {
   }
 }
 
-/// Names OpenRGB drivers give their effects, in Portuguese.
-const _modeNames = {
-  'off': 'Desligado',
-  'static': 'Cor fixa',
-  'breathing': 'Respirar',
-  'blinking': 'Piscar',
-  'flashing': 'Piscar',
-  'color cycle': 'Ciclo de cores',
-  'spectrum cycle': 'Ciclo de cores',
-  'rainbow': 'Arco-íris',
-  'rainbow wave': 'Onda arco-íris',
-  'wave': 'Onda',
-  'color wave': 'Onda de cores',
-  'reactive': 'Ao digitar',
-  'ripple': 'Ondulação',
-  'starlight': 'Estrelas',
-  'random flicker': 'Cintilar',
-  'double flash': 'Flash duplo',
-  'spectrum': 'Espectro',
-  'custom': 'Personalizado',
-  'random': 'Aleatório',
+String? _modeName(String name) => switch (name) {
+  'off' => l10n.devicesOff,
+  'static' => l10n.devicesModeStatic,
+  'breathing' => l10n.devicesModeBreathing,
+  'blinking' => l10n.devicesModeBlinking,
+  'flashing' => l10n.devicesModeFlashing,
+  'color cycle' => l10n.devicesModeColorCycle,
+  'spectrum cycle' => l10n.devicesModeSpectrumCycle,
+  'rainbow' => l10n.devicesModeRainbow,
+  'rainbow wave' => l10n.devicesModeRainbowWave,
+  'wave' => l10n.devicesModeWave,
+  'color wave' => l10n.devicesModeColorWave,
+  'reactive' => l10n.devicesModeReactive,
+  'ripple' => l10n.devicesModeRipple,
+  'starlight' => l10n.devicesModeStarlight,
+  'random flicker' => l10n.devicesModeRandomFlicker,
+  'double flash' => l10n.devicesModeDoubleFlash,
+  'spectrum' => l10n.devicesModeSpectrum,
+  'custom' => l10n.devicesModeCustom,
+  'random' => l10n.devicesModeRandom,
+  _ => null,
 };
 
-/// [name] in Portuguese; a trailing number stays ("Wave 2" -> "Onda 2").
+/// [name] in the UI language; a trailing number stays ("Wave 2" -> "Onda 2").
 String hardwareModeName(String name) {
   final m = RegExp(r'^(.*?)\s*(\d+)$').firstMatch(name.trim());
   final base = (m?[1] ?? name).trim();
-  final known = _modeNames[base.toLowerCase()];
-  if (known == null) return name;
+  final known = _modeName(base.toLowerCase());
+  if (known == null) return localizeTerm(name);
   return m == null ? known : '$known ${m[2]}';
 }
 
 /// The mode select's entry for "follow the app's effects".
 const _appMode = 'openchroma:app';
 
-const _directionNames = {
-  ModeDirection.left: 'Para a esquerda',
-  ModeDirection.right: 'Para a direita',
-  ModeDirection.up: 'Para cima',
-  ModeDirection.down: 'Para baixo',
-  ModeDirection.horizontal: 'Horizontal',
-  ModeDirection.vertical: 'Vertical',
-  ModeDirection.upLeft: 'Para cima e à esquerda',
-  ModeDirection.upRight: 'Para cima e à direita',
-  ModeDirection.downLeft: 'Para baixo e à esquerda',
-  ModeDirection.downRight: 'Para baixo e à direita',
+String? _directionName(int direction) => switch (direction) {
+  ModeDirection.left => l10n.devicesDirLeft,
+  ModeDirection.right => l10n.devicesDirRight,
+  ModeDirection.up => l10n.devicesDirUp,
+  ModeDirection.down => l10n.devicesDirDown,
+  ModeDirection.horizontal => l10n.devicesDirHorizontal,
+  ModeDirection.vertical => l10n.devicesDirVertical,
+  ModeDirection.upLeft => l10n.devicesDirUpLeft,
+  ModeDirection.upRight => l10n.devicesDirUpRight,
+  ModeDirection.downLeft => l10n.devicesDirDownLeft,
+  ModeDirection.downRight => l10n.devicesDirDownRight,
+  _ => null,
 };
 
 /// Rows for what the running hardware effect lets the user adjust.
@@ -499,7 +502,7 @@ List<Widget> _modeOptions(
   return [
     if (mode.speed case final r?)
       OcRow(
-        title: 'Velocidade',
+        title: l10n.devicesSpeed,
         stacked: true,
         trailing: _ModeSlider(
           value: r.fraction(o['speed'] as int),
@@ -508,7 +511,7 @@ List<Widget> _modeOptions(
       ),
     if (mode.brightness case final r?)
       OcRow(
-        title: 'Brilho',
+        title: l10n.devicesBrightness,
         stacked: true,
         trailing: _ModeSlider(
           value: r.fraction(o['brightness'] as int),
@@ -517,23 +520,23 @@ List<Widget> _modeOptions(
       ),
     if (mode.directions.length > 1)
       OcRow(
-        title: 'Direção',
+        title: l10n.devicesDirection,
         trailing: OcSelect(
           value: '${o['direction']}',
           options: [for (final d in mode.directions) '$d'],
-          labelOf: (v) => _directionNames[int.parse(v)] ?? v,
+          labelOf: (v) => _directionName(int.parse(v)) ?? v,
           onChanged: (v) => set('direction', int.parse(v)),
           width: 200,
         ),
       ),
     if (mode.random)
       OcRow(
-        title: 'Cores aleatórias',
+        title: l10n.devicesRandomColors,
         trailing: OcSwitch(value: random, onChanged: (v) => set('random', v)),
       ),
     if (mode.hasColors && !random)
       OcRow(
-        title: colors.length == 1 ? 'Cor' : 'Cores',
+        title: colors.length == 1 ? l10n.devicesColor : l10n.devicesColors,
         trailing: Wrap(
           spacing: 8,
           runSpacing: 8,
@@ -551,14 +554,14 @@ List<Widget> _modeOptions(
             if (mode.colorsMax > mode.colorsMin) ...[
               OcIconButton(
                 icon: Icons.remove,
-                tooltip: 'Uma cor a menos',
+                tooltip: l10n.devicesRemoveColor,
                 onPressed: colors.length > mode.colorsMin
                     ? () => set('colors', colors.sublist(0, colors.length - 1))
                     : null,
               ),
               OcIconButton(
                 icon: Icons.add,
-                tooltip: 'Mais uma cor',
+                tooltip: l10n.devicesAddColor,
                 onPressed: colors.length < mode.colorsMax
                     ? () => set('colors', [
                         ...colors,
@@ -572,7 +575,7 @@ List<Widget> _modeOptions(
       ),
     if (mode.ledColor)
       OcRow(
-        title: 'Cor',
+        title: l10n.devicesColor,
         trailing: ColorField(
           color: Color(0xFF000000 | (o['ledColor'] as int)),
           onChanged: (c) => set('ledColor', c.toARGB32() & 0xFFFFFF),
@@ -633,15 +636,15 @@ class _ZonesTab extends StatelessWidget {
                     size: 18,
                     color: Oc.textTertiary,
                   ),
-                  title: 'Iluminação',
+                  title: l10n.devicesLighting,
                   description: device.activeMode == null
-                      ? 'Segue os efeitos do OpenChroma.'
-                      : 'O próprio dispositivo faz o efeito.',
+                      ? l10n.devicesFollowsApp
+                      : l10n.devicesRunsItself,
                   trailing: OcSelect(
                     value: device.activeMode ?? _appMode,
                     options: [_appMode, for (final m in device.modes) m.name],
                     labelOf: (v) => v == _appMode
-                        ? 'Efeitos do OpenChroma'
+                        ? l10n.devicesAppEffects
                         : hardwareModeName(v),
                     onChanged: (v) =>
                         engine.setDeviceMode(device, v == _appMode ? null : v),
@@ -683,21 +686,19 @@ class _ZonesTab extends StatelessWidget {
               border: Border.all(color: Oc.warning.withValues(alpha: .25)),
             ),
             child: Text(
-              '${device.resizableZones.where((z) => z.$2.count == 0).map((z) => z.$2.name).join(', ')} '
-              'sem LEDs: o que estiver ligado nesses conectores não segue os '
-              'efeitos e fica no efeito anterior. Informe a quantidade abaixo.',
+              l10n.devicesZonesWithoutLeds(
+                device.resizableZones
+                    .where((z) => z.$2.count == 0)
+                    .map((z) => z.$2.name)
+                    .join(', '),
+              ),
               style: const TextStyle(fontSize: 12.5, color: Oc.warning),
             ),
           ),
         if (resizable)
-          const Padding(
-            padding: EdgeInsets.only(bottom: 14, left: 2),
-            child: Text(
-              'Nos conectores ARGB, informe quantos LEDs estão ligados. Uma '
-              'ventoinha de 120 mm costuma ter entre 8 e 24. Depois posicione '
-              'cada zona em Iluminação › Layout.',
-              style: OcText.secondary,
-            ),
+          Padding(
+            padding: const EdgeInsets.only(bottom: 14, left: 2),
+            child: Text(l10n.devicesArgbHint, style: OcText.secondary),
           ),
         OcPanel(
           children: [
@@ -712,18 +713,20 @@ class _ZonesTab extends StatelessWidget {
                   size: 18,
                   color: Oc.textTertiary,
                 ),
-                title: zones[i].name.isEmpty ? 'Zona ${i + 1}' : zones[i].name,
+                title: zones[i].name.isEmpty
+                    ? l10n.devicesZoneN(i + 1)
+                    : zones[i].name,
                 description: zones[i].resizable
-                    ? 'Até ${zones[i].max} LEDs'
+                    ? l10n.devicesUpToLeds(zones[i].max)
                     : zones[i].isMatrix
-                    ? 'Matriz ${zones[i].width} × ${zones[i].height}'
+                    ? l10n.devicesMatrix(zones[i].width, zones[i].height)
                     : null,
                 trailing: zones[i].resizable
                     ? Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           OcButton(
-                            label: 'Contar',
+                            label: l10n.devicesCountLeds,
                             icon: Icons.auto_fix_high_rounded,
                             variant: OcButtonVariant.ghost,
                             onPressed: () => showDialog<void>(
@@ -746,9 +749,7 @@ class _ZonesTab extends StatelessWidget {
                         ],
                       )
                     : Text(
-                        zones[i].count == 1
-                            ? '1 LED'
-                            : '${zones[i].count} LEDs',
+                        l10n.devicesLedCount(zones[i].count),
                         style: OcText.secondary,
                       ),
               ),
@@ -821,26 +822,21 @@ class _LedCounterState extends State<_LedCounter> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text('Contar LEDs de ${_info.name}', style: OcText.title),
+            Text(l10n.devicesCountLedsTitle(_info.name), style: OcText.title),
             const SizedBox(height: 6),
-            const Text(
-              'Os primeiros LEDs acendem em verde. Aumente até a última '
-              'ventoinha ou fita ficar toda acesa, e pare no ponto em que '
-              'acender mais um não muda nada.',
-              style: OcText.secondary,
-            ),
+            Text(l10n.devicesCountLedsHint, style: OcText.secondary),
             const SizedBox(height: 20),
             Row(
               children: [
                 OcIconButton(
                   icon: Icons.remove_rounded,
-                  tooltip: 'Um a menos',
+                  tooltip: l10n.devicesOneLess,
                   onPressed: _count > 1 ? () => _set(_count - 1) : null,
                 ),
                 Expanded(
                   child: Center(
                     child: Text(
-                      '$_count LEDs',
+                      l10n.devicesLedCount(_count),
                       style: OcText.title.copyWith(
                         fontSize: 22,
                         fontFeatures: const [FontFeature.tabularFigures()],
@@ -850,7 +846,7 @@ class _LedCounterState extends State<_LedCounter> {
                 ),
                 OcIconButton(
                   icon: Icons.add_rounded,
-                  tooltip: 'Um a mais',
+                  tooltip: l10n.devicesOneMore,
                   onPressed: _count < _max ? () => _set(_count + 1) : null,
                 ),
               ],
@@ -866,13 +862,13 @@ class _LedCounterState extends State<_LedCounter> {
               mainAxisAlignment: MainAxisAlignment.end,
               children: [
                 OcButton(
-                  label: 'Cancelar',
+                  label: l10n.devicesCancel,
                   variant: OcButtonVariant.ghost,
                   onPressed: () => _finish(null),
                 ),
                 const SizedBox(width: 8),
                 OcButton(
-                  label: 'Usar $_count LEDs',
+                  label: l10n.devicesUseLeds(_count),
                   icon: Icons.check_rounded,
                   variant: OcButtonVariant.primary,
                   onPressed: () => _finish(_count),
@@ -901,22 +897,24 @@ class _InfoTab extends StatelessWidget {
     );
     return OcPanel(
       children: [
-        if (d.vendor.isNotEmpty) info('Fabricante', d.vendor),
-        if (d.description.isNotEmpty) info('Descrição', d.description),
-        if (d.version.isNotEmpty) info('Versão', d.version),
-        if (d.serial.isNotEmpty) info('Número de série', d.serial),
+        if (d.vendor.isNotEmpty) info(l10n.devicesInfoVendor, d.vendor),
+        if (d.description.isNotEmpty)
+          info(l10n.devicesInfoDescription, d.description),
+        if (d.version.isNotEmpty) info(l10n.devicesInfoVersion, d.version),
+        if (d.serial.isNotEmpty) info(l10n.devicesInfoSerial, d.serial),
         info(
-          'Driver',
+          l10n.devicesInfoDriver,
           device.plugin == null
-              ? 'OpenRGB (incluído)'
-              : '${device.plugin!.name} · plugin '
-                    '${device.plugin!.bundled ? 'incluído' : 'seu'}',
+              ? l10n.devicesDriverBuiltIn
+              : device.plugin!.bundled
+              ? l10n.devicesDriverPluginBundled(device.plugin!.name)
+              : l10n.devicesDriverPluginUser(device.plugin!.name),
         ),
-        info('Conexão', d.location),
-        info('Zonas', '${d.zones.length}'),
+        info(l10n.devicesInfoConnection, d.location),
+        info(l10n.devicesInfoZones, '${d.zones.length}'),
         if (device.modes.isNotEmpty)
           info(
-            'Modos do hardware',
+            l10n.devicesInfoHardwareModes,
             device.modes.map((m) => hardwareModeName(m.name)).join(', '),
           ),
       ],
@@ -935,23 +933,24 @@ class _DriverOptions extends StatelessWidget {
     final title = '${entry['title'] ?? key}';
     final order = RegExp(r'^(.*) Color Order$').firstMatch(title);
     if (order != null) {
-      final what = order.group(1)!.replaceAll('LED_C(x)', 'LED_C da placa');
-      return 'Ordem das cores · $what';
+      final what = order
+          .group(1)!
+          .replaceAll('LED_C(x)', l10n.devicesBoardLedC);
+      return l10n.devicesColorOrderOption(what);
     }
     final gen2 = RegExp(r'^(.*) Gen2').firstMatch(title);
     if (gen2 != null && key.startsWith('gen2_')) {
-      return 'Detectar ARGB Gen2 · ${gen2.group(1)}';
+      return l10n.devicesDetectGen2(gen2.group(1)!);
     }
     return switch (title) {
-      'Persist Lighting on Exit' => 'Gravar a iluminação ao fechar',
+      'Persist Lighting on Exit' => l10n.devicesPersistLighting,
       _ => title,
     };
   }
 
   static String? _description(String key, Map entry) {
     if (key.startsWith('calibration_') && key != 'calibration_enabled') {
-      return 'Se a cor sair trocada (ex.: verde no lugar de azul), use '
-          '"Descobrir": duas perguntas e o app acha a ordem certa.';
+      return l10n.devicesCalibrationHint;
     }
     return null;
   }
@@ -998,7 +997,7 @@ class _DriverOptions extends StatelessWidget {
               control = OcSelect(
                 value: options.contains(current) ? current : options.first,
                 options: options,
-                labelOf: (o) => o == 'OFF' ? 'Desligado' : o,
+                labelOf: (o) => o == 'OFF' ? l10n.devicesOff : o,
                 onChanged: (o) => set(key, o),
                 width: 160,
               );
@@ -1025,7 +1024,7 @@ class _DriverOptions extends StatelessWidget {
                 children: [
                   if (zone >= 0) ...[
                     OcButton(
-                      label: 'Descobrir',
+                      label: l10n.devicesDetect,
                       icon: Icons.auto_fix_high_rounded,
                       onPressed: () => showColorOrderAssistant(
                         context,
@@ -1056,24 +1055,18 @@ Future<void> _confirmReset(
   final ok = await showDialog<bool>(
     context: context,
     builder: (context) => AlertDialog(
-      title: const Text('Restaurar padrão?', style: OcText.title),
-      content: const SizedBox(
+      title: Text(l10n.devicesResetTitle, style: OcText.title),
+      content: SizedBox(
         width: 380,
-        child: Text(
-          'Volta as opções do dispositivo (como a ordem das cores) ao que ele '
-          'tinha quando foi detectado pela primeira vez, faz ele seguir os '
-          'efeitos do OpenChroma e devolve a posição dele no layout. A '
-          'quantidade de LEDs dos conectores continua.',
-          style: OcText.body,
-        ),
+        child: Text(l10n.devicesResetBody, style: OcText.body),
       ),
       actions: [
         OcButton(
-          label: 'Cancelar',
+          label: l10n.devicesCancel,
           onPressed: () => Navigator.pop(context, false),
         ),
         OcButton(
-          label: 'Restaurar',
+          label: l10n.devicesRestore,
           variant: OcButtonVariant.primary,
           onPressed: () => Navigator.pop(context, true),
         ),

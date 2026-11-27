@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../ai/ai_service.dart';
 import '../ai/assistant.dart';
 import '../checkup/checkup.dart';
+import '../i18n/l10n.dart';
 import '../system/launch_settings.dart';
 import 'accent.dart';
 import 'theme.dart';
@@ -36,12 +37,12 @@ class CheckupPage extends StatelessWidget {
       return ListView(
         children: [
           PageHeader(
-            title: 'Desempenho',
+            title: l10n.perfTitle,
             subtitle: checkup.running
-                ? 'Checkup em andamento'
+                ? l10n.checkupSubtitleRunning
                 : r == null
-                ? 'Teste a estabilidade e a saúde do PC'
-                : 'Último checkup ${_when(r.started)}',
+                ? l10n.checkupSubtitleEmpty
+                : l10n.checkupSubtitleLast(_when(r.started)),
             actions: headerActions,
           ),
           Padding(
@@ -66,10 +67,13 @@ class CheckupPage extends StatelessWidget {
                       padding: const EdgeInsets.only(left: 4, bottom: 14),
                       child: Row(
                         children: [
-                          const Text('Testes', style: OcText.title),
+                          Text(l10n.checkupTests, style: OcText.title),
                           const SizedBox(width: 10),
                           OcTag(
-                            '${checkup.selected.length} de ${CheckupTest.values.length}',
+                            l10n.checkupSelectedCount(
+                              checkup.selected.length,
+                              CheckupTest.values.length,
+                            ),
                           ),
                         ],
                       ),
@@ -128,19 +132,19 @@ class CheckupPage extends StatelessWidget {
 
 // ---------------------------------------------------------------- Labels
 
-const _planLabels = {
-  CheckupPlan.quick: 'Rápido',
-  CheckupPlan.standard: 'Padrão',
-  CheckupPlan.long: 'Longo',
+String _planLabel(CheckupPlan p) => switch (p) {
+  CheckupPlan.quick => l10n.checkupPlanQuick,
+  CheckupPlan.standard => l10n.checkupPlanStandard,
+  CheckupPlan.long => l10n.checkupPlanLong,
 };
 
 String _testName(CheckupTest t) => switch (t) {
-  CheckupTest.cpuSingle => 'Processador · 1 núcleo',
-  CheckupTest.cpuAll => 'Processador · todos',
-  CheckupTest.memory => 'Memória RAM',
-  CheckupTest.gpu => 'Placa de vídeo',
-  CheckupTest.cpuGpu => 'CPU + GPU juntos',
-  CheckupTest.disk => 'Armazenamento',
+  CheckupTest.cpuSingle => l10n.checkupTestCpuSingle,
+  CheckupTest.cpuAll => l10n.checkupTestCpuAll,
+  CheckupTest.memory => l10n.checkupTestMemory,
+  CheckupTest.gpu => l10n.checkupTestGpu,
+  CheckupTest.cpuGpu => l10n.checkupTestCpuGpu,
+  CheckupTest.disk => l10n.checkupTestDisk,
 };
 
 IconData _testIcon(CheckupTest t) => switch (t) {
@@ -152,11 +156,13 @@ IconData _testIcon(CheckupTest t) => switch (t) {
   CheckupTest.disk => Icons.storage_rounded,
 };
 
-String _num(double v, [int digits = 0]) =>
-    v.toStringAsFixed(digits).replaceAll('.', ',');
+String _num(double v, [int digits = 0]) {
+  final text = v.toStringAsFixed(digits);
+  return l10n.localeName == 'pt' ? text.replaceAll('.', ',') : text;
+}
 
 String _thousands(double v) =>
-    v >= 10000 ? '${_num(v / 1000, 1)} mil' : _num(v);
+    v >= 10000 ? l10n.checkupThousands(_num(v / 1000, 1)) : _num(v);
 
 String _duration(num seconds) {
   final s = seconds.round();
@@ -172,9 +178,12 @@ String _when(DateTime t) {
     now.month,
     now.day,
   ).difference(DateTime(t.year, t.month, t.day)).inDays;
-  if (days == 0) return 'hoje às $hm';
-  if (days == 1) return 'ontem às $hm';
-  return 'em ${t.day.toString().padLeft(2, '0')}/${t.month.toString().padLeft(2, '0')} às $hm';
+  if (days == 0) return l10n.checkupWhenToday(hm);
+  if (days == 1) return l10n.checkupWhenYesterday(hm);
+  final day = t.day.toString().padLeft(2, '0');
+  final month = t.month.toString().padLeft(2, '0');
+  final date = l10n.localeName == 'pt' ? '$day/$month' : '$month/$day';
+  return l10n.checkupWhenDate(date, hm);
 }
 
 String _metric(TestResult r) {
@@ -190,8 +199,8 @@ String _metric(TestResult r) {
       if (r.avgCpuPower != null) '${r.avgCpuPower!.round()} W',
     ],
     CheckupTest.memory => [
-      'Lê ${_num(r.memRead, 1)} GB/s',
-      'grava ${_num(r.memWrite, 1)}',
+      l10n.checkupMemoryMetricRead(_num(r.memRead, 1)),
+      l10n.checkupMemoryMetricWrite(_num(r.memWrite, 1)),
     ],
     CheckupTest.gpu => [
       '${_num(r.gpuTflops, 1)} TFLOPS',
@@ -210,8 +219,8 @@ String _metric(TestResult r) {
         '${_num(r.gpuTflops, 1)} TFLOPS',
     ],
     CheckupTest.disk => [
-      'Grava ${_num(r.diskWrite / 1000, 1)} GB/s',
-      'lê ${_num(r.diskRead / 1000, 1)}',
+      l10n.checkupDiskMetricWrite(_num(r.diskWrite / 1000, 1)),
+      l10n.checkupDiskMetricRead(_num(r.diskRead / 1000, 1)),
     ],
   };
   return parts.join(' · ');
@@ -249,13 +258,14 @@ class _HeroCard extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               OcCardTitle(
-                'Checkup',
+                l10n.checkupTitle,
                 trailing: busy
                     ? null
                     : OcSegmented<CheckupPlan>(
                         value: checkup.plan,
                         options: [
-                          for (final e in _planLabels.entries) (e.key, e.value),
+                          for (final p in CheckupPlan.values)
+                            (p, _planLabel(p)),
                         ],
                         onChanged: checkup.setPlan,
                       ),
@@ -283,7 +293,7 @@ class _HeroCard extends StatelessWidget {
                 children: [
                   if (running)
                     OcButton(
-                      label: 'Cancelar',
+                      label: l10n.checkupCancel,
                       icon: Icons.stop_rounded,
                       variant: OcButtonVariant.danger,
                       onPressed: checkup.cancel,
@@ -291,10 +301,10 @@ class _HeroCard extends StatelessWidget {
                   else
                     OcButton(
                       label: checkup.preparing
-                          ? 'Preparando…'
+                          ? l10n.checkupPreparing
                           : r == null
-                          ? 'Iniciar checkup'
-                          : 'Rodar de novo',
+                          ? l10n.checkupStart
+                          : l10n.checkupRunAgain,
                       icon: Icons.play_arrow_rounded,
                       variant: OcButtonVariant.primary,
                       onPressed:
@@ -313,17 +323,16 @@ class _HeroCard extends StatelessWidget {
                             color: Oc.textTertiary,
                           ),
                           const SizedBox(width: 8),
-                          const Flexible(
+                          Flexible(
                             child: Text(
-                              'Sem administrador, a temperatura da CPU e a causa das '
-                              'telas azuis ficam de fora.',
+                              l10n.checkupNoAdminNote,
                               overflow: TextOverflow.ellipsis,
                               style: OcText.caption,
                             ),
                           ),
                           const SizedBox(width: 8),
                           OcButton(
-                            label: 'Reiniciar como administrador',
+                            label: l10n.perfRestartAsAdmin,
                             variant: OcButtonVariant.ghost,
                             onPressed: onRestartAsAdmin,
                           ),
@@ -362,18 +371,14 @@ class _IdleSummary extends StatelessWidget {
       final bad = advice.where((a) => a.severity == Severity.bad).length;
       final warn = advice.where((a) => a.severity == Severity.warning).length;
       final (icon, color, title) = bad > 0
-          ? (
-              Icons.error_rounded,
-              Oc.danger,
-              bad == 1 ? '1 problema' : '$bad problemas',
-            )
+          ? (Icons.error_rounded, Oc.danger, l10n.checkupProblemCount(bad))
           : warn > 0
           ? (
               Icons.warning_amber_rounded,
               Oc.warning,
-              warn == 1 ? '1 aviso' : '$warn avisos',
+              l10n.checkupWarningCount(warn),
             )
-          : (Icons.check_circle_rounded, Oc.success, 'Tudo certo');
+          : (Icons.check_circle_rounded, Oc.success, l10n.checkupAllGood);
       final errors = r.tests.fold(0, (sum, t) => sum + t.errors);
       return Column(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -384,17 +389,12 @@ class _IdleSummary extends StatelessWidget {
           Text(title, style: _display.copyWith(fontSize: 44)),
           const SizedBox(height: 10),
           Text(
-            [
-              errors == 0
-                  ? 'Nenhum erro de cálculo'
-                  : '$errors erros de cálculo',
-              _planLabels[r.plan]!,
-            ].join(' · '),
+            [l10n.checkupCalcErrors(errors), _planLabel(r.plan)].join(' · '),
             style: OcText.secondary,
           ),
           const SizedBox(height: 4),
           Text(
-            'Próximo: ${_planLabels[checkup.plan]} · ≈ $minutes min',
+            l10n.checkupNext(_planLabel(checkup.plan), minutes),
             style: OcText.caption,
           ),
         ],
@@ -430,9 +430,7 @@ class _IdleSummary extends StatelessWidget {
         ),
         const SizedBox(height: 10),
         Text(
-          checkup.selected.length == 1
-              ? '1 teste'
-              : '${checkup.selected.length} testes',
+          l10n.checkupTestCount(checkup.selected.length),
           style: OcText.secondary,
         ),
       ],
@@ -468,7 +466,9 @@ class _RunningSummary extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          i == null ? 'Finalizando…' : 'Teste ${i + 1} de ${r.tests.length}',
+          i == null
+              ? l10n.checkupFinishing
+              : l10n.checkupTestProgress(i + 1, r.tests.length),
           style: OcText.caption,
         ),
         const SizedBox(height: 6),
@@ -490,7 +490,10 @@ class _RunningSummary extends StatelessWidget {
         ),
         const SizedBox(height: 8),
         Text(
-          '${(progress * 100).round()}% · ${_duration(math.max(0, total - done))} restantes',
+          l10n.checkupProgressRemaining(
+            (progress * 100).round(),
+            _duration(math.max(0, total - done)),
+          ),
           style: OcText.caption,
         ),
         const SizedBox(height: 18),
@@ -503,11 +506,11 @@ class _RunningSummary extends StatelessWidget {
               last?.cpuTemp == null ? '—' : '${last!.cpuTemp!.round()} °C',
             ),
             _LiveStat(
-              'Consumo',
+              l10n.monitorPower,
               last?.cpuPower == null ? '—' : '${last!.cpuPower!.round()} W',
             ),
             _LiveStat(
-              'Clock',
+              l10n.monitorClock,
               last?.cpuClock == null
                   ? '—'
                   : '${_num(last!.cpuClock! / 1000, 2)} GHz',
@@ -560,7 +563,7 @@ class _TempChart extends StatelessWidget {
         children: [
           Row(
             children: [
-              const Text('Temperatura', style: OcText.caption),
+              Text(l10n.monitorTemperature, style: OcText.caption),
               const Spacer(),
               if (hasCpu) _Legend(color: accent, label: 'CPU'),
               if (hasCpu && hasGpu) const SizedBox(width: 14),
@@ -785,12 +788,12 @@ class _TestTile extends StatelessWidget {
       );
     }
     final (label, color) = switch (r.status) {
-      'pending' => ('Na fila', Oc.textTertiary),
-      'done' when r.errors == 0 => ('Estável', Oc.success),
-      'done' => (r.errors == 1 ? '1 erro' : '${r.errors} erros', Oc.danger),
-      'aborted' => ('Interrompido', Oc.danger),
-      'failed' => ('Não rodou', Oc.warning),
-      _ => ('Cancelado', Oc.textTertiary),
+      'pending' => (l10n.checkupStatusQueued, Oc.textTertiary),
+      'done' when r.errors == 0 => (l10n.checkupStatusStable, Oc.success),
+      'done' => (l10n.checkupStatusErrors(r.errors), Oc.danger),
+      'aborted' => (l10n.checkupStatusStopped, Oc.danger),
+      'failed' => (l10n.checkupStatusDidNotRun, Oc.warning),
+      _ => (l10n.checkupStatusCancelled, Oc.textTertiary),
     };
     return _Chip(label: label, color: color);
   }
@@ -829,19 +832,16 @@ class _SystemCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final s = report;
     if (s == null) {
-      return const OcCard(
+      return OcCard(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            OcCardTitle('Sistema'),
-            SizedBox(height: 40),
+            OcCardTitle(l10n.systemCardTitle),
+            const SizedBox(height: 40),
             Center(
-              child: Text(
-                'Aparece depois do primeiro checkup',
-                style: OcText.caption,
-              ),
+              child: Text(l10n.systemAfterFirstCheckup, style: OcText.caption),
             ),
-            SizedBox(height: 40),
+            const SizedBox(height: 40),
           ],
         ),
       );
@@ -861,12 +861,12 @@ class _SystemCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const OcCardTitle('Sistema'),
+          OcCardTitle(l10n.systemCardTitle),
           const SizedBox(height: 10),
           if (s.board.isNotEmpty)
             _InfoRow(
               icon: Icons.developer_board_outlined,
-              label: 'Placa-mãe',
+              label: l10n.systemMotherboard,
               value: [
                 s.board,
                 if (s.bios.isNotEmpty) 'BIOS ${s.bios}',
@@ -875,48 +875,52 @@ class _SystemCard extends StatelessWidget {
           if (s.cpuName.isNotEmpty)
             _InfoRow(
               icon: Icons.memory_rounded,
-              label: 'Processador',
+              label: l10n.systemProcessor,
               value: s.cpuName,
             ),
           if (s.gpuName.isNotEmpty)
             _InfoRow(
               icon: Icons.videogame_asset_outlined,
-              label: 'Placa de vídeo',
+              label: l10n.systemGraphicsCard,
               value: s.gpuName,
             ),
           if (m != null)
             _InfoRow(
               icon: Icons.view_week_outlined,
-              label: 'Memória',
+              label: l10n.systemMemory,
               value: [
                 '${_num(totalGb)} GB',
-                mods.length == 1 ? '1 pente' : '${mods.length} pentes',
+                l10n.systemModuleCount(mods.length),
                 if (m.type.isNotEmpty) '${m.type}-${m.configured}',
-                if (s.slots > 0) '${s.slots} slots',
+                if (s.slots > 0) l10n.systemSlotCount(s.slots),
               ].join(' · '),
               severity: mods.length == 1 ? Severity.warning : null,
             ),
           if (s.memTotal > 0)
             _InfoRow(
               icon: Icons.pie_chart_outline_rounded,
-              label: 'Memória em uso',
-              value:
-                  '${_num(s.memUsed / 1073741824, 1)} de ${_num(s.memTotal / 1073741824, 1)} GB',
+              label: l10n.systemMemoryInUse,
+              value: l10n.systemMemoryUsedOfTotal(
+                _num(s.memUsed / 1073741824, 1),
+                _num(s.memTotal / 1073741824, 1),
+              ),
               severity: usedPct > .85 ? Severity.warning : null,
             ),
           if (s.driveFree != null)
             _InfoRow(
               icon: Icons.storage_rounded,
-              label: 'Disco do sistema',
-              value:
-                  '${_num(s.driveFree! / 1073741824)} GB livres de ${_num(s.driveTotal! / 1073741824)} GB',
+              label: l10n.systemDrive,
+              value: l10n.systemDriveFree(
+                _num(s.driveFree! / 1073741824),
+                _num(s.driveTotal! / 1073741824),
+              ),
               severity: freePct < .1 ? Severity.warning : null,
             ),
           _InfoRow(
             icon: Icons.report_gmailerrorred_rounded,
-            label: 'Telas azuis · 30 dias',
+            label: l10n.systemBlueScreens,
             value: s.blueScreens.isEmpty
-                ? 'Nenhuma'
+                ? l10n.systemBlueScreensNone
                 : [
                     '${s.blueScreens.length}',
                     if (suspect != null) suspect.key,
@@ -926,18 +930,18 @@ class _SystemCard extends StatelessWidget {
           if (s.startupApps != null)
             _InfoRow(
               icon: Icons.rocket_launch_outlined,
-              label: 'Abrem com o Windows',
-              value: s.startupApps == 1
-                  ? '1 programa'
-                  : '${s.startupApps} programas',
+              label: l10n.systemStartupApps,
+              value: l10n.systemStartupAppsValue(s.startupApps!),
               severity: s.startupApps! > 12 ? Severity.info : null,
             ),
           if (s.idleCpuTemp != null)
             _InfoRow(
               icon: Icons.thermostat_rounded,
-              label: 'CPU em repouso',
-              value:
-                  '${s.idleCpuTemp!.round()} °C · ${(s.idleCpuUsage ?? 0).round()}% de uso',
+              label: l10n.systemIdleCpu,
+              value: l10n.systemIdleCpuValue(
+                s.idleCpuTemp!.round(),
+                (s.idleCpuUsage ?? 0).round(),
+              ),
             ),
         ],
       ),
@@ -1000,7 +1004,7 @@ class _AdviceCard extends StatelessWidget {
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const OcCardTitle('Recomendações'),
+        OcCardTitle(l10n.checkupRecommendations),
         const SizedBox(height: 10),
         if (advice.isEmpty)
           Padding(
@@ -1008,8 +1012,8 @@ class _AdviceCard extends StatelessWidget {
             child: Center(
               child: Text(
                 hasReport
-                    ? 'Termine um checkup para ver as recomendações'
-                    : 'Aparece depois do primeiro checkup',
+                    ? l10n.checkupRecommendationsEmpty
+                    : l10n.systemAfterFirstCheckup,
                 style: OcText.caption,
               ),
             ),
@@ -1084,14 +1088,7 @@ class _AiCardState extends State<_AiCard> {
     });
     try {
       final answer = await widget.ai.chat(
-        system:
-            'Você é um técnico de hardware experiente analisando o checkup de '
-            'um PC com Windows feito pelo app OpenChroma. Responda em '
-            'português do Brasil, em texto simples (sem tabelas), com: um '
-            'veredito de uma linha; os problemas reais em ordem de '
-            'importância, cada um com a causa provável e o que fazer; e o que '
-            'está bom. Seja específico com os números do relatório e não '
-            'invente dados que não estão nele. No máximo 250 palavras.',
+        system: l10n.checkupAiSystemPrompt,
         messages: [AiMessage('user', describeCheckup(r))],
       );
       if (!mounted) return;
@@ -1138,15 +1135,14 @@ class _AiCardState extends State<_AiCard> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text('Análise com IA', style: OcText.label),
+                      Text(l10n.checkupAiTitle, style: OcText.label),
                       const SizedBox(height: 3),
                       Text(
                         !ready
-                            ? 'Conecte uma IA em Configurações para usar.'
+                            ? l10n.checkupAiNotReady
                             : r == null || !r.finished
-                            ? 'Rode um checkup para analisar os resultados.'
-                            : 'Explica os resultados e sugere ajustes para o '
-                                  'seu PC.',
+                            ? l10n.checkupAiRunFirst
+                            : l10n.checkupAiHint,
                         style: OcText.secondary,
                       ),
                     ],
@@ -1154,8 +1150,8 @@ class _AiCardState extends State<_AiCard> {
                 ),
                 OcButton(
                   label: _answer == null || stale
-                      ? 'Analisar'
-                      : 'Analisar de novo',
+                      ? l10n.checkupAiAnalyze
+                      : l10n.checkupAiAnalyzeAgain,
                   icon: Icons.auto_awesome,
                   variant: OcButtonVariant.primary,
                   onPressed: ready && r != null && r.finished && !_busy

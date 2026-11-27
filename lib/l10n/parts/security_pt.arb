@@ -1,0 +1,10 @@
+{
+  "securityStartupAdminDescription": "Abre na bandeja, como administrador, ao entrar no Windows, sem pedir permissão. Para alterar, o OpenChroma precisa estar rodando como administrador.",
+  "securityStartupInstallUnsafe": "Para iniciar como administrador automaticamente, instale o OpenChroma para todos os usuários (em Arquivos de Programas). Esta cópia pode ser modificada sem direitos de administrador, então não é seguro executá-la com acesso total ao entrar no Windows.",
+  "securityStartupInstallUnsafeRemove": "Esta cópia pode ser modificada sem direitos de administrador, então iniciá-la como administrador não é seguro. Desative esta opção para remover o início automático como administrador.",
+  "securityStartupNeedsAdmin": "Reinicie o OpenChroma como administrador para alterar o início automático como administrador.",
+  "securityErrorNeedsAdmin": "Reinicie o OpenChroma como administrador para alterar esta configuração.",
+  "securityErrorInstallNotTrusted": "Para iniciar como administrador automaticamente, instale o OpenChroma para todos os usuários (em Arquivos de Programas).",
+  "securityErrorTaskNotCreated": "A tarefa de inicialização não foi criada.",
+  "securityErrorTaskNotRemoved": "A tarefa de inicialização não foi removida."
+}

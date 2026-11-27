@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../engine/engine.dart';
+import '../i18n/l10n.dart';
 import 'theme.dart';
 import 'widgets.dart';
 
@@ -101,9 +102,7 @@ class _AssistantState extends State<_Assistant> {
     if (seen == null) {
       setState(() {
         _step = _Step.failed;
-        _message =
-            'Se nada acendeu, confira a quantidade de LEDs do ${widget.header} '
-            'e se as ventoinhas estão nesse conector.';
+        _message = l10n.colorOrderNothingLit(widget.header);
       });
       return;
     }
@@ -114,14 +113,14 @@ class _AssistantState extends State<_Assistant> {
         setState(() => _step = _Step.green);
       case _Step.green:
         if (_red == 'R' && seen == 'G') {
-          _done('A ordem já estava certa ($_current).');
+          _done(l10n.colorOrderAlreadyRight(_current));
           return;
         }
         _candidates = fixColorOrder(_current, _red!, seen);
         if (_candidates.isEmpty) {
           setState(() {
             _step = _Step.failed;
-            _message = 'As duas cores pareceram iguais. Tente de novo.';
+            _message = l10n.colorOrderSameColors;
           });
           return;
         }
@@ -135,9 +134,7 @@ class _AssistantState extends State<_Assistant> {
     if (_tried >= _candidates.length) {
       setState(() {
         _step = _Step.failed;
-        _message =
-            'Não consegui acertar sozinho. Escolha a ordem manualmente na '
-            'lista.';
+        _message = l10n.colorOrderCouldNotFix;
       });
       return;
     }
@@ -155,15 +152,15 @@ class _AssistantState extends State<_Assistant> {
   Widget build(BuildContext context) {
     final (title, body) = switch (_step) {
       _Step.red || _Step.green => (
-        'Ordem das cores · ${widget.header}',
-        'Que cor as ventoinhas desse conector estão mostrando agora?',
+        l10n.colorOrderTitle(widget.header),
+        l10n.colorOrderQuestion,
       ),
       _Step.confirm => (
-        'Ficou azul?',
-        'Testando a ordem ${_candidates[_tried - 1]}.',
+        l10n.colorOrderBlueTitle,
+        l10n.colorOrderTesting(_candidates[_tried - 1]),
       ),
-      _Step.done => ('Pronto', _message),
-      _Step.failed => ('Não deu certo', _message),
+      _Step.done => (l10n.colorOrderDoneTitle, _message),
+      _Step.failed => (l10n.colorOrderFailedTitle, _message),
     };
     Widget swatch(String label, String value, Color color) => OcButton(
       label: label,
@@ -177,32 +174,35 @@ class _AssistantState extends State<_Assistant> {
       actionsAlignment: MainAxisAlignment.spaceBetween,
       actions: switch (_step) {
         _Step.red || _Step.green => [
-          OcButton(label: 'Não acendeu', onPressed: () => _answer(null)),
+          OcButton(
+            label: l10n.colorOrderNothingLitButton,
+            onPressed: () => _answer(null),
+          ),
           Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              swatch('Vermelho', 'R', const Color(0xFFEF4444)),
+              swatch(l10n.colorOrderRed, 'R', const Color(0xFFEF4444)),
               const SizedBox(width: 6),
-              swatch('Verde', 'G', const Color(0xFF22C55E)),
+              swatch(l10n.colorOrderGreen, 'G', const Color(0xFF22C55E)),
               const SizedBox(width: 6),
-              swatch('Azul', 'B', const Color(0xFF3B82F6)),
+              swatch(l10n.colorOrderBlue, 'B', const Color(0xFF3B82F6)),
             ],
           ),
         ],
         _Step.confirm => [
-          OcButton(label: 'Não', onPressed: _tryNext),
+          OcButton(label: l10n.colorOrderNo, onPressed: _tryNext),
           OcButton(
-            label: 'Sim',
+            label: l10n.colorOrderYes,
             variant: OcButtonVariant.primary,
             onPressed: () => _done(
-              'Ordem ${_candidates[_tried - 1]} salva no ${widget.header}.',
+              l10n.colorOrderSaved(_candidates[_tried - 1], widget.header),
             ),
           ),
         ],
         _ => [
           const SizedBox.shrink(),
           OcButton(
-            label: 'Fechar',
+            label: l10n.colorOrderClose,
             variant: OcButtonVariant.primary,
             onPressed: () => Navigator.pop(context),
           ),

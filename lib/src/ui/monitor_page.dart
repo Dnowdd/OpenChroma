@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import '../engine/engine.dart';
+import '../i18n/l10n.dart';
 import '../monitor/system_monitor.dart';
 import '../system/launch_settings.dart';
 import 'accent.dart';
@@ -65,12 +66,12 @@ class _MonitorPageState extends State<MonitorPage> {
                   children: [
                     Expanded(
                       child: Text(
-                        'Processes at $timestamp',
+                        l10n.monitorProcessesAt(timestamp),
                         style: OcText.label,
                       ),
                     ),
                     IconButton(
-                      tooltip: 'Close',
+                      tooltip: l10n.perfClose,
                       onPressed: () => Navigator.of(context).pop(),
                       icon: const Icon(Icons.close_rounded),
                     ),
@@ -78,8 +79,12 @@ class _MonitorPageState extends State<MonitorPage> {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  'CPU ${sample.snapshot.cpu.usage == null ? '—' : _fmtPercent(sample.snapshot.cpu.usage!)}'
-                  ' · Memory ${_fmtPercent(sample.snapshot.memory.percent)}',
+                  l10n.monitorInspectSummary(
+                    sample.snapshot.cpu.usage == null
+                        ? '—'
+                        : _fmtPercent(sample.snapshot.cpu.usage!),
+                    _fmtPercent(sample.snapshot.memory.percent),
+                  ),
                   style: OcText.secondary,
                 ),
                 const SizedBox(height: 16),
@@ -130,10 +135,10 @@ class _MonitorPageState extends State<MonitorPage> {
   @override
   Widget build(BuildContext context) {
     if (!_monitor.available) {
-      return const EmptyState(
+      return EmptyState(
         icon: Icons.monitor_heart_outlined,
-        title: 'Monitor indisponível',
-        message: 'Esta build não inclui os sensores do sistema.',
+        title: l10n.monitorUnavailableTitle,
+        message: l10n.monitorUnavailableMessage,
       );
     }
     return ListenableBuilder(
@@ -143,21 +148,19 @@ class _MonitorPageState extends State<MonitorPage> {
         return ListView(
           children: [
             PageHeader(
-              title: 'Desempenho',
+              title: l10n.perfTitle,
               subtitle: s == null
-                  ? 'Lendo os sensores…'
-                  : 'Atualizado a cada segundo · PC ligado há ${_fmtUptime(s.uptime)}',
+                  ? l10n.monitorReadingSensors
+                  : l10n.monitorSubtitle(_fmtUptime(s.uptime)),
               actions: widget.headerActions,
             ),
             if (s == null && _monitor.stalled)
-              const Padding(
-                padding: EdgeInsets.only(top: 80),
+              Padding(
+                padding: const EdgeInsets.only(top: 80),
                 child: EmptyState(
                   icon: Icons.sensors_off_outlined,
-                  title: 'Os sensores não responderam',
-                  message:
-                      'Nenhuma leitura chegou do sistema. Feche e abra o '
-                      'OpenChroma de novo; se continuar, avise.',
+                  title: l10n.monitorStalledTitle,
+                  message: l10n.monitorStalledMessage,
                 ),
               )
             else if (s == null)
@@ -287,10 +290,10 @@ class _CpuCard extends StatelessWidget {
       children: [
         _CardHeader(
           icon: Icons.memory_rounded,
-          overline: 'Processador',
+          overline: l10n.monitorProcessor,
           title: cpu.name.isEmpty ? 'CPU' : cpu.name,
           trailing: cpu.cores > 0
-              ? OcBadge('${cpu.cores} núcleos · ${cpu.threads} threads')
+              ? OcBadge(l10n.monitorCoresThreads(cpu.cores, cpu.threads))
               : null,
         ),
         const SizedBox(height: 20),
@@ -306,7 +309,7 @@ class _CpuCard extends StatelessWidget {
                     ),
             ),
             const SizedBox(width: 16),
-            _UsageRing(percent: cpu.usage, label: 'Uso'),
+            _UsageRing(percent: cpu.usage, label: l10n.monitorUsage),
           ],
         ),
         const SizedBox(height: 20),
@@ -315,7 +318,7 @@ class _CpuCard extends StatelessWidget {
             if (hasTemp) ...[
               Expanded(
                 child: _ChartBlock(
-                  title: 'Temperatura',
+                  title: l10n.monitorTemperature,
                   history: monitor.cpuTemp,
                   format: _fmtTemp,
                   color: _TempKind.cpu.level(cpu.temp!).color,
@@ -326,7 +329,7 @@ class _CpuCard extends StatelessWidget {
             ],
             Expanded(
               child: _ChartBlock(
-                title: 'Uso',
+                title: l10n.monitorUsage,
                 history: monitor.cpuUsage,
                 chartKey: const ValueKey('cpu-usage-history'),
                 onSelect: onInspect,
@@ -340,8 +343,14 @@ class _CpuCard extends StatelessWidget {
         const SizedBox(height: 20),
         _StatRow(
           stats: [
-            ('Clock', cpu.clock == null ? '—' : _fmtClock(cpu.clock!)),
-            ('Consumo', cpu.power == null ? '—' : '${_fmt(cpu.power!, 0)} W'),
+            (
+              l10n.monitorClock,
+              cpu.clock == null ? '—' : _fmtClock(cpu.clock!),
+            ),
+            (
+              l10n.monitorPower,
+              cpu.power == null ? '—' : '${_fmt(cpu.power!, 0)} W',
+            ),
             for (var i = 0; i < cpu.ccds.length; i++)
               (
                 cpu.ccds.length == 1 ? 'CCD' : 'CCD ${i + 1}',
@@ -351,7 +360,7 @@ class _CpuCard extends StatelessWidget {
         ),
         if (cpu.perThread.isNotEmpty) ...[
           const SizedBox(height: 20),
-          Text('Uso por thread', style: OcText.caption),
+          Text(l10n.monitorUsagePerThread, style: OcText.caption),
           const SizedBox(height: 8),
           _ThreadBars(values: cpu.perThread),
         ],
@@ -369,26 +378,22 @@ class _CpuTempUnavailable extends StatelessWidget {
   Widget build(BuildContext context) {
     final (title, message) = switch (status) {
       CpuSensorStatus.needsAdmin => (
-        'Precisa de administrador',
-        'O sensor da CPU é lido pelo driver PawnIO, que só atende programas '
-            'abertos como administrador.',
+        l10n.monitorNeedsAdminTitle,
+        l10n.monitorNeedsAdminMessage,
       ),
       CpuSensorStatus.pending => (
-        'Lendo o sensor…',
-        'Abrindo o driver PawnIO.',
+        l10n.monitorSensorPendingTitle,
+        l10n.monitorSensorPendingMessage,
       ),
       CpuSensorStatus.failed => (
-        'O sensor não respondeu',
-        'O driver PawnIO parou de responder. As outras leituras seguem normais.',
+        l10n.monitorSensorFailedTitle,
+        l10n.monitorSensorFailedMessage,
       ),
       CpuSensorStatus.noDriver => (
-        'Driver PawnIO não encontrado',
-        'Instale o PawnIO (pawnio.eu) para ver a temperatura da CPU.',
+        l10n.monitorNoDriverTitle,
+        l10n.monitorNoDriverMessage,
       ),
-      _ => (
-        'Sem sensor',
-        'Este processador não tem um sensor de temperatura suportado.',
-      ),
+      _ => (l10n.monitorNoSensorTitle, l10n.monitorNoSensorMessage),
     };
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -409,7 +414,7 @@ class _CpuTempUnavailable extends StatelessWidget {
         if (status == CpuSensorStatus.needsAdmin) ...[
           const SizedBox(height: 12),
           OcButton(
-            label: 'Reiniciar como administrador',
+            label: l10n.perfRestartAsAdmin,
             icon: Icons.admin_panel_settings_outlined,
             onPressed: onElevate,
           ),
@@ -435,7 +440,7 @@ class _GpuCard extends StatelessWidget {
       children: [
         _CardHeader(
           icon: Icons.videogame_asset_outlined,
-          overline: 'Placa de vídeo',
+          overline: l10n.monitorGraphicsCard,
           title: g.name,
           trailing: g.memTotal != null
               ? OcBadge('${_fmtBytes(g.memTotal!, decimals: 0)} VRAM')
@@ -447,11 +452,11 @@ class _GpuCard extends StatelessWidget {
           children: [
             Expanded(
               child: g.temp == null
-                  ? const _NoReading(text: 'Temperatura indisponível')
+                  ? _NoReading(text: l10n.monitorTemperatureUnavailable)
                   : _TempReadout(temp: g.temp!, kind: _TempKind.gpu),
             ),
             const SizedBox(width: 16),
-            _UsageRing(percent: g.usage, label: 'Uso'),
+            _UsageRing(percent: g.usage, label: l10n.monitorUsage),
           ],
         ),
         const SizedBox(height: 20),
@@ -460,7 +465,7 @@ class _GpuCard extends StatelessWidget {
             if (g.temp != null) ...[
               Expanded(
                 child: _ChartBlock(
-                  title: 'Temperatura',
+                  title: l10n.monitorTemperature,
                   history: monitor.gpuTemp,
                   format: _fmtTemp,
                   color: _TempKind.gpu.level(g.temp!).color,
@@ -471,7 +476,7 @@ class _GpuCard extends StatelessWidget {
             ],
             Expanded(
               child: _ChartBlock(
-                title: 'Uso',
+                title: l10n.monitorUsage,
                 history: monitor.gpuUsage,
                 format: _fmtPercent,
                 color: LiveAccent.of(context),
@@ -483,17 +488,18 @@ class _GpuCard extends StatelessWidget {
         const SizedBox(height: 20),
         _StatRow(
           stats: [
-            if (g.clock != null) ('Clock', '${_fmt(g.clock!, 0)} MHz'),
+            if (g.clock != null)
+              (l10n.monitorClock, '${_fmt(g.clock!, 0)} MHz'),
             if (g.power != null)
               (
-                'Consumo',
+                l10n.monitorPower,
                 g.powerLimit != null
                     ? '${_fmt(g.power!, 0)} / ${_fmt(g.powerLimit!, 0)} W'
                     : '${_fmt(g.power!, 0)} W',
               ),
             if (g.fan != null || g.fanRpm != null)
               (
-                'Ventoinha',
+                l10n.monitorFan,
                 [
                   if (g.fan != null) '${_fmt(g.fan!, 0)}%',
                   if (g.fanRpm != null) '${_fmt(g.fanRpm!, 0)} RPM',
@@ -504,8 +510,11 @@ class _GpuCard extends StatelessWidget {
         if (g.memUsed != null && memPercent != null) ...[
           const SizedBox(height: 20),
           _LabeledBar(
-            label: 'Memória de vídeo',
-            value: '${_fmtBytes(g.memUsed!)} de ${_fmtBytes(g.memTotal!)}',
+            label: l10n.monitorVideoMemory,
+            value: l10n.monitorUsedOfTotal(
+              _fmtBytes(g.memUsed!),
+              _fmtBytes(g.memTotal!),
+            ),
             percent: memPercent,
           ),
         ],
@@ -519,7 +528,7 @@ class _GpuCard extends StatelessWidget {
                 children: [
                   Expanded(
                     child: Text(
-                      o.integrated ? '${o.name} · integrada' : o.name,
+                      o.integrated ? l10n.monitorIntegratedGpu(o.name) : o.name,
                       overflow: TextOverflow.ellipsis,
                       style: OcText.secondary,
                     ),
@@ -560,8 +569,10 @@ class _MemoryCard extends StatelessWidget {
     children: [
       _CardHeader(
         icon: Icons.developer_board_outlined,
-        overline: 'Memória RAM',
-        title: '${_fmtBytes(memory.total, decimals: 0)} instalados',
+        overline: l10n.monitorMemoryRam,
+        title: l10n.monitorMemoryInstalled(
+          _fmtBytes(memory.total, decimals: 0),
+        ),
       ),
       const SizedBox(height: 20),
       Row(
@@ -574,7 +585,10 @@ class _MemoryCard extends StatelessWidget {
           const SizedBox(width: 12),
           Flexible(
             child: Text(
-              '${_fmtBytes(memory.used)} de ${_fmtBytes(memory.total)}',
+              l10n.monitorUsedOfTotal(
+                _fmtBytes(memory.used),
+                _fmtBytes(memory.total),
+              ),
               style: OcText.secondary,
             ),
           ),
@@ -584,7 +598,7 @@ class _MemoryCard extends StatelessWidget {
       _Bar(percent: memory.percent, color: _memoryColor),
       const SizedBox(height: 20),
       _ChartBlock(
-        title: 'Uso',
+        title: l10n.monitorUsage,
         history: history,
         chartKey: const ValueKey('memory-usage-history'),
         onSelect: onInspect,
@@ -595,10 +609,10 @@ class _MemoryCard extends StatelessWidget {
       const SizedBox(height: 20),
       _StatRow(
         stats: [
-          ('Disponível', _fmtBytes(memory.available)),
-          ('Em cache', _fmtBytes(memory.cached)),
+          (l10n.monitorMemoryAvailable, _fmtBytes(memory.available)),
+          (l10n.monitorMemoryCached, _fmtBytes(memory.cached)),
           (
-            'Confirmada',
+            l10n.monitorMemoryCommitted,
             '${_fmtBytes(memory.committed, decimals: 0)} / '
                 '${_fmtBytes(memory.commitLimit, decimals: 0)}',
           ),
@@ -622,8 +636,8 @@ class _StorageCard extends StatelessWidget {
       children: [
         _CardHeader(
           icon: Icons.storage_rounded,
-          overline: 'Armazenamento',
-          title: disks.length == 1 ? '1 disco' : '${disks.length} discos',
+          overline: l10n.monitorStorage,
+          title: l10n.monitorDiskCount(disks.length),
         ),
         for (final d in disks) ...[
           const SizedBox(height: 20),
@@ -631,7 +645,7 @@ class _StorageCard extends StatelessWidget {
             children: [
               Expanded(
                 child: Text(
-                  d.model.isEmpty ? 'Disco ${d.number}' : d.model,
+                  d.model.isEmpty ? l10n.monitorDiskNumber(d.number) : d.model,
                   overflow: TextOverflow.ellipsis,
                   style: OcText.label,
                 ),
@@ -652,7 +666,8 @@ class _StorageCard extends StatelessWidget {
               Expanded(
                 child: Text(
                   [
-                    if (d.active != null) 'Ativo ${_fmtPercent(d.active!)}',
+                    if (d.active != null)
+                      l10n.monitorDiskActive(_fmtPercent(d.active!)),
                     if (d.read != null) '↓ ${_fmtRate(d.read!)}',
                     if (d.write != null) '↑ ${_fmtRate(d.write!)}',
                   ].join('   '),
@@ -685,10 +700,10 @@ class _VolumeRow extends StatelessWidget {
     final v = volume;
     final name = v.label.isNotEmpty
         ? v.label
-        : (v.removable ? 'Removível' : 'Disco local');
+        : (v.removable ? l10n.monitorVolumeRemovable : l10n.monitorVolumeLocal);
     return _LabeledBar(
       label: '${v.letter}:  $name',
-      value: '${_fmtBytes(v.free)} livres de ${_fmtBytes(v.total)}',
+      value: l10n.monitorFreeOfTotal(_fmtBytes(v.free), _fmtBytes(v.total)),
       percent: v.percent,
       // A nearly full drive is worth flagging.
       color: v.percent >= 90 ? Oc.danger : null,
@@ -704,22 +719,22 @@ class _NetworkCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) => _Card(
     children: [
-      const _CardHeader(
+      _CardHeader(
         icon: Icons.swap_vert_rounded,
-        overline: 'Rede',
-        title: 'Tráfego',
+        overline: l10n.monitorNetwork,
+        title: l10n.monitorTraffic,
       ),
       const SizedBox(height: 20),
       _RateBlock(
         icon: Icons.south_rounded,
-        label: 'Download',
+        label: l10n.monitorDownload,
         value: snapshot.netDown,
         history: monitor.netDown,
       ),
       const SizedBox(height: 20),
       _RateBlock(
         icon: Icons.north_rounded,
-        label: 'Upload',
+        label: l10n.monitorUpload,
         value: snapshot.netUp,
         history: monitor.netUp,
       ),
@@ -795,11 +810,14 @@ class _ProcessesCard extends StatelessWidget {
       children: [
         _CardHeader(
           icon: Icons.apps_rounded,
-          overline: 'Processos',
-          title: byMemory ? 'Os que mais usam memória' : 'Os que mais usam CPU',
+          overline: l10n.monitorProcesses,
+          title: byMemory ? l10n.monitorTopMemory : l10n.monitorTopCpu,
           trailing: OcSegmented<bool>(
             value: byMemory,
-            options: const [(false, 'CPU'), (true, 'Memory')],
+            options: [
+              (false, l10n.monitorColumnCpu),
+              (true, l10n.monitorColumnMemory),
+            ],
             onChanged: onSort,
           ),
         ),
@@ -808,11 +826,13 @@ class _ProcessesCard extends StatelessWidget {
           padding: const EdgeInsets.only(bottom: 8),
           child: Row(
             children: [
-              const Expanded(child: Text('Name', style: OcText.caption)),
+              Expanded(
+                child: Text(l10n.monitorColumnName, style: OcText.caption),
+              ),
               SizedBox(
                 width: 200,
                 child: _ProcessSortButton(
-                  label: 'CPU',
+                  label: l10n.monitorColumnCpu,
                   selected: !byMemory,
                   onPressed: () => onSort(false),
                 ),
@@ -821,7 +841,7 @@ class _ProcessesCard extends StatelessWidget {
               SizedBox(
                 width: 200,
                 child: _ProcessSortButton(
-                  label: 'Memory',
+                  label: l10n.monitorColumnMemory,
                   selected: byMemory,
                   color: _memoryColor,
                   onPressed: () => onSort(true),
@@ -832,12 +852,9 @@ class _ProcessesCard extends StatelessWidget {
         ),
         const Divider(),
         if (list.isEmpty)
-          const Padding(
-            padding: EdgeInsets.symmetric(vertical: 16),
-            child: Text(
-              'No process data for this sample.',
-              style: OcText.secondary,
-            ),
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 16),
+            child: Text(l10n.monitorNoProcessData, style: OcText.secondary),
           ),
         for (final p in list.take(_rows))
           _ProcessRow(
@@ -872,7 +889,7 @@ class _ProcessSortButton extends StatelessWidget {
   Widget build(BuildContext context) => Semantics(
     selected: selected,
     child: Tooltip(
-      message: 'Sort by $label, highest first',
+      message: l10n.monitorSortTooltip(label),
       child: TextButton(
         onPressed: onPressed,
         style: TextButton.styleFrom(
@@ -1057,13 +1074,18 @@ enum _TempKind {
 }
 
 enum _TempLevel {
-  normal('Normal', Oc.success),
-  warm('Quente', Oc.warning),
-  hot('Muito quente', Oc.danger);
+  normal(Oc.success),
+  warm(Oc.warning),
+  hot(Oc.danger);
 
-  const _TempLevel(this.label, this.color);
-  final String label;
+  const _TempLevel(this.color);
   final Color color;
+
+  String get label => switch (this) {
+    normal => l10n.monitorTempNormal,
+    warm => l10n.monitorTempWarm,
+    hot => l10n.monitorTempHot,
+  };
 }
 
 class _TempReadout extends StatelessWidget {
@@ -1348,7 +1370,7 @@ class _ThreadBars extends StatelessWidget {
           if (i > 0) const SizedBox(width: 3),
           Expanded(
             child: Tooltip(
-              message: 'Thread ${i + 1}: ${_fmtPercent(values[i])}',
+              message: l10n.monitorThreadTooltip(i + 1, _fmtPercent(values[i])),
               child: Container(
                 height: 32,
                 alignment: Alignment.bottomCenter,
@@ -1417,7 +1439,7 @@ class _ChartBlock extends StatelessWidget {
           Text(title, style: OcText.caption),
           const Spacer(),
           if (onSelect != null) ...[
-            const Text('Click to inspect', style: OcText.caption),
+            Text(l10n.monitorClickToInspect, style: OcText.caption),
             const SizedBox(width: 12),
           ],
           Text('60 s', style: OcText.caption),
@@ -1572,7 +1594,9 @@ class _Tip extends StatelessWidget {
             style: const TextStyle(fontWeight: FontWeight.w600, color: Oc.text),
           ),
           TextSpan(
-            text: when == 0 ? '  agora' : '  há $when s',
+            text: when == 0
+                ? '  ${l10n.monitorNow}'
+                : '  ${l10n.monitorSecondsAgo(when)}',
             style: const TextStyle(color: Oc.textSecondary),
           ),
         ],
@@ -1695,9 +1719,11 @@ class _SparklinePainter extends CustomPainter {
 
 // ---------------------------------------------------------------- Format
 
-/// A number with a decimal comma.
-String _fmt(double v, int decimals) =>
-    v.toStringAsFixed(decimals).replaceAll('.', ',');
+/// A number with the decimal separator of the current language.
+String _fmt(double v, int decimals) {
+  final text = v.toStringAsFixed(decimals);
+  return l10n.localeName == 'pt' ? text.replaceAll('.', ',') : text;
+}
 
 String _fmtPercent(double v) => '${_fmt(v, 0)}%';
 

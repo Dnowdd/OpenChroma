@@ -1,24 +1,35 @@
 {
   "openchroma": 1,
-  "name": "Respiração",
-  "description": "Uma cor que acende e apaga suavemente, no ritmo de uma respiração.",
+  "name": "Breathing",
+  "description": "A color that fades in and out gently, at the pace of a breath.",
   "author": "OpenChroma",
+  "i18n": {
+    "pt": {
+      "name": "Respiração",
+      "description": "Uma cor que acende e apaga suavemente, no ritmo de uma respiração.",
+      "params": {
+        "color": "Cor",
+        "speed": "Ritmo",
+        "minimum": "Brilho mínimo"
+      }
+    }
+  },
   "background": "#000000",
   "params": {
     "color": {
-      "label": "Cor",
+      "label": "Color",
       "type": "color",
       "default": "#4C8DFF"
     },
     "speed": {
-      "label": "Ritmo",
+      "label": "Pace",
       "type": "number",
       "min": 1,
       "max": 100,
       "default": 25
     },
     "minimum": {
-      "label": "Brilho mínimo",
+      "label": "Minimum brightness",
       "type": "number",
       "min": 0,
       "max": 100,

@@ -6,12 +6,17 @@ import '../ai/ai_service.dart';
 import '../alerts/alert_service.dart';
 import '../audio/audio_service.dart';
 import '../engine/engine.dart';
+import '../i18n/l10n.dart';
 import '../system/launch_settings.dart';
+import '../system/update_check.dart';
+import 'about_panel.dart';
 import 'ai_settings.dart';
+import 'plugin_approval.dart';
 import 'effects_page.dart';
 import 'shell.dart' show Pages;
 import 'theme.dart';
 import 'widgets.dart';
+import '../system/system_paths.dart';
 
 /// iOS system colors for the settings icons.
 abstract final class _Tint {
@@ -31,10 +36,14 @@ class SettingsPage extends StatelessWidget {
     required this.engine,
     required this.ai,
     required this.alerts,
+    required this.language,
+    required this.updates,
   });
   final Engine engine;
   final AiService ai;
   final AlertService alerts;
+  final LanguageController language;
+  final UpdateChecker updates;
 
   @override
   Widget build(BuildContext context) {
@@ -51,11 +60,32 @@ class SettingsPage extends StatelessWidget {
                   Padding(
                     padding: const EdgeInsets.only(top: 18, bottom: 22),
                     child: Text(
-                      'Configurações',
+                      l10n.settingsTitle,
                       style: OcText.pageTitle.copyWith(fontSize: 28),
                     ),
                   ),
-                  const SectionLabel('Iluminação'),
+                  SectionLabel(l10n.settingsGeneral),
+                  OcPanel(
+                    children: [
+                      OcRow(
+                        leading: const OcIconTile(
+                          Icons.translate_rounded,
+                          color: _Tint.blue,
+                        ),
+                        title: l10n.settingsLanguage,
+                        trailing: OcSelect(
+                          value: language.language.name,
+                          options: [for (final l in AppLanguage.values) l.name],
+                          labelOf: (n) => AppLanguage.values.byName(n).label,
+                          onChanged: (n) =>
+                              language.language = AppLanguage.values.byName(n),
+                          width: 220,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 28),
+                  SectionLabel(l10n.settingsLighting),
                   OcPanel(
                     children: [
                       OcRow(
@@ -63,7 +93,7 @@ class SettingsPage extends StatelessWidget {
                           Icons.light_mode_rounded,
                           color: _Tint.orange,
                         ),
-                        title: 'Brilho',
+                        title: l10n.settingsBrightness,
                         trailing: SizedBox(
                           width: 280,
                           child: OcSlider(
@@ -80,10 +110,10 @@ class SettingsPage extends StatelessWidget {
                           Icons.graphic_eq_rounded,
                           color: _Tint.pink,
                         ),
-                        title: 'Áudio dos efeitos',
+                        title: l10n.settingsEffectAudio,
                         description: engine.audio.available
                             ? null
-                            : 'Indisponível nesta build.',
+                            : l10n.settingsAudioUnavailable,
                         trailing: OcSelect(
                           value: engine.audioSource.name,
                           options: [for (final s in AudioSource.values) s.name],
@@ -96,7 +126,7 @@ class SettingsPage extends StatelessWidget {
                     ],
                   ),
                   const SizedBox(height: 28),
-                  const SectionLabel('Biblioteca'),
+                  SectionLabel(l10n.settingsLibrary),
                   OcPanel(
                     children: [
                       OcRow(
@@ -104,12 +134,12 @@ class SettingsPage extends StatelessWidget {
                           Icons.usb_rounded,
                           color: _Tint.blue,
                         ),
-                        title: 'Dispositivos',
-                        description: engine.devices.length == 1
-                            ? '1 conectado'
-                            : '${engine.devices.length} conectados',
+                        title: l10n.settingsDevices,
+                        description: l10n.settingsDevicesConnected(
+                          engine.devices.length,
+                        ),
                         trailing: OcButton(
-                          label: 'Procurar',
+                          label: l10n.settingsScan,
                           onPressed: engine.refreshDevices,
                         ),
                       ),
@@ -118,10 +148,12 @@ class SettingsPage extends StatelessWidget {
                           Icons.auto_awesome,
                           color: _Tint.purple,
                         ),
-                        title: 'Efeitos',
-                        description: '${engine.effects.length} na biblioteca',
+                        title: l10n.settingsEffects,
+                        description: l10n.settingsEffectsInLibrary(
+                          engine.effects.length,
+                        ),
                         trailing: OcButton(
-                          label: 'Importar',
+                          label: l10n.settingsImport,
                           onPressed: () => showImportDialog(context, engine),
                         ),
                       ),
@@ -130,23 +162,31 @@ class SettingsPage extends StatelessWidget {
                           Icons.extension_rounded,
                           color: _Tint.green,
                         ),
-                        title: 'Plugins de dispositivos',
+                        title: l10n.settingsPlugins,
                         description: _pluginsSummary(engine),
                         trailing: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             OcIconButton(
                               icon: Icons.refresh_rounded,
-                              tooltip: 'Recarregar plugins',
+                              tooltip: l10n.settingsReloadPlugins,
                               onPressed: engine.reloadPlugins,
                             ),
                             const SizedBox(width: 6),
                             OcButton(
-                              label: 'Abrir pasta',
+                              label: l10n.settingsManagePlugins,
+                              onPressed: () =>
+                                  showPluginApproval(context, engine),
+                            ),
+                            const SizedBox(width: 6),
+                            OcButton(
+                              label: l10n.settingsOpenFolder,
                               onPressed: () {
                                 Directory(engine.pluginsDir)
                                     .createSync(recursive: true);
-                                Process.run('explorer', [engine.pluginsDir]);
+                                Process.run(SystemPaths.explorer, [
+                                  engine.pluginsDir,
+                                ]);
                               },
                             ),
                           ],
@@ -157,17 +197,18 @@ class SettingsPage extends StatelessWidget {
                           Icons.folder_rounded,
                           color: _Tint.gray,
                         ),
-                        title: 'Pasta de dados',
+                        title: l10n.settingsDataFolder,
                         trailing: OcButton(
-                          label: 'Abrir',
-                          onPressed: () =>
-                              Process.run('explorer', [engine.dataDir]),
+                          label: l10n.settingsOpen,
+                          onPressed: () => Process.run(SystemPaths.explorer, [
+                            engine.dataDir,
+                          ]),
                         ),
                       ),
                     ],
                   ),
                   const SizedBox(height: 28),
-                  const SectionLabel('Avisos'),
+                  SectionLabel(l10n.settingsAlerts),
                   ListenableBuilder(
                     listenable: alerts,
                     builder: (context, _) => OcPanel(
@@ -177,11 +218,9 @@ class SettingsPage extends StatelessWidget {
                             Icons.notifications_active_rounded,
                             color: _Tint.pink,
                           ),
-                          title: 'Notificações do Windows',
+                          title: l10n.settingsWindowsNotifications,
                           description:
-                              'Avisa quando algo esquenta demais, a memória ou '
-                              'o disco enchem ou a bomba do water cooler para, '
-                              'mesmo com o app na bandeja.',
+                              l10n.settingsWindowsNotificationsDescription,
                           trailing: OcSwitch(
                             value: alerts.notify,
                             onChanged: alerts.setNotify,
@@ -192,10 +231,8 @@ class SettingsPage extends StatelessWidget {
                             Icons.flash_on_rounded,
                             color: _Tint.orange,
                           ),
-                          title: 'Piscar os LEDs em vermelho',
-                          description:
-                              'Os dispositivos piscam por alguns segundos '
-                              'junto com o aviso.',
+                          title: l10n.settingsFlashLeds,
+                          description: l10n.settingsFlashLedsDescription,
                           trailing: OcSwitch(
                             value: alerts.flashLeds,
                             onChanged: alerts.setFlashLeds,
@@ -205,26 +242,19 @@ class SettingsPage extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 28),
-                  const SectionLabel('Assistente de IA'),
+                  SectionLabel(l10n.settingsAiAssistant),
                   AiSettingsPanel(ai: ai),
-                  const Padding(
-                    padding: EdgeInsets.fromLTRB(4, 10, 4, 0),
-                    child: Text(
-                      'A chave fica só neste PC, criptografada para o seu '
-                      'usuário do Windows, e só é enviada ao provedor escolhido.',
-                      style: OcText.caption,
-                    ),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(4, 10, 4, 0),
+                    child: Text(l10n.settingsAiKeyNote, style: OcText.caption),
                   ),
                   const SizedBox(height: 28),
-                  const SectionLabel('Inicialização e permissões'),
+                  SectionLabel(l10n.settingsStartup),
                   _LaunchPanel(engine: engine),
                   const SizedBox(height: 28),
-                  Center(
-                    child: Text(
-                      'OpenChroma $appVersion',
-                      style: OcText.caption,
-                    ),
-                  ),
+                  SectionLabel(l10n.aboutSection),
+                  AboutPanel(engine: engine, updates: updates),
+                  const SizedBox(height: 12),
                 ],
               ),
             ),
@@ -235,19 +265,15 @@ class SettingsPage extends StatelessWidget {
   }
 }
 
-/// Shown in Settings; scripts/build-release.ps1 passes the pubspec version.
 /// How many plugins loaded, and which ones failed and why.
 String _pluginsSummary(Engine engine) {
   final failed = engine.plugins.where((p) => p.error != null).toList();
   final ok = engine.plugins.length - failed.length;
   return [
-    '$ok ${ok == 1 ? 'carregado' : 'carregados'}. Arquivos .js salvos na '
-        'pasta entram na hora.',
+    l10n.settingsPluginsLoaded(ok),
     for (final p in failed) '${p.name}: ${p.error}',
   ].join('\n');
 }
-
-const appVersion = String.fromEnvironment('OC_VERSION', defaultValue: 'dev');
 
 class _LaunchPanel extends StatefulWidget {
   const _LaunchPanel({required this.engine});
@@ -273,6 +299,7 @@ class _LaunchPanelState extends State<_LaunchPanel> {
       final l = _launch;
       final elevated = Elevation.isElevated;
       final enabled = l.loaded && !l.busy;
+      final block = l.loaded ? l.startupBlock : null;
       return Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -285,14 +312,14 @@ class _LaunchPanelState extends State<_LaunchPanel> {
                       : Icons.shield_outlined,
                   color: elevated ? _Tint.green : _Tint.gray,
                 ),
-                title: 'Modo administrador',
+                title: l10n.settingsAdminMode,
                 description: elevated
-                    ? 'Ativo. A temperatura da CPU aparece no Monitor.'
-                    : 'Desativado. É preciso para ler a temperatura da CPU.',
+                    ? l10n.settingsAdminActive
+                    : l10n.settingsAdminInactive,
                 trailing: OcButton(
                   label: elevated
-                      ? 'Já está ativo'
-                      : 'Reiniciar como administrador',
+                      ? l10n.settingsAdminAlreadyActive
+                      : l10n.settingsRestartAsAdmin,
                   icon: elevated
                       ? Icons.check_rounded
                       : Icons.admin_panel_settings_outlined,
@@ -309,10 +336,8 @@ class _LaunchPanelState extends State<_LaunchPanel> {
                   Icons.admin_panel_settings_rounded,
                   color: _Tint.indigo,
                 ),
-                title: 'Sempre abrir como administrador',
-                description:
-                    'O Windows pede permissão (UAC) toda vez que o '
-                    'OpenChroma abrir.',
+                title: l10n.settingsAlwaysAdmin,
+                description: l10n.settingsAlwaysAdminDescription,
                 trailing: OcSwitch(
                   value: l.alwaysAdmin,
                   onChanged: enabled ? l.setAlwaysAdmin : null,
@@ -323,26 +348,41 @@ class _LaunchPanelState extends State<_LaunchPanel> {
                   Icons.power_settings_new_rounded,
                   color: _Tint.teal,
                 ),
-                title: 'Abrir ao ligar o PC',
-                description: l.alwaysAdmin
-                    ? 'Abre na bandeja, como administrador, ao entrar no '
-                          'Windows, sem pedir permissão. Ativar ou desativar '
-                          'pede o UAC uma vez.'
-                    : 'Abre na bandeja junto com o Windows.',
-                trailing: OcSwitch(
-                  value: l.startWithWindows,
-                  onChanged: enabled ? l.setStartWithWindows : null,
-                ),
+                title: l10n.settingsStartWithWindows,
+                description: switch (block) {
+                  StartupBlock.installNotTrusted =>
+                    l10n.securityStartupInstallUnsafe,
+                  StartupBlock.needsAdmin => l10n.securityStartupNeedsAdmin,
+                  null =>
+                    l.startupTaskUntrusted
+                        ? l10n.securityStartupInstallUnsafeRemove
+                        : l.alwaysAdmin
+                        ? l10n.securityStartupAdminDescription
+                        : l10n.settingsStartWithWindowsDescription,
+                },
+                trailing: block == StartupBlock.needsAdmin
+                    ? OcButton(
+                        label: l10n.settingsRestartAsAdmin,
+                        icon: Icons.admin_panel_settings_outlined,
+                        onPressed: () => restartAsAdmin(
+                          page: Pages.settings,
+                          shutdown: widget.engine.shutdown,
+                        ),
+                      )
+                    : OcSwitch(
+                        value: l.startWithWindows,
+                        onChanged: enabled && block == null
+                            ? l.setStartWithWindows
+                            : null,
+                      ),
               ),
               OcRow(
                 leading: const OcIconTile(
                   Icons.move_to_inbox_rounded,
                   color: _Tint.blue,
                 ),
-                title: 'Continuar em segundo plano',
-                description:
-                    'Ao fechar a janela, o OpenChroma fica na bandeja e '
-                    'segue controlando luzes e ventoinhas.',
+                title: l10n.settingsRunInBackground,
+                description: l10n.settingsRunInBackgroundDescription,
                 trailing: OcSwitch(
                   value: l.runInBackground,
                   onChanged: enabled ? l.setRunInBackground : null,

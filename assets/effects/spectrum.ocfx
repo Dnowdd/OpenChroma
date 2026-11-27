@@ -1,19 +1,29 @@
 {
   "openchroma": 1,
-  "name": "Espectro",
-  "description": "Barras que sobem e descem com cada frequência da música, do grave ao agudo.",
+  "name": "Spectrum",
+  "description": "Bars that rise and fall with each frequency of the music, from bass to treble.",
   "author": "OpenChroma",
+  "i18n": {
+    "pt": {
+      "name": "Espectro",
+      "description": "Barras que sobem e descem com cada frequência da música, do grave ao agudo.",
+      "params": {
+        "gain": "Sensibilidade",
+        "bars": "Barras"
+      }
+    }
+  },
   "background": "#05060A",
   "params": {
     "gain": {
-      "label": "Sensibilidade",
+      "label": "Sensitivity",
       "type": "number",
       "min": 20,
       "max": 200,
       "default": 100
     },
     "bars": {
-      "label": "Barras",
+      "label": "Bars",
       "type": "number",
       "min": 8,
       "max": 64,

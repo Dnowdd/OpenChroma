@@ -1,19 +1,29 @@
 {
   "openchroma": 1,
-  "name": "Brasa",
-  "description": "Vermelhos e laranjas quentes com fagulhas subindo, como carvão em brasa.",
+  "name": "Embers",
+  "description": "Warm reds and oranges with rising sparks, like glowing coals.",
   "author": "OpenChroma",
+  "i18n": {
+    "pt": {
+      "name": "Brasa",
+      "description": "Vermelhos e laranjas quentes com fagulhas subindo, como carvão em brasa.",
+      "params": {
+        "speed": "Velocidade",
+        "sparks": "Fagulhas"
+      }
+    }
+  },
   "background": "#120200",
   "params": {
     "speed": {
-      "label": "Velocidade",
+      "label": "Speed",
       "type": "number",
       "min": 0,
       "max": 100,
       "default": 30
     },
     "sparks": {
-      "label": "Fagulhas",
+      "label": "Sparks",
       "type": "number",
       "min": 0,
       "max": 120,

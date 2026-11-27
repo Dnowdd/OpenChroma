@@ -8,6 +8,7 @@ import 'package:ffi/ffi.dart';
 import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as p;
 
+import '../i18n/l10n.dart';
 import '../monitor/system_monitor.dart';
 import '../paths.dart';
 
@@ -251,7 +252,7 @@ class FanService extends ChangeNotifier {
   FanSettings _edit(String id) => _settings.putIfAbsent(id, FanSettings.new);
 
   String defaultName(FanReading f) =>
-      f.gpu ? 'GPU ${f.index + 1}' : 'Ventoinha ${f.index + 1}';
+      f.gpu ? 'GPU ${f.index + 1}' : l10n.fansDefaultName(f.index + 1);
 
   String nameOf(FanReading f) {
     final n = _settings[f.id]?.name?.trim();
@@ -333,11 +334,13 @@ class FanService extends ChangeNotifier {
   /// Why fan [f] cannot be driven from here, or null.
   String? blockedReason(FanReading f) {
     final s = snapshot;
-    if (s != null && s.conflict.isNotEmpty) return '${s.conflict} está aberto';
+    if (s != null && s.conflict.isNotEmpty) {
+      return l10n.fansBlockedConflict(s.conflict);
+    }
     if (!f.controllable) {
       return s != null && !s.elevated
-          ? 'Controlar pede o modo administrador'
-          : 'Somente leitura';
+          ? l10n.fansBlockedNeedsAdmin
+          : l10n.fansBlockedReadOnly;
     }
     return null;
   }

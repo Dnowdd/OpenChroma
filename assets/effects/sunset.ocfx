@@ -1,12 +1,21 @@
 {
   "openchroma": 1,
-  "name": "Pôr do Sol",
-  "description": "Laranja, rosa e roxo se misturando bem devagar.",
+  "name": "Sunset",
+  "description": "Orange, pink and purple blending very slowly.",
   "author": "OpenChroma",
+  "i18n": {
+    "pt": {
+      "name": "Pôr do Sol",
+      "description": "Laranja, rosa e roxo se misturando bem devagar.",
+      "params": {
+        "speed": "Velocidade"
+      }
+    }
+  },
   "background": "#000000",
   "params": {
     "speed": {
-      "label": "Velocidade",
+      "label": "Speed",
       "type": "number",
       "min": 0,
       "max": 100,

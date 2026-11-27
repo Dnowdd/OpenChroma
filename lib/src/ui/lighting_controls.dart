@@ -4,6 +4,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import '../engine/engine.dart';
+import '../i18n/l10n.dart';
 import 'accent.dart';
 import 'device_art.dart';
 import 'theme.dart';
@@ -123,7 +124,7 @@ class _BrightnessControlState extends State<BrightnessControl> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 Tooltip(
-                  message: 'Brilho de cada dispositivo',
+                  message: l10n.lightingBrightnessPerDevice,
                   child: InkResponse(
                     radius: 16,
                     onTap: () =>
@@ -197,18 +198,18 @@ class BrightnessPanel extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                const Text('Brilho', style: OcText.label),
+                Text(l10n.lightingBrightnessTitle, style: OcText.label),
                 const SizedBox(height: 10),
                 _row(
                   leading: Icon(Icons.tune_rounded, size: 18, color: accent),
-                  label: 'Tudo',
+                  label: l10n.lightingAll,
                   value: engine.brightness,
                   color: accent,
                   onChanged: engine.setBrightness,
                 ),
                 if (leds.isNotEmpty) ...[
                   const SizedBox(height: 6),
-                  const SectionLabel('Luzes'),
+                  SectionLabel(l10n.lightingLights),
                   for (final d in leds)
                     _row(
                       leading: DeviceArt(engine: engine, device: d, size: 26),
@@ -220,7 +221,7 @@ class BrightnessPanel extends StatelessWidget {
                 ],
                 if (screens.isNotEmpty) ...[
                   const SizedBox(height: 6),
-                  const SectionLabel('Telas'),
+                  SectionLabel(l10n.lightingScreens),
                   for (final d in screens)
                     _row(
                       leading: const Icon(
@@ -238,17 +239,10 @@ class BrightnessPanel extends StatelessWidget {
                 if (leds.isEmpty && screens.isEmpty)
                   Padding(
                     padding: const EdgeInsets.only(top: 6),
-                    child: Text(
-                      'Nenhum dispositivo conectado.',
-                      style: OcText.caption,
-                    ),
+                    child: Text(l10n.lightingNoDevices, style: OcText.caption),
                   ),
                 const SizedBox(height: 8),
-                Text(
-                  '"Tudo" vale para todos os dispositivos, por cima do brilho '
-                  'de cada um. Em 0%, o efeito pausa e nada é enviado.',
-                  style: OcText.caption,
-                ),
+                Text(l10n.lightingBrightnessNote, style: OcText.caption),
               ],
             ),
           ),
@@ -307,10 +301,10 @@ class PauseButton extends StatelessWidget {
       final paused = engine.paused;
       final dark = engine.brightness == 0;
       final tip = dark
-          ? 'Pausado: o brilho está em 0%'
+          ? l10n.lightingPausedAtZero
           : paused
-          ? 'Continuar o efeito'
-          : 'Pausar o efeito';
+          ? l10n.lightingResumeEffect
+          : l10n.lightingPauseEffect;
       final color = onDark ? Colors.white : Oc.textSecondary;
       return Tooltip(
         message: tip,

@@ -1,0 +1,422 @@
+{
+  "colorOrderTitle": "Color order · {header}",
+  "@colorOrderTitle": {
+    "placeholders": {
+      "header": {
+        "type": "String"
+      }
+    }
+  },
+  "colorOrderQuestion": "What color are the fans on this connector showing right now?",
+  "colorOrderBlueTitle": "Is it blue?",
+  "colorOrderTesting": "Testing order {order}.",
+  "@colorOrderTesting": {
+    "placeholders": {
+      "order": {
+        "type": "String"
+      }
+    }
+  },
+  "colorOrderDoneTitle": "Done",
+  "colorOrderFailedTitle": "That didn't work",
+  "colorOrderNothingLit": "If nothing lit up, check the LED count of {header} and that the fans are on this connector.",
+  "@colorOrderNothingLit": {
+    "placeholders": {
+      "header": {
+        "type": "String"
+      }
+    }
+  },
+  "colorOrderAlreadyRight": "The order was already correct ({order}).",
+  "@colorOrderAlreadyRight": {
+    "placeholders": {
+      "order": {
+        "type": "String"
+      }
+    }
+  },
+  "colorOrderSameColors": "Both colors looked the same. Try again.",
+  "colorOrderCouldNotFix": "Couldn't fix it automatically. Pick the order manually from the list.",
+  "colorOrderSaved": "Order {order} saved on {header}.",
+  "@colorOrderSaved": {
+    "placeholders": {
+      "order": {
+        "type": "String"
+      },
+      "header": {
+        "type": "String"
+      }
+    }
+  },
+  "colorOrderNothingLitButton": "Nothing lit up",
+  "colorOrderRed": "Red",
+  "colorOrderGreen": "Green",
+  "colorOrderBlue": "Blue",
+  "colorOrderNo": "No",
+  "colorOrderYes": "Yes",
+  "colorOrderClose": "Close",
+  "devicesTitle": "Devices",
+  "devicesScanning": "Scanning…",
+  "devicesConnectedCount": "{count, plural, =1{1 connected} other{{count} connected}}",
+  "@devicesConnectedCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "devicesScan": "Scan",
+  "devicesOtherWireless": "Other wireless",
+  "devicesScanningTitle": "Scanning for devices",
+  "devicesDriversUnavailable": "Drivers unavailable",
+  "devicesNone": "No devices",
+  "devicesScanTakesSeconds": "This takes a few seconds.",
+  "devicesDriversMissing": "The drivers weren't found in this installation. Reinstall OpenChroma.",
+  "devicesNoneHint": "Connect a compatible device. If another RGB program is open, close it first. Memory modules and graphics cards need administrator mode and PawnIO.",
+  "devicesScanAgain": "Scan again",
+  "devicesStatusConnected": "Connected",
+  "devicesStatusStarting": "Starting",
+  "devicesStatusError": "Error",
+  "devicesStatusDisabled": "Disabled",
+  "devicesStatusUnsupported": "Unsupported",
+  "devicesStatusStopped": "Stopped",
+  "devicesKindKeyboard": "Keyboard",
+  "devicesKindMouse": "Mouse",
+  "devicesKindHeadset": "Headset",
+  "devicesKindMousepad": "Mousepad",
+  "devicesKindMotherboard": "Motherboard",
+  "devicesKindGpu": "Graphics card",
+  "devicesKindRam": "Memory",
+  "devicesKindFan": "Fans",
+  "devicesKindCooler": "Water cooler",
+  "devicesKindController": "RGB controller",
+  "devicesKindStrip": "LED strip",
+  "devicesKindSpeakers": "Speakers",
+  "devicesKindMicrophone": "Microphone",
+  "devicesKindGamepad": "Gamepad",
+  "devicesKindCase": "PC case",
+  "devicesKindOther": "Device",
+  "devicesLedCount": "{count, plural, =1{1 LED} other{{count} LEDs}}",
+  "@devicesLedCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "devicesCharging": "Charging · {level}%",
+  "@devicesCharging": {
+    "placeholders": {
+      "level": {
+        "type": "int"
+      }
+    }
+  },
+  "devicesBattery": "Battery {level}%",
+  "@devicesBattery": {
+    "placeholders": {
+      "level": {
+        "type": "int"
+      }
+    }
+  },
+  "devicesRestoreDefaults": "Restore defaults",
+  "devicesEnable": "Enable",
+  "devicesDisable": "Disable",
+  "devicesTabLighting": "Lighting",
+  "devicesTabScreen": "Screen",
+  "devicesTabDetails": "Details",
+  "devicesOff": "Off",
+  "devicesModeStatic": "Static",
+  "devicesModeBreathing": "Breathing",
+  "devicesModeBlinking": "Blinking",
+  "devicesModeFlashing": "Flashing",
+  "devicesModeColorCycle": "Color cycle",
+  "devicesModeSpectrumCycle": "Spectrum cycle",
+  "devicesModeRainbow": "Rainbow",
+  "devicesModeRainbowWave": "Rainbow wave",
+  "devicesModeWave": "Wave",
+  "devicesModeColorWave": "Color wave",
+  "devicesModeReactive": "Reactive",
+  "devicesModeRipple": "Ripple",
+  "devicesModeStarlight": "Starlight",
+  "devicesModeRandomFlicker": "Random flicker",
+  "devicesModeDoubleFlash": "Double flash",
+  "devicesModeSpectrum": "Spectrum",
+  "devicesModeCustom": "Custom",
+  "devicesModeRandom": "Random",
+  "devicesDirLeft": "To the left",
+  "devicesDirRight": "To the right",
+  "devicesDirUp": "Upward",
+  "devicesDirDown": "Downward",
+  "devicesDirHorizontal": "Horizontal",
+  "devicesDirVertical": "Vertical",
+  "devicesDirUpLeft": "Upward and left",
+  "devicesDirUpRight": "Upward and right",
+  "devicesDirDownLeft": "Downward and left",
+  "devicesDirDownRight": "Downward and right",
+  "devicesSpeed": "Speed",
+  "devicesBrightness": "Brightness",
+  "devicesDirection": "Direction",
+  "devicesRandomColors": "Random colors",
+  "devicesColor": "Color",
+  "devicesColors": "Colors",
+  "devicesRemoveColor": "Remove a color",
+  "devicesAddColor": "Add a color",
+  "devicesLighting": "Lighting",
+  "devicesFollowsApp": "Follows OpenChroma effects.",
+  "devicesRunsItself": "The device runs the effect itself.",
+  "devicesAppEffects": "OpenChroma effects",
+  "devicesZonesWithoutLeds": "{zones} without LEDs: whatever is plugged into those connectors doesn't follow the effects and stays on the previous effect. Enter the LED count below.",
+  "@devicesZonesWithoutLeds": {
+    "placeholders": {
+      "zones": {
+        "type": "String"
+      }
+    }
+  },
+  "devicesArgbHint": "On ARGB connectors, enter how many LEDs are plugged in. A 120 mm fan usually has between 8 and 24. Then position each zone in Lighting › Layout.",
+  "devicesZoneN": "Zone {n}",
+  "@devicesZoneN": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
+  "devicesUpToLeds": "Up to {max} LEDs",
+  "@devicesUpToLeds": {
+    "placeholders": {
+      "max": {
+        "type": "int"
+      }
+    }
+  },
+  "devicesMatrix": "Matrix {width} × {height}",
+  "@devicesMatrix": {
+    "placeholders": {
+      "width": {
+        "type": "int"
+      },
+      "height": {
+        "type": "int"
+      }
+    }
+  },
+  "devicesCountLeds": "Count",
+  "devicesCountLedsTitle": "Count LEDs of {zone}",
+  "@devicesCountLedsTitle": {
+    "placeholders": {
+      "zone": {
+        "type": "String"
+      }
+    }
+  },
+  "devicesCountLedsHint": "The first LEDs light up green. Increase the count until the last fan or strip is fully lit, and stop at the point where lighting one more changes nothing.",
+  "devicesOneLess": "One less",
+  "devicesOneMore": "One more",
+  "devicesCancel": "Cancel",
+  "devicesUseLeds": "{count, plural, =1{Use 1 LED} other{Use {count} LEDs}}",
+  "@devicesUseLeds": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "devicesInfoVendor": "Manufacturer",
+  "devicesInfoDescription": "Description",
+  "devicesInfoVersion": "Version",
+  "devicesInfoSerial": "Serial number",
+  "devicesInfoDriver": "Driver",
+  "devicesDriverBuiltIn": "OpenRGB (included)",
+  "devicesDriverPluginBundled": "{name} · bundled plugin",
+  "@devicesDriverPluginBundled": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "devicesDriverPluginUser": "{name} · your plugin",
+  "@devicesDriverPluginUser": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "devicesInfoConnection": "Connection",
+  "devicesInfoZones": "Zones",
+  "devicesInfoHardwareModes": "Hardware modes",
+  "devicesColorOrderOption": "Color order · {what}",
+  "@devicesColorOrderOption": {
+    "placeholders": {
+      "what": {
+        "type": "String"
+      }
+    }
+  },
+  "devicesBoardLedC": "board LED_C",
+  "devicesDetectGen2": "Detect ARGB Gen2 · {name}",
+  "@devicesDetectGen2": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "devicesPersistLighting": "Save lighting on exit",
+  "devicesCalibrationHint": "If the color comes out swapped (e.g. green instead of blue), use \"Detect\": two questions and the app finds the right order.",
+  "devicesDetect": "Detect",
+  "devicesResetTitle": "Restore defaults?",
+  "devicesResetBody": "Returns the device's options (such as color order) to what they were when it was first detected, makes it follow OpenChroma effects again and restores its position in the layout. Connector LED counts are kept.",
+  "devicesRestore": "Restore",
+  "engineProfileGame": "Game",
+  "engineProfileWork": "Work",
+  "engineProfileNight": "Night",
+  "engineProfileOff": "Off",
+  "engineImportBadExtension": "Use an .ocfx, .json or .html file.",
+  "engineImportUnreadable": "Couldn't read that file.",
+  "enginePluginStopped": "The plugin stopped: {error}",
+  "@enginePluginStopped": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "enginePluginRejected": "The plugin didn't recognize this device.",
+  "engineScreenNoLiveValues": "This screen doesn't show live values.",
+  "engineScreenMaxLiveValues": "{count, plural, =1{This screen shows up to 1 different live value.} other{This screen shows up to {count} different live values.}}",
+  "@engineScreenMaxLiveValues": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "engineScreenRejected": "The device didn't accept the image.",
+  "engineScreenCannotOpen": "Couldn't open the image.",
+  "pluginsNoDefinition": "the file doesn't call plugin()",
+  "pluginsNoDevices": "no devices in \"devices\"",
+  "pluginsNoPort": "no port chosen",
+  "pluginsNoInterface": "no interface chosen",
+  "pluginsCannotOpen": "couldn't open {path}",
+  "@pluginsCannotOpen": {
+    "placeholders": {
+      "path": {
+        "type": "String"
+      }
+    }
+  },
+  "layoutPreview": "Preview",
+  "layoutApply": "Apply",
+  "layoutCancel": "Cancel",
+  "layoutAutoArrange": "Auto arrange",
+  "layoutUndo": "Undo",
+  "layoutHint": "Click a zone to identify its LEDs, or drag to move it.",
+  "layoutDimEffect": "Dim effect",
+  "layoutNothingTitle": "Nothing to place",
+  "layoutNothingMessage": "Connected devices appear here.",
+  "layoutDevice": "Device",
+  "layoutSelectedZone": "Selected zone",
+  "layoutFill": "Fill",
+  "layoutSwitchToApp": "Switch to OpenChroma effects to identify this zone.",
+  "layoutRotate": "Rotate 90°",
+  "layoutFlipHorizontal": "Flip horizontal",
+  "layoutFlipVertical": "Flip vertical",
+  "layoutScale": "Scale",
+  "layoutPositionX": "X position",
+  "layoutPositionY": "Y position",
+  "screenImageFiles": "Images and GIFs",
+  "screenImageOrGif": "Image or GIF",
+  "screenSending": "Sending… {percent}%",
+  "@screenSending": {
+    "placeholders": {
+      "percent": {
+        "type": "int"
+      }
+    }
+  },
+  "screenImageHint": "Crop, pick the clip and write over it before sending. The screen keeps what it receives, even with the app closed.",
+  "screenEdit": "Edit",
+  "screenChooseFile": "Choose file",
+  "screenEditorCannotOpen": "Couldn't open the image.",
+  "screenEditorTitle": "Edit screen image",
+  "screenEditorHintIdle": "Click a text to select it. Drag the image to position it and use the mouse wheel to zoom.",
+  "screenEditorHintSelected": "Drag to move and pull the corner (or use the mouse wheel over the text) to resize. Arrow keys nudge the position, Delete removes, Ctrl+D duplicates and Esc clears the selection.",
+  "screenEditorCancel": "Cancel",
+  "screenEditorSend": "Send to screen",
+  "screenEditorFraming": "Framing",
+  "screenEditorFill": "Fill",
+  "screenEditorFit": "Fit",
+  "screenEditorBackgroundColor": "Background color",
+  "screenEditorZoom": "Zoom",
+  "screenEditorGifClip": "GIF clip",
+  "screenEditorFrameRange": "Frames {first} to {last} of {total} · {duration}",
+  "@screenEditorFrameRange": {
+    "placeholders": {
+      "first": {
+        "type": "int"
+      },
+      "last": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      },
+      "duration": {
+        "type": "String"
+      }
+    }
+  },
+  "screenEditorFramesReduced": " · will be reduced to {max} frames",
+  "@screenEditorFramesReduced": {
+    "placeholders": {
+      "max": {
+        "type": "int"
+      }
+    }
+  },
+  "screenEditorTexts": "Texts",
+  "screenEditorAddText": "Add",
+  "screenEditorLiveValues": "Live values: {used} of {total}. The screen updates every second while the app is open.",
+  "@screenEditorLiveValues": {
+    "placeholders": {
+      "used": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
+  "screenEditorTextHint": "Text",
+  "screenEditorBold": "Bold",
+  "screenEditorNormal": "Regular",
+  "screenEditorTextColor": "Text color",
+  "screenEditorDuplicate": "Duplicate",
+  "screenEditorRemove": "Remove",
+  "screenEditorLiveHint": "Live · put the unit ({unit}) in a fixed text",
+  "@screenEditorLiveHint": {
+    "placeholders": {
+      "unit": {
+        "type": "String"
+      }
+    }
+  },
+  "screenEditorShow": "Show",
+  "screenEditorFixedText": "Fixed text",
+  "screenDefaultText": "Text",
+  "screenSourceCpuTemp": "CPU temperature",
+  "screenSourceCpuUsage": "CPU usage",
+  "screenSourceCpuClock": "CPU clock",
+  "screenSourceCpuPower": "CPU power",
+  "screenSourceGpuTemp": "GPU temperature",
+  "screenSourceGpuUsage": "GPU usage",
+  "screenSourceGpuClock": "GPU clock",
+  "screenSourceGpuPower": "GPU power",
+  "screenSourceGpuFan": "GPU fan",
+  "screenSourceRamUsage": "RAM usage"
+}

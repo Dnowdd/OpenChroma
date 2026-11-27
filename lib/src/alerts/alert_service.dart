@@ -8,6 +8,7 @@ import 'package:path/path.dart' as p;
 
 import '../engine/engine.dart';
 import '../fans/fan_service.dart';
+import '../i18n/l10n.dart';
 import '../monitor/system_monitor.dart';
 import '../paths.dart';
 
@@ -27,8 +28,11 @@ class PcAlert {
   final AlertLevel level;
 }
 
-String _fmt(double v, int decimals) =>
-    v.toStringAsFixed(decimals).replaceAll('.', ',');
+String _fmt(double v, int decimals) {
+  final text = v.toStringAsFixed(decimals);
+  return l10n.localeName == 'pt' ? text.replaceAll('.', ',') : text;
+}
+
 String _gb(double bytes) => '${_fmt(bytes / (1 << 30), 1)} GB';
 
 /// Thresholds as (warm, hot) in °C.
@@ -46,8 +50,8 @@ List<PcAlert> evaluateAlerts(SystemSnapshot s, {FanService? fans}) {
       PcAlert(
         'temp:$key',
         'temp',
-        '$what ${hot ? 'muito quente' : 'quente'}',
-        '${_fmt(t, 0)} °C agora',
+        hot ? l10n.alertsTempHot(what) : l10n.alertsTempWarm(what),
+        l10n.alertsTempNow(_fmt(t, 0)),
         hot ? AlertLevel.critical : AlertLevel.warning,
       ),
     );
@@ -60,7 +64,7 @@ List<PcAlert> evaluateAlerts(SystemSnapshot s, {FanService? fans}) {
   for (final d in s.disks) {
     temp(
       'disk${d.number}',
-      d.model.isEmpty ? 'Disco' : d.model,
+      d.model.isEmpty ? l10n.alertsDiskFallback : d.model,
       d.temp,
       ssdLimits,
     );
@@ -70,8 +74,11 @@ List<PcAlert> evaluateAlerts(SystemSnapshot s, {FanService? fans}) {
       PcAlert(
         'memory',
         'memory',
-        'Memória quase cheia',
-        '${_fmt(s.memory.percent, 0)}% em uso · ${_gb(s.memory.available)} livres',
+        l10n.alertsMemoryTitle,
+        l10n.alertsMemoryDetail(
+          _fmt(s.memory.percent, 0),
+          _gb(s.memory.available),
+        ),
         s.memory.percent >= 95 ? AlertLevel.critical : AlertLevel.warning,
       ),
     );
@@ -82,8 +89,8 @@ List<PcAlert> evaluateAlerts(SystemSnapshot s, {FanService? fans}) {
       PcAlert(
         'volume:${v.letter}',
         'disk',
-        'Disco ${v.letter}: quase cheio',
-        '${_gb(v.free)} livres de ${_gb(v.total)}',
+        l10n.alertsVolumeTitle(v.letter),
+        l10n.alertsVolumeDetail(_gb(v.free), _gb(v.total)),
         v.percent >= 95 ? AlertLevel.critical : AlertLevel.warning,
       ),
     );
@@ -99,8 +106,8 @@ List<PcAlert> evaluateAlerts(SystemSnapshot s, {FanService? fans}) {
           PcAlert(
             'pump:${f.id}',
             'fan',
-            'Bomba do water cooler parada',
-            '${fans.nameOf(f)} a ${rpm.round()} RPM',
+            l10n.alertsPumpTitle,
+            l10n.alertsPumpDetail(fans.nameOf(f), rpm.round()),
             AlertLevel.critical,
           ),
         );

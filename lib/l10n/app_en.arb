@@ -1,0 +1,1759 @@
+{
+  "@@locale": "en",
+  "aboutSection": "About",
+  "aboutUpdateAvailable": "Version {version} is available.",
+  "aboutUpdateBanner": "OpenChroma {version} is available.",
+  "aboutChecking": "Checking for updates…",
+  "aboutDevBuild": "Development build: update checks are off.",
+  "aboutUpToDate": "You're up to date.",
+  "aboutDownload": "Download",
+  "aboutCheckNow": "Check now",
+  "aboutDismiss": "Dismiss",
+  "aboutAutoCheck": "Check for updates automatically",
+  "aboutAutoCheckDescription": "Once a day, OpenChroma asks GitHub for the latest release. Nothing about your PC is sent.",
+  "aboutReportProblem": "Report a problem",
+  "aboutReportProblemDescription": "Copy a diagnostics summary (app and Windows version, devices and errors; no serial numbers) and paste it into a GitHub issue.",
+  "aboutCopyDiagnostics": "Copy diagnostics",
+  "aboutDiagnosticsCopied": "Diagnostics copied to the clipboard.",
+  "aboutOpenIssue": "Open an issue",
+  "@aboutUpdateAvailable": {
+    "placeholders": {
+      "version": {
+        "type": "String"
+      }
+    }
+  },
+  "@aboutUpdateBanner": {
+    "placeholders": {
+      "version": {
+        "type": "String"
+      }
+    }
+  },
+  "fansTitle": "Fans",
+  "fansProfileSilent": "Silent",
+  "fansProfileBalanced": "Balanced",
+  "fansProfileTurbo": "Turbo",
+  "fansProfileCustom": "Custom",
+  "fansConnected": "Connected",
+  "fansHideEmpty": "Hide empty",
+  "fansShowEmpty": "Show empty ({count})",
+  "@fansShowEmpty": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "fansConflictTitle": "{program} is open.",
+  "@fansConflictTitle": {
+    "placeholders": {
+      "program": {
+        "type": "String"
+      }
+    }
+  },
+  "fansConflictText": "Two programs on the same fans fight over the speed. Close it, including from the tray, to control them here.",
+  "fansAdminTitle": "Administrator mode",
+  "fansAdminText": "is needed to control fans and see the motherboard ones.",
+  "fansRestartAsAdmin": "Restart as administrator",
+  "fansInstallPawnIoTitle": "Install PawnIO",
+  "fansInstallPawnIoText": "to see the motherboard fans.",
+  "fansDownload": "Download",
+  "fansBusyTitle": "The motherboard was busy",
+  "fansBusyText": "with another program. Reopen OpenChroma to try again.",
+  "fansPumpQuestionTitle": "Have a water cooler?",
+  "fansPumpQuestionText": "Tap the pump to protect it: it never drops below 70% or stops.",
+  "fansPumpNone": "I don't have one",
+  "fansCurveTitle": "Curve",
+  "fansCpuTempNeedsAdmin": "CPU temperature needs administrator mode",
+  "fansSearching": "Looking for fans…",
+  "fansNone": "No fans",
+  "fansNoTempDriver": "No temperature · driver in control",
+  "fansNoTempBios": "No temperature · BIOS in control",
+  "fansModeAuto": "Auto",
+  "fansModeCurve": "Curve",
+  "fansModeFixed": "Fixed",
+  "fansMotherboardDevice": "Motherboard · {device}",
+  "@fansMotherboardDevice": {
+    "placeholders": {
+      "device": {
+        "type": "String"
+      }
+    }
+  },
+  "fansStopWhenCold": "Stop when cold",
+  "fansPumpToggle": "Water cooler pump",
+  "fansBlockedConflict": "{program} is open",
+  "@fansBlockedConflict": {
+    "placeholders": {
+      "program": {
+        "type": "String"
+      }
+    }
+  },
+  "fansBlockedNeedsAdmin": "Controlling needs administrator mode",
+  "fansBlockedReadOnly": "Read-only",
+  "fansDefaultName": "Fan {index}",
+  "@fansDefaultName": {
+    "placeholders": {
+      "index": {
+        "type": "int"
+      }
+    }
+  },
+  "effectsFilterAll": "All",
+  "effectsFilterFavorites": "Favorites",
+  "effectsFilterAudio": "Sound-reactive",
+  "effectsFilterImported": "Imported",
+  "effectsSearchHint": "Search effects",
+  "effectsImport": "Import",
+  "effectsEmptyFavoritesTitle": "No favorites yet",
+  "effectsEmptyFavoritesMessage": "Hover over an effect and click the star to keep it here.",
+  "effectsEmptyImportedTitle": "No imported effects",
+  "effectsEmptyImportedMessage": "Create an .ocfx effect or bring an .html file.",
+  "effectsImportEffect": "Import effect",
+  "effectsNotFoundTitle": "Nothing found",
+  "effectsNotFoundMessage": "Try a different search term.",
+  "effectsReactsToSound": "Reacts to sound",
+  "effectsRemoveFavorite": "Remove from favorites",
+  "effectsAddFavorite": "Add to favorites",
+  "effectsLive": "Live",
+  "effectsRemoveImported": "Remove imported effect",
+  "effectsByAuthor": "by {author}",
+  "@effectsByAuthor": {
+    "placeholders": {
+      "author": {
+        "type": "String"
+      }
+    }
+  },
+  "effectsAdjustments": "Adjustments",
+  "effectsReset": "Reset",
+  "effectsNoAdjustments": "This effect has no adjustments.",
+  "effectsRemoveTitle": "Remove \"{title}\"?",
+  "@effectsRemoveTitle": {
+    "placeholders": {
+      "title": {
+        "type": "String"
+      }
+    }
+  },
+  "effectsRemoveMessage": "The effect is removed from the library. The original file you imported is not deleted.",
+  "effectsCancel": "Cancel",
+  "effectsRemove": "Remove",
+  "effectsFileTypeEffects": "Effects",
+  "effectsFileTypeOpenChroma": "OpenChroma effect",
+  "effectsTemplateFileName": "my-effect.ocfx",
+  "effectsTemplateName": "My effect",
+  "effectsTemplateDescription": "A short sentence about the effect.",
+  "effectsTemplateAuthor": "Your name",
+  "effectsTemplateSpeed": "Speed",
+  "effectsTemplateColor": "Color",
+  "effectsImportFailed": "Could not import: {error}",
+  "@effectsImportFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "effectsImportIntro": "Bring an .ocfx effect, OpenChroma's format, or an .html page that draws on a 320×200 canvas.",
+  "effectsFormatLayers": "Layers",
+  "effectsFormatLayersText": "gradient, spectrum, wave, pulse, sweep, rings, sparkle and solid, stacked with normal, screen, add, multiply or overlay blending.",
+  "effectsFormatParams": "Parameters",
+  "effectsFormatParamsText": "Declare them in \"params\" and use them as \"$name\" in any layer. They become controls in the app.",
+  "effectsTemplateSaved": "Template saved to {path}",
+  "@effectsTemplateSaved": {
+    "placeholders": {
+      "path": {
+        "type": "String"
+      }
+    }
+  },
+  "effectsSaveTemplate": "Save template",
+  "effectsChooseFile": "Choose file",
+  "settingsTitle": "Settings",
+  "settingsLighting": "Lighting",
+  "settingsBrightness": "Brightness",
+  "settingsEffectAudio": "Effect audio",
+  "settingsAudioUnavailable": "Unavailable in this build.",
+  "settingsLibrary": "Library",
+  "settingsDevices": "Devices",
+  "settingsDevicesConnected": "{count, plural, =1{1 connected} other{{count} connected}}",
+  "@settingsDevicesConnected": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "settingsScan": "Scan",
+  "settingsEffects": "Effects",
+  "settingsEffectsInLibrary": "{count} in the library",
+  "@settingsEffectsInLibrary": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "settingsImport": "Import",
+  "settingsPlugins": "Device plugins",
+  "settingsPluginsLoaded": "{count, plural, =1{1 loaded} other{{count} loaded}}. New or changed .js files in the folder run only after you approve them.",
+  "@settingsPluginsLoaded": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "settingsReloadPlugins": "Reload plugins",
+  "settingsOpenFolder": "Open folder",
+  "settingsDataFolder": "Data folder",
+  "settingsOpen": "Open",
+  "settingsAlerts": "Alerts",
+  "settingsWindowsNotifications": "Windows notifications",
+  "settingsWindowsNotificationsDescription": "Warns you when something gets too hot, memory or disk fills up, or the water cooler pump stops, even with the app in the tray.",
+  "settingsFlashLeds": "Flash the LEDs red",
+  "settingsFlashLedsDescription": "Devices flash for a few seconds along with the alert.",
+  "settingsAiAssistant": "AI assistant",
+  "settingsAiKeyNote": "The key stays only on this PC, encrypted for your Windows user, and is only sent to the chosen provider. When you ask something, the provider also receives your PC's readings: hardware model, temperatures, usage, device names and the names of the heaviest processes.",
+  "settingsStartup": "Startup and permissions",
+  "settingsAdminMode": "Administrator mode",
+  "settingsAdminActive": "Active. CPU temperature shows up in Monitor.",
+  "settingsAdminInactive": "Off. Required to read the CPU temperature.",
+  "settingsAdminAlreadyActive": "Already active",
+  "settingsRestartAsAdmin": "Restart as administrator",
+  "settingsAlwaysAdmin": "Always open as administrator",
+  "settingsAlwaysAdminDescription": "Windows asks for permission (UAC) every time OpenChroma opens.",
+  "settingsStartWithWindows": "Open at PC startup",
+  "settingsStartWithWindowsAdminDescription": "Opens in the tray, as administrator, when you sign in to Windows, without asking for permission. Turning it on or off asks for UAC once.",
+  "settingsStartWithWindowsDescription": "Opens in the tray along with Windows.",
+  "settingsRunInBackground": "Keep running in the background",
+  "settingsRunInBackgroundDescription": "When you close the window, OpenChroma stays in the tray and keeps controlling lights and fans.",
+  "aiProviderCompatible": "OpenAI-compatible",
+  "aiProvider": "Provider",
+  "aiApiKey": "API key",
+  "aiKeyHintAnthropic": "Create one at console.anthropic.com.",
+  "aiKeyHintOpenai": "Create one at platform.openai.com.",
+  "aiKeyHintCompatible": "Optional for local servers (Ollama, LM Studio).",
+  "aiBaseUrl": "API address",
+  "aiBaseUrlHint": "E.g. https://openrouter.ai/api/v1, http://localhost:11434/v1 (Ollama).",
+  "aiModel": "Model",
+  "aiModelsLoading": "Fetching the available models…",
+  "aiModelsNeedKey": "Enter the key to see the models.",
+  "aiModelsNone": "No models found.",
+  "aiModelsAvailable": "{count} available, updated automatically.",
+  "@aiModelsAvailable": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "aiRefreshList": "Refresh list",
+  "aiPasteKey": "Paste the key here",
+  "aiHide": "Hide",
+  "aiShow": "Show",
+  "aiErrorListModels": "Could not list the models ({error}).",
+  "@aiErrorListModels": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "aiErrorTimeout": "The server took too long to respond.",
+  "aiErrorNoConnection": "Could not connect to {host} ({message}).",
+  "@aiErrorNoConnection": {
+    "placeholders": {
+      "host": {
+        "type": "String"
+      },
+      "message": {
+        "type": "String"
+      }
+    }
+  },
+  "aiErrorSecureConnection": "Secure connection to {host} failed.",
+  "@aiErrorSecureConnection": {
+    "placeholders": {
+      "host": {
+        "type": "String"
+      }
+    }
+  },
+  "aiErrorUnexpectedResponse": "Unexpected response from the server.",
+  "aiErrorInvalidKey": "Invalid API key or missing permission.",
+  "aiErrorNotFound": "Address or model not found.",
+  "aiErrorRateLimit": "Usage limit reached. Try again in a moment.",
+  "aiErrorProviderUnstable": "The provider is unstable right now ({status}).",
+  "@aiErrorProviderUnstable": {
+    "placeholders": {
+      "status": {
+        "type": "int"
+      }
+    }
+  },
+  "aiErrorStatus": "Error {status}.",
+  "@aiErrorStatus": {
+    "placeholders": {
+      "status": {
+        "type": "int"
+      }
+    }
+  },
+  "aiErrorNoKey": "Set an API key in Settings.",
+  "aiErrorNoModel": "Pick a model in Settings.",
+  "aiErrorRefused": "The model declined this request.",
+  "aiErrorEmptyReply": "The model returned nothing.",
+  "aiEffectDone": "Done, I made the effect.",
+  "alertsTempWarm": "{what} hot",
+  "@alertsTempWarm": {
+    "placeholders": {
+      "what": {
+        "type": "String"
+      }
+    }
+  },
+  "alertsTempHot": "{what} very hot",
+  "@alertsTempHot": {
+    "placeholders": {
+      "what": {
+        "type": "String"
+      }
+    }
+  },
+  "alertsTempNow": "{temp} °C right now",
+  "@alertsTempNow": {
+    "placeholders": {
+      "temp": {
+        "type": "String"
+      }
+    }
+  },
+  "alertsDiskFallback": "Disk",
+  "alertsMemoryTitle": "Memory almost full",
+  "alertsMemoryDetail": "{percent}% in use · {free} free",
+  "@alertsMemoryDetail": {
+    "placeholders": {
+      "percent": {
+        "type": "String"
+      },
+      "free": {
+        "type": "String"
+      }
+    }
+  },
+  "alertsVolumeTitle": "Drive {letter}: almost full",
+  "@alertsVolumeTitle": {
+    "placeholders": {
+      "letter": {
+        "type": "String"
+      }
+    }
+  },
+  "alertsVolumeDetail": "{free} free of {total}",
+  "@alertsVolumeDetail": {
+    "placeholders": {
+      "free": {
+        "type": "String"
+      },
+      "total": {
+        "type": "String"
+      }
+    }
+  },
+  "alertsPumpTitle": "Water cooler pump stopped",
+  "alertsPumpDetail": "{name} at {rpm} RPM",
+  "@alertsPumpDetail": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      },
+      "rpm": {
+        "type": "int"
+      }
+    }
+  },
+  "audioSourceOff": "Off",
+  "audioSourceSystem": "PC sound",
+  "audioSourceMicrophone": "Microphone",
+  "audioSourceBoth": "PC sound and microphone",
+  "profileAppsTitle": "Turn on \"{profile}\" with programs",
+  "@profileAppsTitle": {
+    "placeholders": {
+      "profile": {
+        "type": "String"
+      }
+    }
+  },
+  "profileAppsDescription": "When one of these programs opens, the profile turns on by itself. When it closes, your previous lighting comes back, unless you picked another one in the meantime.",
+  "profileAppsNone": "No programs yet.",
+  "profileAppsRemove": "Remove",
+  "profileAppsNameHint": "Program name, e.g. cs2.exe",
+  "profileAppsOpenNow": "Open now",
+  "profileAppsNoOthers": "No other program with an open window.",
+  "profileAppsBrowse": "Browse for .exe",
+  "profileAppsCancel": "Cancel",
+  "profileAppsSave": "Save",
+  "profileAppsFileTypeLabel": "Programs",
+  "aiErrorInsecureUrl": "Only HTTPS addresses are allowed for {host}. Plain HTTP is accepted only for servers on this PC (localhost).",
+  "@aiErrorInsecureUrl": {
+    "placeholders": {
+      "host": {
+        "type": "String"
+      }
+    }
+  },
+  "settingsManagePlugins": "Manage",
+  "ocfxErrorInvalidJson": "The file isn't valid JSON ({message}).",
+  "@ocfxErrorInvalidJson": {
+    "placeholders": {
+      "message": {
+        "type": "String"
+      }
+    }
+  },
+  "ocfxErrorNotObject": "The file must be a JSON object.",
+  "ocfxErrorMissingVersion": "The \"openchroma\": 1 field is missing.",
+  "ocfxErrorMissingName": "The \"name\" field is missing.",
+  "ocfxErrorNoLayers": "The effect needs at least one layer in \"layers\".",
+  "ocfxErrorLayerType": "Layer {index}: \"type\" must be one of: {types}.",
+  "@ocfxErrorLayerType": {
+    "placeholders": {
+      "index": {
+        "type": "int"
+      },
+      "types": {
+        "type": "String"
+      }
+    }
+  },
+  "ocfxErrorParamsNotObject": "\"params\" must be an object.",
+  "ocfxErrorParamType": "Parameter \"{key}\": \"type\" must be one of: {types}.",
+  "@ocfxErrorParamType": {
+    "placeholders": {
+      "key": {
+        "type": "String"
+      },
+      "types": {
+        "type": "String"
+      }
+    }
+  },
+  "ocfxErrorI18nNotObject": "\"i18n\" must be an object with one object per language.",
+  "paramColorPickerTitle": "Color",
+  "paramColorPickerCancel": "Cancel",
+  "paramColorPickerApply": "Apply",
+  "appTitle": "OpenChroma",
+  "languageSystem": "System default",
+  "languageEnglish": "English",
+  "languagePortuguese": "Português (Brasil)",
+  "settingsGeneral": "General",
+  "settingsLanguage": "Language",
+  "colorOrderTitle": "Color order · {header}",
+  "@colorOrderTitle": {
+    "placeholders": {
+      "header": {
+        "type": "String"
+      }
+    }
+  },
+  "colorOrderQuestion": "What color are the fans on this connector showing right now?",
+  "colorOrderBlueTitle": "Is it blue?",
+  "colorOrderTesting": "Testing order {order}.",
+  "@colorOrderTesting": {
+    "placeholders": {
+      "order": {
+        "type": "String"
+      }
+    }
+  },
+  "colorOrderDoneTitle": "Done",
+  "colorOrderFailedTitle": "That didn't work",
+  "colorOrderNothingLit": "If nothing lit up, check the LED count of {header} and that the fans are on this connector.",
+  "@colorOrderNothingLit": {
+    "placeholders": {
+      "header": {
+        "type": "String"
+      }
+    }
+  },
+  "colorOrderAlreadyRight": "The order was already correct ({order}).",
+  "@colorOrderAlreadyRight": {
+    "placeholders": {
+      "order": {
+        "type": "String"
+      }
+    }
+  },
+  "colorOrderSameColors": "Both colors looked the same. Try again.",
+  "colorOrderCouldNotFix": "Couldn't fix it automatically. Pick the order manually from the list.",
+  "colorOrderSaved": "Order {order} saved on {header}.",
+  "@colorOrderSaved": {
+    "placeholders": {
+      "order": {
+        "type": "String"
+      },
+      "header": {
+        "type": "String"
+      }
+    }
+  },
+  "colorOrderNothingLitButton": "Nothing lit up",
+  "colorOrderRed": "Red",
+  "colorOrderGreen": "Green",
+  "colorOrderBlue": "Blue",
+  "colorOrderNo": "No",
+  "colorOrderYes": "Yes",
+  "colorOrderClose": "Close",
+  "devicesTitle": "Devices",
+  "devicesScanning": "Scanning…",
+  "devicesConnectedCount": "{count, plural, =1{1 connected} other{{count} connected}}",
+  "@devicesConnectedCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "devicesScan": "Scan",
+  "devicesOtherWireless": "Other wireless",
+  "devicesScanningTitle": "Scanning for devices",
+  "devicesDriversUnavailable": "Drivers unavailable",
+  "devicesNone": "No devices",
+  "devicesScanTakesSeconds": "This takes a few seconds.",
+  "devicesDriversMissing": "The drivers weren't found in this installation. Reinstall OpenChroma.",
+  "devicesNoneHint": "Connect a compatible device. If another RGB program is open, close it first. Memory modules and graphics cards need administrator mode and PawnIO.",
+  "devicesScanAgain": "Scan again",
+  "devicesStatusConnected": "Connected",
+  "devicesStatusStarting": "Starting",
+  "devicesStatusError": "Error",
+  "devicesStatusDisabled": "Disabled",
+  "devicesStatusUnsupported": "Unsupported",
+  "devicesStatusStopped": "Stopped",
+  "devicesKindKeyboard": "Keyboard",
+  "devicesKindMouse": "Mouse",
+  "devicesKindHeadset": "Headset",
+  "devicesKindMousepad": "Mousepad",
+  "devicesKindMotherboard": "Motherboard",
+  "devicesKindGpu": "Graphics card",
+  "devicesKindRam": "Memory",
+  "devicesKindFan": "Fans",
+  "devicesKindCooler": "Water cooler",
+  "devicesKindController": "RGB controller",
+  "devicesKindStrip": "LED strip",
+  "devicesKindSpeakers": "Speakers",
+  "devicesKindMicrophone": "Microphone",
+  "devicesKindGamepad": "Gamepad",
+  "devicesKindCase": "PC case",
+  "devicesKindOther": "Device",
+  "devicesLedCount": "{count, plural, =1{1 LED} other{{count} LEDs}}",
+  "@devicesLedCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "devicesCharging": "Charging · {level}%",
+  "@devicesCharging": {
+    "placeholders": {
+      "level": {
+        "type": "int"
+      }
+    }
+  },
+  "devicesBattery": "Battery {level}%",
+  "@devicesBattery": {
+    "placeholders": {
+      "level": {
+        "type": "int"
+      }
+    }
+  },
+  "devicesRestoreDefaults": "Restore defaults",
+  "devicesEnable": "Enable",
+  "devicesDisable": "Disable",
+  "devicesTabLighting": "Lighting",
+  "devicesTabScreen": "Screen",
+  "devicesTabDetails": "Details",
+  "devicesOff": "Off",
+  "devicesModeStatic": "Static",
+  "devicesModeBreathing": "Breathing",
+  "devicesModeBlinking": "Blinking",
+  "devicesModeFlashing": "Flashing",
+  "devicesModeColorCycle": "Color cycle",
+  "devicesModeSpectrumCycle": "Spectrum cycle",
+  "devicesModeRainbow": "Rainbow",
+  "devicesModeRainbowWave": "Rainbow wave",
+  "devicesModeWave": "Wave",
+  "devicesModeColorWave": "Color wave",
+  "devicesModeReactive": "Reactive",
+  "devicesModeRipple": "Ripple",
+  "devicesModeStarlight": "Starlight",
+  "devicesModeRandomFlicker": "Random flicker",
+  "devicesModeDoubleFlash": "Double flash",
+  "devicesModeSpectrum": "Spectrum",
+  "devicesModeCustom": "Custom",
+  "devicesModeRandom": "Random",
+  "devicesDirLeft": "To the left",
+  "devicesDirRight": "To the right",
+  "devicesDirUp": "Upward",
+  "devicesDirDown": "Downward",
+  "devicesDirHorizontal": "Horizontal",
+  "devicesDirVertical": "Vertical",
+  "devicesDirUpLeft": "Upward and left",
+  "devicesDirUpRight": "Upward and right",
+  "devicesDirDownLeft": "Downward and left",
+  "devicesDirDownRight": "Downward and right",
+  "devicesSpeed": "Speed",
+  "devicesBrightness": "Brightness",
+  "devicesDirection": "Direction",
+  "devicesRandomColors": "Random colors",
+  "devicesColor": "Color",
+  "devicesColors": "Colors",
+  "devicesRemoveColor": "Remove a color",
+  "devicesAddColor": "Add a color",
+  "devicesLighting": "Lighting",
+  "devicesFollowsApp": "Follows OpenChroma effects.",
+  "devicesRunsItself": "The device runs the effect itself.",
+  "devicesAppEffects": "OpenChroma effects",
+  "devicesZonesWithoutLeds": "{zones} without LEDs: whatever is plugged into those connectors doesn't follow the effects and stays on the previous effect. Enter the LED count below.",
+  "@devicesZonesWithoutLeds": {
+    "placeholders": {
+      "zones": {
+        "type": "String"
+      }
+    }
+  },
+  "devicesArgbHint": "On ARGB connectors, enter how many LEDs are plugged in. A 120 mm fan usually has between 8 and 24. Then position each zone in Lighting › Layout.",
+  "devicesZoneN": "Zone {n}",
+  "@devicesZoneN": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
+  "devicesUpToLeds": "Up to {max} LEDs",
+  "@devicesUpToLeds": {
+    "placeholders": {
+      "max": {
+        "type": "int"
+      }
+    }
+  },
+  "devicesMatrix": "Matrix {width} × {height}",
+  "@devicesMatrix": {
+    "placeholders": {
+      "width": {
+        "type": "int"
+      },
+      "height": {
+        "type": "int"
+      }
+    }
+  },
+  "devicesCountLeds": "Count",
+  "devicesCountLedsTitle": "Count LEDs of {zone}",
+  "@devicesCountLedsTitle": {
+    "placeholders": {
+      "zone": {
+        "type": "String"
+      }
+    }
+  },
+  "devicesCountLedsHint": "The first LEDs light up green. Increase the count until the last fan or strip is fully lit, and stop at the point where lighting one more changes nothing.",
+  "devicesOneLess": "One less",
+  "devicesOneMore": "One more",
+  "devicesCancel": "Cancel",
+  "devicesUseLeds": "{count, plural, =1{Use 1 LED} other{Use {count} LEDs}}",
+  "@devicesUseLeds": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "devicesInfoVendor": "Manufacturer",
+  "devicesInfoDescription": "Description",
+  "devicesInfoVersion": "Version",
+  "devicesInfoSerial": "Serial number",
+  "devicesInfoDriver": "Driver",
+  "devicesDriverBuiltIn": "OpenRGB (included)",
+  "devicesDriverPluginBundled": "{name} · bundled plugin",
+  "@devicesDriverPluginBundled": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "devicesDriverPluginUser": "{name} · your plugin",
+  "@devicesDriverPluginUser": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "devicesInfoConnection": "Connection",
+  "devicesInfoZones": "Zones",
+  "devicesInfoHardwareModes": "Hardware modes",
+  "devicesColorOrderOption": "Color order · {what}",
+  "@devicesColorOrderOption": {
+    "placeholders": {
+      "what": {
+        "type": "String"
+      }
+    }
+  },
+  "devicesBoardLedC": "board LED_C",
+  "devicesDetectGen2": "Detect ARGB Gen2 · {name}",
+  "@devicesDetectGen2": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "devicesPersistLighting": "Save lighting on exit",
+  "devicesCalibrationHint": "If the color comes out swapped (e.g. green instead of blue), use \"Detect\": two questions and the app finds the right order.",
+  "devicesDetect": "Detect",
+  "devicesResetTitle": "Restore defaults?",
+  "devicesResetBody": "Returns the device's options (such as color order) to what they were when it was first detected, makes it follow OpenChroma effects again and restores its position in the layout. Connector LED counts are kept.",
+  "devicesRestore": "Restore",
+  "engineProfileGame": "Game",
+  "engineProfileWork": "Work",
+  "engineProfileNight": "Night",
+  "engineProfileOff": "Off",
+  "engineImportBadExtension": "Use an .ocfx, .json or .html file.",
+  "engineImportUnreadable": "Couldn't read that file.",
+  "enginePluginStopped": "The plugin stopped: {error}",
+  "@enginePluginStopped": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "enginePluginRejected": "The plugin didn't recognize this device.",
+  "engineScreenNoLiveValues": "This screen doesn't show live values.",
+  "engineScreenMaxLiveValues": "{count, plural, =1{This screen shows up to 1 different live value.} other{This screen shows up to {count} different live values.}}",
+  "@engineScreenMaxLiveValues": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "engineScreenRejected": "The device didn't accept the image.",
+  "engineScreenCannotOpen": "Couldn't open the image.",
+  "pluginsNoDefinition": "the file doesn't call plugin()",
+  "pluginsNoDevices": "no devices in \"devices\"",
+  "pluginsNoPort": "no port chosen",
+  "pluginsNoInterface": "no interface chosen",
+  "pluginsCannotOpen": "couldn't open {path}",
+  "@pluginsCannotOpen": {
+    "placeholders": {
+      "path": {
+        "type": "String"
+      }
+    }
+  },
+  "layoutPreview": "Preview",
+  "layoutApply": "Apply",
+  "layoutCancel": "Cancel",
+  "layoutAutoArrange": "Auto arrange",
+  "layoutUndo": "Undo",
+  "layoutHint": "Click a zone to identify its LEDs, or drag to move it.",
+  "layoutDimEffect": "Dim effect",
+  "layoutNothingTitle": "Nothing to place",
+  "layoutNothingMessage": "Connected devices appear here.",
+  "layoutDevice": "Device",
+  "layoutSelectedZone": "Selected zone",
+  "layoutFill": "Fill",
+  "layoutSwitchToApp": "Switch to OpenChroma effects to identify this zone.",
+  "layoutRotate": "Rotate 90°",
+  "layoutFlipHorizontal": "Flip horizontal",
+  "layoutFlipVertical": "Flip vertical",
+  "layoutScale": "Scale",
+  "layoutPositionX": "X position",
+  "layoutPositionY": "Y position",
+  "screenImageFiles": "Images and GIFs",
+  "screenImageOrGif": "Image or GIF",
+  "screenSending": "Sending… {percent}%",
+  "@screenSending": {
+    "placeholders": {
+      "percent": {
+        "type": "int"
+      }
+    }
+  },
+  "screenImageHint": "Crop, pick the clip and write over it before sending. The screen keeps what it receives, even with the app closed.",
+  "screenEdit": "Edit",
+  "screenChooseFile": "Choose file",
+  "screenEditorCannotOpen": "Couldn't open the image.",
+  "screenEditorTitle": "Edit screen image",
+  "screenEditorHintIdle": "Click a text to select it. Drag the image to position it and use the mouse wheel to zoom.",
+  "screenEditorHintSelected": "Drag to move and pull the corner (or use the mouse wheel over the text) to resize. Arrow keys nudge the position, Delete removes, Ctrl+D duplicates and Esc clears the selection.",
+  "screenEditorCancel": "Cancel",
+  "screenEditorSend": "Send to screen",
+  "screenEditorFraming": "Framing",
+  "screenEditorFill": "Fill",
+  "screenEditorFit": "Fit",
+  "screenEditorBackgroundColor": "Background color",
+  "screenEditorZoom": "Zoom",
+  "screenEditorGifClip": "GIF clip",
+  "screenEditorFrameRange": "Frames {first} to {last} of {total} · {duration}",
+  "@screenEditorFrameRange": {
+    "placeholders": {
+      "first": {
+        "type": "int"
+      },
+      "last": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      },
+      "duration": {
+        "type": "String"
+      }
+    }
+  },
+  "screenEditorFramesReduced": " · will be reduced to {max} frames",
+  "@screenEditorFramesReduced": {
+    "placeholders": {
+      "max": {
+        "type": "int"
+      }
+    }
+  },
+  "screenEditorTexts": "Texts",
+  "screenEditorAddText": "Add",
+  "screenEditorLiveValues": "Live values: {used} of {total}. The screen updates every second while the app is open.",
+  "@screenEditorLiveValues": {
+    "placeholders": {
+      "used": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
+  "screenEditorTextHint": "Text",
+  "screenEditorBold": "Bold",
+  "screenEditorNormal": "Regular",
+  "screenEditorTextColor": "Text color",
+  "screenEditorDuplicate": "Duplicate",
+  "screenEditorRemove": "Remove",
+  "screenEditorLiveHint": "Live · put the unit ({unit}) in a fixed text",
+  "@screenEditorLiveHint": {
+    "placeholders": {
+      "unit": {
+        "type": "String"
+      }
+    }
+  },
+  "screenEditorShow": "Show",
+  "screenEditorFixedText": "Fixed text",
+  "screenDefaultText": "Text",
+  "screenSourceCpuTemp": "CPU temperature",
+  "screenSourceCpuUsage": "CPU usage",
+  "screenSourceCpuClock": "CPU clock",
+  "screenSourceCpuPower": "CPU power",
+  "screenSourceGpuTemp": "GPU temperature",
+  "screenSourceGpuUsage": "GPU usage",
+  "screenSourceGpuClock": "GPU clock",
+  "screenSourceGpuPower": "GPU power",
+  "screenSourceGpuFan": "GPU fan",
+  "screenSourceRamUsage": "RAM usage",
+  "perfTitle": "Performance",
+  "perfRestartAsAdmin": "Restart as administrator",
+  "perfClose": "Close",
+  "monitorUnavailableTitle": "Monitor unavailable",
+  "monitorUnavailableMessage": "This build does not include the system sensors.",
+  "monitorReadingSensors": "Reading sensors…",
+  "monitorSubtitle": "Updated every second · PC up for {uptime}",
+  "@monitorSubtitle": {
+    "placeholders": {
+      "uptime": {
+        "type": "String"
+      }
+    }
+  },
+  "monitorStalledTitle": "Sensors did not respond",
+  "monitorStalledMessage": "No readings arrived from the system. Close and reopen OpenChroma; if it keeps happening, let us know.",
+  "monitorProcessesAt": "Processes at {time}",
+  "@monitorProcessesAt": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "monitorInspectSummary": "CPU {cpu} · Memory {memory}",
+  "@monitorInspectSummary": {
+    "placeholders": {
+      "cpu": {
+        "type": "String"
+      },
+      "memory": {
+        "type": "String"
+      }
+    }
+  },
+  "monitorProcessor": "Processor",
+  "monitorCoresThreads": "{cores} cores · {threads} threads",
+  "@monitorCoresThreads": {
+    "placeholders": {
+      "cores": {
+        "type": "int"
+      },
+      "threads": {
+        "type": "int"
+      }
+    }
+  },
+  "monitorUsage": "Usage",
+  "monitorTemperature": "Temperature",
+  "monitorClock": "Clock",
+  "monitorPower": "Power",
+  "monitorUsagePerThread": "Usage per thread",
+  "monitorNeedsAdminTitle": "Administrator required",
+  "monitorNeedsAdminMessage": "The CPU sensor is read by the PawnIO driver, which only serves programs running as administrator.",
+  "monitorSensorPendingTitle": "Reading the sensor…",
+  "monitorSensorPendingMessage": "Opening the PawnIO driver.",
+  "monitorSensorFailedTitle": "The sensor did not respond",
+  "monitorSensorFailedMessage": "The PawnIO driver stopped responding. The other readings keep working.",
+  "monitorNoDriverTitle": "PawnIO driver not found",
+  "monitorNoDriverMessage": "Install PawnIO (pawnio.eu) to see the CPU temperature.",
+  "monitorNoSensorTitle": "No sensor",
+  "monitorNoSensorMessage": "This processor has no supported temperature sensor.",
+  "monitorGraphicsCard": "Graphics card",
+  "monitorTemperatureUnavailable": "Temperature unavailable",
+  "monitorFan": "Fan",
+  "monitorVideoMemory": "Video memory",
+  "monitorUsedOfTotal": "{used} of {total}",
+  "@monitorUsedOfTotal": {
+    "placeholders": {
+      "used": {
+        "type": "String"
+      },
+      "total": {
+        "type": "String"
+      }
+    }
+  },
+  "monitorIntegratedGpu": "{name} · integrated",
+  "@monitorIntegratedGpu": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "monitorMemoryRam": "RAM",
+  "monitorMemoryInstalled": "{size} installed",
+  "@monitorMemoryInstalled": {
+    "placeholders": {
+      "size": {
+        "type": "String"
+      }
+    }
+  },
+  "monitorMemoryAvailable": "Available",
+  "monitorMemoryCached": "Cached",
+  "monitorMemoryCommitted": "Committed",
+  "monitorStorage": "Storage",
+  "monitorDiskCount": "{count, plural, =1{1 disk} other{{count} disks}}",
+  "@monitorDiskCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "monitorDiskNumber": "Disk {number}",
+  "@monitorDiskNumber": {
+    "placeholders": {
+      "number": {
+        "type": "int"
+      }
+    }
+  },
+  "monitorDiskActive": "Active {percent}",
+  "@monitorDiskActive": {
+    "placeholders": {
+      "percent": {
+        "type": "String"
+      }
+    }
+  },
+  "monitorVolumeRemovable": "Removable",
+  "monitorVolumeLocal": "Local disk",
+  "monitorFreeOfTotal": "{free} free of {total}",
+  "@monitorFreeOfTotal": {
+    "placeholders": {
+      "free": {
+        "type": "String"
+      },
+      "total": {
+        "type": "String"
+      }
+    }
+  },
+  "monitorNetwork": "Network",
+  "monitorTraffic": "Traffic",
+  "monitorDownload": "Download",
+  "monitorUpload": "Upload",
+  "monitorProcesses": "Processes",
+  "monitorTopMemory": "Top memory users",
+  "monitorTopCpu": "Top CPU users",
+  "monitorColumnName": "Name",
+  "monitorColumnCpu": "CPU",
+  "monitorColumnMemory": "Memory",
+  "monitorNoProcessData": "No process data for this sample.",
+  "monitorSortTooltip": "Sort by {column}, highest first",
+  "@monitorSortTooltip": {
+    "placeholders": {
+      "column": {
+        "type": "String"
+      }
+    }
+  },
+  "monitorTempNormal": "Normal",
+  "monitorTempWarm": "Warm",
+  "monitorTempHot": "Very hot",
+  "monitorThreadTooltip": "Thread {number}: {usage}",
+  "@monitorThreadTooltip": {
+    "placeholders": {
+      "number": {
+        "type": "int"
+      },
+      "usage": {
+        "type": "String"
+      }
+    }
+  },
+  "monitorClickToInspect": "Click to inspect",
+  "monitorNow": "now",
+  "monitorSecondsAgo": "{seconds} s ago",
+  "@monitorSecondsAgo": {
+    "placeholders": {
+      "seconds": {
+        "type": "int"
+      }
+    }
+  },
+  "checkupSubtitleRunning": "Checkup in progress",
+  "checkupSubtitleEmpty": "Test your PC stability and health",
+  "checkupSubtitleLast": "Last checkup {when}",
+  "@checkupSubtitleLast": {
+    "placeholders": {
+      "when": {
+        "type": "String"
+      }
+    }
+  },
+  "checkupWhenToday": "today at {time}",
+  "@checkupWhenToday": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "checkupWhenYesterday": "yesterday at {time}",
+  "@checkupWhenYesterday": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "checkupWhenDate": "on {date} at {time}",
+  "@checkupWhenDate": {
+    "placeholders": {
+      "date": {
+        "type": "String"
+      },
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "checkupTests": "Tests",
+  "checkupSelectedCount": "{selected} of {total}",
+  "@checkupSelectedCount": {
+    "placeholders": {
+      "selected": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
+  "checkupPlanQuick": "Quick",
+  "checkupPlanStandard": "Standard",
+  "checkupPlanLong": "Long",
+  "checkupTestCpuSingle": "Processor · 1 core",
+  "checkupTestCpuAll": "Processor · all cores",
+  "checkupTestMemory": "RAM",
+  "checkupTestGpu": "Graphics card",
+  "checkupTestCpuGpu": "CPU + GPU together",
+  "checkupTestDisk": "Storage",
+  "checkupThousands": "{value}k",
+  "@checkupThousands": {
+    "placeholders": {
+      "value": {
+        "type": "String"
+      }
+    }
+  },
+  "checkupMemoryMetricRead": "Reads {read} GB/s",
+  "@checkupMemoryMetricRead": {
+    "placeholders": {
+      "read": {
+        "type": "String"
+      }
+    }
+  },
+  "checkupMemoryMetricWrite": "writes {write}",
+  "@checkupMemoryMetricWrite": {
+    "placeholders": {
+      "write": {
+        "type": "String"
+      }
+    }
+  },
+  "checkupDiskMetricWrite": "Writes {write} GB/s",
+  "@checkupDiskMetricWrite": {
+    "placeholders": {
+      "write": {
+        "type": "String"
+      }
+    }
+  },
+  "checkupDiskMetricRead": "reads {read}",
+  "@checkupDiskMetricRead": {
+    "placeholders": {
+      "read": {
+        "type": "String"
+      }
+    }
+  },
+  "checkupTitle": "Checkup",
+  "checkupCancel": "Cancel",
+  "checkupPreparing": "Preparing…",
+  "checkupStart": "Start checkup",
+  "checkupRunAgain": "Run again",
+  "checkupNoAdminNote": "Without administrator rights, the CPU temperature and the cause of blue screens are left out.",
+  "checkupProblemCount": "{count, plural, =1{1 problem} other{{count} problems}}",
+  "@checkupProblemCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "checkupWarningCount": "{count, plural, =1{1 warning} other{{count} warnings}}",
+  "@checkupWarningCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "checkupAllGood": "All good",
+  "checkupCalcErrors": "{count, plural, =0{No calculation errors} =1{1 calculation error} other{{count} calculation errors}}",
+  "@checkupCalcErrors": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "checkupNext": "Next: {plan} · ≈ {minutes} min",
+  "@checkupNext": {
+    "placeholders": {
+      "plan": {
+        "type": "String"
+      },
+      "minutes": {
+        "type": "int"
+      }
+    }
+  },
+  "checkupTestCount": "{count, plural, =1{1 test} other{{count} tests}}",
+  "@checkupTestCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "checkupFinishing": "Finishing…",
+  "checkupTestProgress": "Test {index} of {total}",
+  "@checkupTestProgress": {
+    "placeholders": {
+      "index": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
+  "checkupProgressRemaining": "{percent}% · {time} left",
+  "@checkupProgressRemaining": {
+    "placeholders": {
+      "percent": {
+        "type": "int"
+      },
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "checkupStatusQueued": "Queued",
+  "checkupStatusStable": "Stable",
+  "checkupStatusErrors": "{count, plural, =1{1 error} other{{count} errors}}",
+  "@checkupStatusErrors": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "checkupStatusStopped": "Stopped",
+  "checkupStatusDidNotRun": "Did not run",
+  "checkupStatusCancelled": "Cancelled",
+  "systemCardTitle": "System",
+  "systemAfterFirstCheckup": "Appears after the first checkup",
+  "systemMotherboard": "Motherboard",
+  "systemProcessor": "Processor",
+  "systemGraphicsCard": "Graphics card",
+  "systemMemory": "Memory",
+  "systemModuleCount": "{count, plural, =1{1 module} other{{count} modules}}",
+  "@systemModuleCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "systemSlotCount": "{count} slots",
+  "@systemSlotCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "systemMemoryInUse": "Memory in use",
+  "systemMemoryUsedOfTotal": "{used} of {total} GB",
+  "@systemMemoryUsedOfTotal": {
+    "placeholders": {
+      "used": {
+        "type": "String"
+      },
+      "total": {
+        "type": "String"
+      }
+    }
+  },
+  "systemDrive": "System drive",
+  "systemDriveFree": "{free} GB free of {total} GB",
+  "@systemDriveFree": {
+    "placeholders": {
+      "free": {
+        "type": "String"
+      },
+      "total": {
+        "type": "String"
+      }
+    }
+  },
+  "systemBlueScreens": "Blue screens · 30 days",
+  "systemBlueScreensNone": "None",
+  "systemStartupApps": "Start with Windows",
+  "systemStartupAppsValue": "{count, plural, =1{1 program} other{{count} programs}}",
+  "@systemStartupAppsValue": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "systemIdleCpu": "CPU at idle",
+  "systemIdleCpuValue": "{temp} °C · {usage}% usage",
+  "@systemIdleCpuValue": {
+    "placeholders": {
+      "temp": {
+        "type": "int"
+      },
+      "usage": {
+        "type": "int"
+      }
+    }
+  },
+  "checkupRecommendations": "Recommendations",
+  "checkupRecommendationsEmpty": "Finish a checkup to see the recommendations",
+  "checkupAiTitle": "AI analysis",
+  "checkupAiNotReady": "Connect an AI in Settings to use this.",
+  "checkupAiRunFirst": "Run a checkup to analyze the results.",
+  "checkupAiHint": "Explains the results and suggests tweaks for your PC.",
+  "checkupAiAnalyze": "Analyze",
+  "checkupAiAnalyzeAgain": "Analyze again",
+  "checkupAiSystemPrompt": "You are an experienced hardware technician analyzing the checkup of a Windows PC run by the OpenChroma app. Answer in American English, in plain text (no tables), with: a one-line verdict; the real problems in order of importance, each with the probable cause and what to do; and what is fine. Be specific with the numbers in the report and do not invent data that is not in it. 250 words at most.",
+  "checkupAbortCpuTemp": "CPU went over {temp} °C",
+  "@checkupAbortCpuTemp": {
+    "placeholders": {
+      "temp": {
+        "type": "int"
+      }
+    }
+  },
+  "checkupAbortGpuTemp": "The graphics card went over {temp} °C",
+  "@checkupAbortGpuTemp": {
+    "placeholders": {
+      "temp": {
+        "type": "int"
+      }
+    }
+  },
+  "checkupAbortPump": "The liquid cooler pump stopped",
+  "checkupAdviceAbortedTitle": "Test stopped: {reason}",
+  "@checkupAdviceAbortedTitle": {
+    "placeholders": {
+      "reason": {
+        "type": "String"
+      }
+    }
+  },
+  "checkupAdviceAbortedDetail": "Cooling could not keep up with the load. Check the cooler (mounting, thermal paste, fans and pump) before using the PC under heavy load.",
+  "checkupAdviceCpuErrorsTitle": "The CPU made calculation errors under load",
+  "checkupAdviceCpuErrorsDetail": "Sign of instability. Undo any overclock or undervolt (PBO, Curve Optimizer) and update the BIOS; if it keeps happening, it may be a defect.",
+  "checkupAdviceGpuErrorsTitle": "The graphics card calculated incorrectly",
+  "checkupAdviceGpuErrorsDetail": "Remove any GPU overclock and update the graphics driver.",
+  "checkupAdviceMemoryErrorsTitle": "The memory returned wrong data",
+  "checkupAdviceMemoryErrorsDetail": "Turn off EXPO/XMP in the BIOS and test again. If it keeps happening, test one module at a time to find the faulty one.",
+  "checkupAdviceDiskErrorsTitle": "The disk returned data different from what was written",
+  "checkupAdviceDiskErrorsDetail": "Back up now and check the disk health.",
+  "checkupAdviceBlueScreensTitle": "{count, plural, =1{1 blue screen in the last 30 days} other{{count} blue screens in the last 30 days}}",
+  "@checkupAdviceBlueScreensTitle": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "checkupAdviceBlueScreensSuspect": "The driver {driver} appears in {count} of {total} crash records. Update or uninstall the program that owns it.",
+  "@checkupAdviceBlueScreensSuspect": {
+    "placeholders": {
+      "driver": {
+        "type": "String"
+      },
+      "count": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
+  "checkupAdviceBlueScreensNoSuspect": "The records do not point to a third-party driver. Update the BIOS, the chipset and the graphics driver, and test the memory.",
+  "checkupAdviceBlueScreensNeedAdmin": "Run the checkup as administrator to find the responsible driver.",
+  "checkupAdviceCpuHotTitle": "The CPU reaches {temp} °C at full load",
+  "@checkupAdviceCpuHotTitle": {
+    "placeholders": {
+      "temp": {
+        "type": "int"
+      }
+    }
+  },
+  "checkupAdviceCpuHotDetail": "It is at its thermal limit and loses performance. Improve cooling or limit the temperature/power in the BIOS (Eco Mode on AMD, PL1/PL2 on Intel).",
+  "checkupAdviceGpuHotTitle": "The graphics card reaches {temp} °C",
+  "@checkupAdviceGpuHotTitle": {
+    "placeholders": {
+      "temp": {
+        "type": "int"
+      }
+    }
+  },
+  "checkupAdviceGpuHotDetail": "Improve the case airflow or adjust the GPU fan curve.",
+  "checkupAdviceSingleChannelTitle": "Single-channel memory",
+  "checkupAdviceSingleChannelDetail": "A single module uses half the bandwidth. Adding an identical one (same model) enables dual channel.",
+  "checkupAdviceSameChannelTitle": "The modules are on the same channel",
+  "checkupAdviceSameChannelDetail": "Move them to the slots shown in the motherboard manual (usually A2 and B2).",
+  "checkupAdviceSlowMemoryTitle": "The memory runs below what it supports",
+  "checkupAdviceSlowMemoryDetail": "{configured} of {speed} MT/s. Turn on EXPO (AMD) or XMP (Intel) in the BIOS.",
+  "@checkupAdviceSlowMemoryDetail": {
+    "placeholders": {
+      "configured": {
+        "type": "int"
+      },
+      "speed": {
+        "type": "int"
+      }
+    }
+  },
+  "checkupAdviceProfileOffTitle": "EXPO/XMP is probably off",
+  "checkupAdviceProfileOffDetail": "The memory is at its base speed ({configured} MT/s). If the module is rated for a higher speed, turn on EXPO/XMP in the BIOS.",
+  "@checkupAdviceProfileOffDetail": {
+    "placeholders": {
+      "configured": {
+        "type": "int"
+      }
+    }
+  },
+  "checkupAdviceMemoryFullTitle": "Memory almost full",
+  "checkupAdviceMemoryFullDetail": "{used} of {total} GB in use and {committed} GB requested by programs; the excess goes to disk and slows everything down. Close heavy apps or add RAM.",
+  "@checkupAdviceMemoryFullDetail": {
+    "placeholders": {
+      "used": {
+        "type": "String"
+      },
+      "total": {
+        "type": "String"
+      },
+      "committed": {
+        "type": "String"
+      }
+    }
+  },
+  "checkupAdviceDriveFullTitle": "System drive almost full",
+  "checkupAdviceDriveFullDetail": "Only {free} GB free. Below 10%, Windows slows down, runs short of space for virtual memory and deletes crash records.",
+  "@checkupAdviceDriveFullDetail": {
+    "placeholders": {
+      "free": {
+        "type": "String"
+      }
+    }
+  },
+  "checkupAdviceStartupTitle": "{count} programs start with Windows",
+  "@checkupAdviceStartupTitle": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "checkupAdviceStartupDetail": "Turn off the ones you do not use every day in Task Manager > Startup apps.",
+  "checkupAdviceBusyTitle": "The PC was busy before the tests",
+  "checkupAdviceBusyDetail": "{usage}% CPU usage at idle: background programs heat up the PC and affect the results.",
+  "@checkupAdviceBusyDetail": {
+    "placeholders": {
+      "usage": {
+        "type": "int"
+      }
+    }
+  },
+  "checkupAdviceNoCpuTempTitle": "No CPU temperature",
+  "checkupAdviceNoCpuTempDetail": "Run the checkup as administrator to measure the temperature and protect the CPU during the tests.",
+  "checkupAdviceAllGoodDetail": "No errors in the tests and nothing out of the ordinary on the system.",
+  "systemErrorWindowsSetting": "Could not change the Windows setting.",
+  "systemErrorSaveSetting": "Could not save the setting.",
+  "systemErrorEnableStartup": "Could not turn on starting with Windows.",
+  "systemErrorTaskNotCreated": "The startup task was not created. You need to accept the Windows permission prompt.",
+  "systemErrorTaskNotRemoved": "The startup task was not removed. You need to accept the Windows permission prompt.",
+  "systemTaskDescription": "Opens OpenChroma as administrator when you sign in to Windows.",
+  "pluginTrustTimedOut": "The plugin took too long to start and was stopped.",
+  "pluginTrustLoadFailed": "The plugin stopped while loading.",
+  "pluginTrustTooLarge": "The file is larger than 1 MB.",
+  "pluginTrustUnresponsive": "The plugin stopped responding.",
+  "pluginTrustBanner": "{count, plural, =1{1 new plugin needs your approval} other{{count} new plugins need your approval}}",
+  "@pluginTrustBanner": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "pluginTrustReview": "Review",
+  "pluginTrustTitle": "Device plugins",
+  "pluginTrustIntro": "A plugin is a program that runs inside OpenChroma and can send any command to your USB devices. Approve only plugins from a source you trust.",
+  "pluginTrustElevated": "OpenChroma is running as administrator, so an approved plugin runs with administrator rights.",
+  "pluginTrustPending": "Waiting for approval",
+  "pluginTrustApproved": "Approved",
+  "pluginTrustDenied": "Not allowed",
+  "pluginTrustApprove": "Approve",
+  "pluginTrustDeny": "Don't allow",
+  "pluginTrustRevoke": "Revoke",
+  "pluginTrustClose": "Close",
+  "pluginTrustPath": "Path",
+  "pluginTrustSize": "Size",
+  "pluginTrustModified": "Modified",
+  "pluginTrustHash": "SHA-256",
+  "pluginTrustChanged": "Changed since you approved it",
+  "pluginTrustReplaces": "Replaces the built-in plugin with the same file name",
+  "pluginTrustOverrides": "Replaces the built-in plugin: {names}",
+  "@pluginTrustOverrides": {
+    "placeholders": {
+      "names": {
+        "type": "String"
+      }
+    }
+  },
+  "pluginTrustEmpty": "There are no plugins in your plugins folder. Built-in plugins don't need approval.",
+  "securityStartupAdminDescription": "Opens in the tray, as administrator, when you sign in to Windows, without asking for permission. Changing it needs OpenChroma running as administrator.",
+  "securityStartupInstallUnsafe": "To start as administrator automatically, install OpenChroma for all users (in Program Files). This copy can be modified without administrator rights, so it cannot be trusted to run with full access when you sign in.",
+  "securityStartupInstallUnsafeRemove": "This copy can be modified without administrator rights, so starting it as administrator is unsafe. Turn this off to remove the automatic start as administrator.",
+  "securityStartupNeedsAdmin": "Restart OpenChroma as administrator to change the automatic start as administrator.",
+  "securityErrorNeedsAdmin": "Restart OpenChroma as administrator to change this setting.",
+  "securityErrorInstallNotTrusted": "To start as administrator automatically, install OpenChroma for all users (in Program Files).",
+  "securityErrorTaskNotCreated": "The startup task was not created.",
+  "securityErrorTaskNotRemoved": "The startup task was not removed.",
+  "commonSearch": "Search",
+  "commonCancel": "Cancel",
+  "commonSave": "Save",
+  "commonOff": "Off",
+  "commonPaused": "Paused",
+  "commonLive": "Live",
+  "commonNoEffect": "No effect",
+  "windowMinimize": "Minimize",
+  "windowMaximize": "Maximize",
+  "windowRestore": "Restore",
+  "windowClose": "Close",
+  "shellNavHome": "Home",
+  "shellNavLighting": "Lighting",
+  "shellNavDevices": "Devices",
+  "shellNavFans": "Fans",
+  "shellNavPerformance": "Performance",
+  "shellNavSettings": "Settings",
+  "shellAdminActive": "Administrator mode on",
+  "shellRestartAsAdmin": "Restart as administrator",
+  "shellTabEffects": "Effects",
+  "shellTabLayout": "Layout",
+  "shellTabMonitor": "Monitor",
+  "shellTabDiagnostics": "Diagnostics",
+  "shellConflictOpen": "{count, plural, =1{{names} is open.} other{{names} are open.}}",
+  "@shellConflictOpen": {
+    "placeholders": {
+      "names": {
+        "type": "String"
+      },
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "shellConflictAdvice": "Two programs on the same LEDs make the colors flicker. Close it, including in the tray.",
+  "shellWebviewMissing": "Effects need Microsoft WebView2, which isn't installed on this PC.",
+  "shellWebviewDownload": "Download WebView2",
+  "shellPlayerOffPaused": "Off · effect paused",
+  "shellPlayerLiveOnDevices": "{count, plural, =1{Live on 1 device} other{Live on {count} devices}}",
+  "@shellPlayerLiveOnDevices": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "lightingTitle": "Lighting",
+  "lightingBrightnessPerDevice": "Brightness of each device",
+  "lightingBrightnessTitle": "Brightness",
+  "lightingAll": "All",
+  "lightingLights": "Lights",
+  "lightingScreens": "Screens",
+  "lightingNoDevices": "No devices connected.",
+  "lightingBrightnessNote": "\"All\" applies to every device, on top of each one's own brightness. At 0%, the effect pauses and nothing is sent.",
+  "lightingPausedAtZero": "Paused: brightness is at 0%",
+  "lightingResumeEffect": "Resume the effect",
+  "lightingPauseEffect": "Pause the effect",
+  "homeGreetingNight": "Good night",
+  "homeGreetingMorning": "Good morning",
+  "homeGreetingAfternoon": "Good afternoon",
+  "homeGreetingEvening": "Good evening",
+  "homeStatusReading": "Reading sensors…",
+  "homeStatusAllGood": "Everything looks good with your PC.",
+  "homeStatusAlerts": "{count, plural, =1{1 alert needs attention.} other{{count} alerts need attention.}}",
+  "@homeStatusAlerts": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "homeWeekday": "{day, select, mon{Monday} tue{Tuesday} wed{Wednesday} thu{Thursday} fri{Friday} sat{Saturday} other{Sunday}}",
+  "@homeWeekday": {
+    "placeholders": {
+      "day": {
+        "type": "String"
+      }
+    }
+  },
+  "homeMonth": "{month, select, jan{January} feb{February} mar{March} apr{April} may{May} jun{June} jul{July} aug{August} sep{September} oct{October} nov{November} other{December}}",
+  "@homeMonth": {
+    "placeholders": {
+      "month": {
+        "type": "String"
+      }
+    }
+  },
+  "homeDate": "{weekday}, {month} {day}",
+  "@homeDate": {
+    "placeholders": {
+      "weekday": {
+        "type": "String"
+      },
+      "month": {
+        "type": "String"
+      },
+      "day": {
+        "type": "int"
+      }
+    }
+  },
+  "homeOpenLighting": "Open lighting",
+  "homeOnDevices": "{count, plural, =1{On 1 device} other{On {count} devices}}",
+  "@homeOnDevices": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "homeProfilesTitle": "Profiles",
+  "homeProfilesHint": "Right-click a profile to save the current lighting to it or to turn it on along with a program",
+  "homeProfileWithApp": "With {app}",
+  "@homeProfileWithApp": {
+    "placeholders": {
+      "app": {
+        "type": "String"
+      }
+    }
+  },
+  "homeProfileLightsOff": "Lights off",
+  "homeProfileCurrentEffect": "Current effect",
+  "homeProfileAutoOn": "Turns on automatically with {apps}",
+  "@homeProfileAutoOn": {
+    "placeholders": {
+      "apps": {
+        "type": "String"
+      }
+    }
+  },
+  "homeProfileSaveHere": "Save current lighting here",
+  "homeProfileRename": "Rename",
+  "homeProfileLinkApps": "Turn on with apps…",
+  "homeProfileReset": "Restore default profiles",
+  "homeProfileNameTitle": "Profile name",
+  "homeLevelNormal": "Normal",
+  "homeLevelWarm": "Warm",
+  "homeLevelHot": "Very hot",
+  "homeVitalUsage": "Usage {value}%",
+  "@homeVitalUsage": {
+    "placeholders": {
+      "value": {
+        "type": "String"
+      }
+    }
+  },
+  "homeVitalUsageNeedsAdmin": "Usage · temperature needs admin",
+  "homeVitalMemory": "Memory",
+  "homeVitalStorage": "Storage",
+  "homeVitalFreeUnit": "GB free",
+  "homeVitalMemoryUsed": "{used} of {total}",
+  "@homeVitalMemoryUsed": {
+    "placeholders": {
+      "used": {
+        "type": "String"
+      },
+      "total": {
+        "type": "String"
+      }
+    }
+  },
+  "homeVitalDiskUsed": "{letter}: · {percent}% used",
+  "@homeVitalDiskUsed": {
+    "placeholders": {
+      "letter": {
+        "type": "String"
+      },
+      "percent": {
+        "type": "String"
+      }
+    }
+  },
+  "homeAlertsTitle": "Alerts",
+  "homeAlertsAllGood": "All good",
+  "homeFansTitle": "Fans",
+  "homeFanSilent": "Silent",
+  "homeFanBalanced": "Balanced",
+  "homeFanTurbo": "Turbo",
+  "homeFanCount": "{count, plural, =1{1 fan} other{{count} fans}}",
+  "@homeFanCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "homeFanUpTo": "up to {rpm} RPM",
+  "@homeFanUpTo": {
+    "placeholders": {
+      "rpm": {
+        "type": "int"
+      }
+    }
+  },
+  "homeReactiveTitle": "Reactive light",
+  "homeReactiveNoGpu": "No GPU reading on this PC.",
+  "homeReactiveCpuNeedsAdmin": "CPU temperature needs administrator mode.",
+  "homeReactiveOn": "The LEDs show the temperature instead of the effect.",
+  "homeReactiveOff": "LED color follows the temperature.",
+  "homeScreenSending": "Sending… {percent}%",
+  "@homeScreenSending": {
+    "placeholders": {
+      "percent": {
+        "type": "int"
+      }
+    }
+  },
+  "homeScreenOff": "Screen off",
+  "homeScreenBrightness": "Brightness {percent}%",
+  "@homeScreenBrightness": {
+    "placeholders": {
+      "percent": {
+        "type": "int"
+      }
+    }
+  },
+  "homeScreenOn": "Screen on",
+  "homeScreenTurnOff": "Turn off the screen",
+  "homeScreenTurnOn": "Turn on the screen",
+  "homeDevicesTitle": "Devices",
+  "homeDevicesSearching": "Searching…",
+  "homeDevicesNone": "No devices",
+  "homeDeviceConnected": "Connected",
+  "homeDeviceStarting": "Starting",
+  "homeDeviceProblem": "Problem",
+  "homeAssistantTitle": "Assistant",
+  "homeAssistantNewChat": "New chat",
+  "homeAssistantSuggestionSlow": "Why is my PC slow?",
+  "homeAssistantSuggestionGpu": "What is heating up the GPU?",
+  "homeAssistantSuggestionEffect": "Create a calm blue effect",
+  "homeAssistantConnect": "Connect an AI to ask about your PC.",
+  "homeAssistantConnectHint": "Use your Anthropic or OpenAI key, or one from a compatible service.",
+  "homeAssistantSetUp": "Set up AI",
+  "homeAssistantAskAnything": "Ask anything about your PC.",
+  "homeAssistantThinking": "Thinking…",
+  "homeAssistantApplyEffect": "Apply effect",
+  "homeAssistantHint": "Ask something…",
+  "homeAssistantEffectOn": "\"{title}\" is on.",
+  "@homeAssistantEffectOn": {
+    "placeholders": {
+      "title": {
+        "type": "String"
+      }
+    }
+  }
+}

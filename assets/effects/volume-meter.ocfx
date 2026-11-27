@@ -1,8 +1,14 @@
 {
   "openchroma": 1,
-  "name": "Medidor de Volume",
-  "description": "Um medidor que enche do centro para as pontas conforme o volume, do verde ao vermelho.",
+  "name": "Volume Meter",
+  "description": "A meter that fills from the center to the edges with the volume, from green to red.",
   "author": "OpenChroma",
+  "i18n": {
+    "pt": {
+      "name": "Medidor de Volume",
+      "description": "Um medidor que enche do centro para as pontas conforme o volume, do verde ao vermelho."
+    }
+  },
   "background": "#050505",
   "params": {},
   "layers": [

@@ -1,12 +1,21 @@
 {
   "openchroma": 1,
-  "name": "Tempestade",
-  "description": "Nuvens escuras se movendo com relâmpagos de vez em quando.",
+  "name": "Storm",
+  "description": "Dark clouds rolling by with the occasional flash of lightning.",
   "author": "OpenChroma",
+  "i18n": {
+    "pt": {
+      "name": "Tempestade",
+      "description": "Nuvens escuras se movendo com relâmpagos de vez em quando.",
+      "params": {
+        "speed": "Velocidade"
+      }
+    }
+  },
   "background": "#000000",
   "params": {
     "speed": {
-      "label": "Velocidade",
+      "label": "Speed",
       "type": "number",
       "min": 0,
       "max": 100,

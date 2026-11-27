@@ -1,29 +1,41 @@
 {
   "openchroma": 1,
-  "name": "Cometa",
-  "description": "Um feixe de luz que atravessa o setup de ponta a ponta sobre um fundo escuro.",
+  "name": "Comet",
+  "description": "A beam of light that crosses your setup end to end over a dark background.",
   "author": "OpenChroma",
+  "i18n": {
+    "pt": {
+      "name": "Cometa",
+      "description": "Um feixe de luz que atravessa o setup de ponta a ponta sobre um fundo escuro.",
+      "params": {
+        "color": "Cor do cometa",
+        "trailColor": "Cor do rastro",
+        "speed": "Velocidade",
+        "bounce": "Ida e volta"
+      }
+    }
+  },
   "background": "#02030A",
   "params": {
     "color": {
-      "label": "Cor do cometa",
+      "label": "Comet color",
       "type": "color",
       "default": "#FFFFFF"
     },
     "trailColor": {
-      "label": "Cor do rastro",
+      "label": "Trail color",
       "type": "color",
       "default": "#4C8DFF"
     },
     "speed": {
-      "label": "Velocidade",
+      "label": "Speed",
       "type": "number",
       "min": 0,
       "max": 100,
       "default": 45
     },
     "bounce": {
-      "label": "Ida e volta",
+      "label": "Back and forth",
       "type": "boolean",
       "default": false
     }

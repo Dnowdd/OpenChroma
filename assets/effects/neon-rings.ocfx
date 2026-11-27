@@ -1,19 +1,29 @@
 {
   "openchroma": 1,
-  "name": "Anéis Neon",
-  "description": "Anéis rosa e ciano se expandindo a partir do centro.",
+  "name": "Neon Rings",
+  "description": "Pink and cyan rings expanding from the center.",
   "author": "OpenChroma",
+  "i18n": {
+    "pt": {
+      "name": "Anéis Neon",
+      "description": "Anéis rosa e ciano se expandindo a partir do centro.",
+      "params": {
+        "speed": "Velocidade",
+        "spacing": "Espaçamento"
+      }
+    }
+  },
   "background": "#07020F",
   "params": {
     "speed": {
-      "label": "Velocidade",
+      "label": "Speed",
       "type": "number",
       "min": 0,
       "max": 100,
       "default": 35
     },
     "spacing": {
-      "label": "Espaçamento",
+      "label": "Spacing",
       "type": "number",
       "min": 16,
       "max": 120,

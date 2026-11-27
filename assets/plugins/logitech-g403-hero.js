@@ -30,9 +30,9 @@ plugin({
     { name: 'Logo', leds: 1 }
   ],
   modes: [
-    { id: 'cycle', name: 'Arco-íris', speed: SPEED, brightness: BRIGHTNESS },
-    { id: 'breathing', name: 'Respirar', speed: SPEED, brightness: BRIGHTNESS, colors: 1 },
-    { id: 'off', name: 'Desligado' }
+    { id: 'cycle', name: 'Rainbow', speed: SPEED, brightness: BRIGHTNESS },
+    { id: 'breathing', name: 'Breathing', speed: SPEED, brightness: BRIGHTNESS, colors: 1 },
+    { id: 'off', name: 'Off' }
   ],
   fps: 30,
 

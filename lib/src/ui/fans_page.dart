@@ -4,10 +4,12 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import '../fans/fan_service.dart';
+import '../i18n/l10n.dart';
 import 'accent.dart';
 import 'fan_glyph.dart';
 import 'theme.dart';
 import 'widgets.dart';
+import '../system/system_paths.dart';
 
 /// Fan control: motherboard headers (Super I/O through PawnIO) and GPU
 /// coolers (NvAPI), each left to the BIOS / driver, on the shared profile
@@ -55,11 +57,11 @@ class _FansPageState extends State<FansPage> {
     super.dispose();
   }
 
-  static const _profiles = [
-    (FanProfile.silent, 'Silencioso'),
-    (FanProfile.balanced, 'Equilibrado'),
-    (FanProfile.turbo, 'Turbo'),
-    (FanProfile.custom, 'Personalizado'),
+  static List<(FanProfile, String)> get _profiles => [
+    (FanProfile.silent, l10n.fansProfileSilent),
+    (FanProfile.balanced, l10n.fansProfileBalanced),
+    (FanProfile.turbo, l10n.fansProfileTurbo),
+    (FanProfile.custom, l10n.fansProfileCustom),
   ];
 
   @override
@@ -100,7 +102,7 @@ class _FansPageState extends State<FansPage> {
                         child: Row(
                           children: [
                             Text(
-                              'Ventoinhas',
+                              l10n.fansTitle,
                               style: OcText.pageTitle.copyWith(fontSize: 28),
                             ),
                             const Spacer(),
@@ -151,15 +153,15 @@ class _FansPageState extends State<FansPage> {
                           padding: const EdgeInsets.only(left: 4, bottom: 14),
                           child: Row(
                             children: [
-                              const Text('Conectadas', style: OcText.title),
+                              Text(l10n.fansConnected, style: OcText.title),
                               const SizedBox(width: 10),
                               OcTag('${connected.length}'),
                               const Spacer(),
                               if (empty.isNotEmpty)
                                 OcButton(
                                   label: _showEmpty
-                                      ? 'Ocultar vazias'
-                                      : 'Mostrar vazias (${empty.length})',
+                                      ? l10n.fansHideEmpty
+                                      : l10n.fansShowEmpty(empty.length),
                                   variant: OcButtonVariant.ghost,
                                   onPressed: () =>
                                       setState(() => _showEmpty = !_showEmpty),
@@ -204,20 +206,18 @@ class _FansPageState extends State<FansPage> {
       return _Notice(
         color: Oc.warning,
         icon: Icons.error_outline_rounded,
-        title: '${s.conflict} está aberto.',
-        text:
-            ' Dois programas nas mesmas ventoinhas brigam pela velocidade. '
-            'Feche-o, inclusive na bandeja, para controlar por aqui.',
+        title: l10n.fansConflictTitle(s.conflict),
+        text: ' ${l10n.fansConflictText}',
       );
     }
     return switch (s.superIo) {
       SuperIoStatus.needsAdmin => _Notice(
         color: Oc.textSecondary,
         icon: Icons.shield_outlined,
-        title: 'Modo administrador',
-        text: ' para controlar as ventoinhas e ver as da placa-mãe.',
+        title: l10n.fansAdminTitle,
+        text: ' ${l10n.fansAdminText}',
         action: OcButton(
-          label: 'Reiniciar como administrador',
+          label: l10n.fansRestartAsAdmin,
           icon: Icons.admin_panel_settings_outlined,
           variant: OcButtonVariant.primary,
           onPressed: widget.onRestartAsAdmin,
@@ -226,19 +226,20 @@ class _FansPageState extends State<FansPage> {
       SuperIoStatus.noDriver => _Notice(
         color: Oc.textSecondary,
         icon: Icons.download_rounded,
-        title: 'Instale o PawnIO',
-        text: ' para ver as ventoinhas da placa-mãe.',
+        title: l10n.fansInstallPawnIoTitle,
+        text: ' ${l10n.fansInstallPawnIoText}',
         action: OcButton(
-          label: 'Baixar',
+          label: l10n.fansDownload,
           icon: Icons.open_in_new_rounded,
-          onPressed: () => Process.run('explorer', ['https://pawnio.eu']),
+          onPressed: () =>
+              Process.run(SystemPaths.explorer, ['https://pawnio.eu']),
         ),
       ),
-      SuperIoStatus.busy => const _Notice(
+      SuperIoStatus.busy => _Notice(
         color: Oc.warning,
         icon: Icons.hourglass_empty_rounded,
-        title: 'A placa-mãe estava ocupada',
-        text: ' por outro programa. Reabra o OpenChroma para tentar de novo.',
+        title: l10n.fansBusyTitle,
+        text: ' ${l10n.fansBusyText}',
       ),
       _ => null,
     };
@@ -268,22 +269,21 @@ class _PumpQuestion extends StatelessWidget {
           color: Oc.textSecondary,
         ),
         const SizedBox(width: 10),
-        const Expanded(
+        Expanded(
           child: Text.rich(
             TextSpan(
               children: [
                 TextSpan(
-                  text: 'Tem water cooler?',
-                  style: TextStyle(fontWeight: FontWeight.w600, color: Oc.text),
+                  text: l10n.fansPumpQuestionTitle,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w600,
+                    color: Oc.text,
+                  ),
                 ),
-                TextSpan(
-                  text:
-                      ' Toque na bomba para protegê-la: ela nunca fica '
-                      'abaixo de 70% nem para.',
-                ),
+                TextSpan(text: ' ${l10n.fansPumpQuestionText}'),
               ],
             ),
-            style: TextStyle(fontSize: 12.5, color: Oc.textSecondary),
+            style: const TextStyle(fontSize: 12.5, color: Oc.textSecondary),
           ),
         ),
         const SizedBox(width: 12),
@@ -302,7 +302,7 @@ class _PumpQuestion extends StatelessWidget {
                 onPressed: () => fans.answerPump(f.id),
               ),
             OcButton(
-              label: 'Não tenho',
+              label: l10n.fansPumpNone,
               variant: OcButtonVariant.ghost,
               onPressed: () => fans.answerPump(null),
             ),
@@ -378,7 +378,7 @@ class _CurveCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           OcCardTitle(
-            'Curva',
+            l10n.fansCurveTitle,
             trailing: f == null
                 ? null
                 : Tooltip(
@@ -386,7 +386,7 @@ class _CurveCard extends StatelessWidget {
                         source == TempSource.cpu &&
                             temp == null &&
                             !(fans.snapshot?.elevated ?? false)
-                        ? 'A temperatura da CPU pede o modo administrador'
+                        ? l10n.fansCpuTempNeedsAdmin
                         : '',
                     child: OcSegmented<TempSource>(
                       value: source,
@@ -725,9 +725,7 @@ class _FanCardState extends State<_FanCard> {
       return OcCard(
         child: Center(
           child: Text(
-            fans.snapshot == null
-                ? 'Procurando ventoinhas…'
-                : 'Nenhuma ventoinha',
+            fans.snapshot == null ? l10n.fansSearching : l10n.fansNone,
             style: OcText.secondary,
           ),
         ),
@@ -742,11 +740,11 @@ class _FanCardState extends State<_FanCard> {
       if (f.rpm != null) '${f.rpm!.round()} RPM',
       blocked ??
           (noTemp
-              ? 'Sem temperatura · ${f.gpu ? 'driver' : 'BIOS'} no controle'
+              ? (f.gpu ? l10n.fansNoTempDriver : l10n.fansNoTempBios)
               : switch (cfg.mode) {
                   FanMode.auto => f.gpu ? 'Driver' : 'BIOS',
-                  FanMode.curve => 'Curva',
-                  FanMode.fixed => 'Fixo',
+                  FanMode.curve => l10n.fansModeCurve,
+                  FanMode.fixed => l10n.fansModeFixed,
                 }),
     ].join(' · ');
     return OcCard(
@@ -797,7 +795,7 @@ class _FanCardState extends State<_FanCard> {
           ),
           const SizedBox(height: 2),
           Text(
-            f.gpu ? f.device : 'Placa-mãe · ${f.device}',
+            f.gpu ? f.device : l10n.fansMotherboardDevice(f.device),
             overflow: TextOverflow.ellipsis,
             style: OcText.caption,
           ),
@@ -814,7 +812,9 @@ class _FanCardState extends State<_FanCard> {
                         textBaseline: TextBaseline.alphabetic,
                         children: [
                           Text(
-                            duty == null ? 'Auto' : '${duty.round()}',
+                            duty == null
+                                ? l10n.fansModeAuto
+                                : '${duty.round()}',
                             style: TextStyle(
                               fontFamily: Oc.fontDisplay,
                               fontSize: duty == null ? 44 : 56,
@@ -856,10 +856,10 @@ class _FanCardState extends State<_FanCard> {
                   children: [
                     OcSegmented<FanMode>(
                       value: cfg.mode,
-                      options: const [
-                        (FanMode.auto, 'Auto'),
-                        (FanMode.curve, 'Curva'),
-                        (FanMode.fixed, 'Fixo'),
+                      options: [
+                        (FanMode.auto, l10n.fansModeAuto),
+                        (FanMode.curve, l10n.fansModeCurve),
+                        (FanMode.fixed, l10n.fansModeFixed),
                       ],
                       onChanged: (m) => fans.setMode(f.id, m),
                     ),
@@ -883,7 +883,7 @@ class _FanCardState extends State<_FanCard> {
                     onChanged: (v) => fans.setFixed(f.id, v),
                   )
                 : _SwitchRow(
-                    label: 'Parar quando frio',
+                    label: l10n.fansStopWhenCold,
                     value: cfg.zeroRpm && !cfg.pump,
                     onChanged: cfg.mode == FanMode.curve && !cfg.pump
                         ? (v) => fans.setZeroRpm(f.id, v)
@@ -892,7 +892,7 @@ class _FanCardState extends State<_FanCard> {
           ),
           const Divider(),
           _SwitchRow(
-            label: 'Bomba de water cooler',
+            label: l10n.fansPumpToggle,
             value: cfg.pump,
             onChanged: (v) => fans.setPump(f.id, v),
           ),
@@ -976,9 +976,9 @@ class _FanTile extends StatelessWidget {
                 ),
               const SizedBox(width: 6),
               Text(switch (cfg.mode) {
-                FanMode.auto => 'Auto',
-                FanMode.curve => 'Curva',
-                FanMode.fixed => 'Fixo',
+                FanMode.auto => l10n.fansModeAuto,
+                FanMode.curve => l10n.fansModeCurve,
+                FanMode.fixed => l10n.fansModeFixed,
               }, style: OcText.caption),
             ],
           ),
@@ -998,7 +998,7 @@ class _FanTile extends StatelessWidget {
             textBaseline: TextBaseline.alphabetic,
             children: [
               Text(
-                duty == null ? 'Auto' : '${duty.round()}',
+                duty == null ? l10n.fansModeAuto : '${duty.round()}',
                 style: OcText.pageTitle.copyWith(fontSize: 24),
               ),
               if (duty != null) ...[

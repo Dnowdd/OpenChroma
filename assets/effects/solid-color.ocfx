@@ -1,12 +1,21 @@
 {
   "openchroma": 1,
-  "name": "Cor Sólida",
-  "description": "Uma cor fixa em todos os dispositivos.",
+  "name": "Solid Color",
+  "description": "One fixed color on every device.",
   "author": "OpenChroma",
+  "i18n": {
+    "pt": {
+      "name": "Cor Sólida",
+      "description": "Uma cor fixa em todos os dispositivos.",
+      "params": {
+        "color": "Cor"
+      }
+    }
+  },
   "background": "#000000",
   "params": {
     "color": {
-      "label": "Cor",
+      "label": "Color",
       "type": "color",
       "default": "#7C5CFF"
     }

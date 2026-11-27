@@ -34,44 +34,44 @@ plugin({
   endpoint: CONFIG,
   zones: [{ name: 'Mouse', leds: 1 }],
   modes: [
-    { id: STATIC, name: 'Cor fixa', brightness: BRIGHTNESS, colors: 1 },
-    { id: BREATHING, name: 'Respirar', speed: SPEED, colors: 1 },
+    { id: STATIC, name: 'Static', brightness: BRIGHTNESS, colors: 1 },
+    { id: BREATHING, name: 'Breathing', speed: SPEED, colors: 1 },
     { id: NEON, name: 'Neon', speed: SPEED },
-    { id: COLOR_BREATHING, name: 'Respirar colorido', speed: SPEED },
-    { id: OFF, name: 'Desligado' }
+    { id: COLOR_BREATHING, name: 'Color breathing', speed: SPEED },
+    { id: OFF, name: 'Off' }
   ],
   settings: {
     rate: {
-      label: 'Atualizações por segundo',
+      label: 'Updates per second',
       type: 'number',
       min: 1,
       max: 15,
       default: 4,
-      description: 'Cada cor vai como um comando de configuração, que o mouse pode guardar; poucas por segundo poupam o mouse e a bateria.'
+      description: 'Each color goes out as a settings command, which the mouse may store; fewer per second spare the mouse and its battery.'
     },
     lightOff: {
-      label: 'Tempo para apagar a luz',
+      label: 'Light-off delay',
       type: 'number',
       min: 1,
       max: 60,
       default: 1,
-      description: 'Na mesma escala do app da Attack Shark (padrão 1).'
+      description: 'On the same scale as the Attack Shark app (default 1).'
     },
     sleep: {
-      label: 'Tempo para suspender',
+      label: 'Sleep delay',
       type: 'number',
       min: 1,
       max: 60,
       default: 10,
-      description: 'Na mesma escala do app da Attack Shark (padrão 10).'
+      description: 'On the same scale as the Attack Shark app (default 10).'
     },
     debounce: {
-      label: 'Tempo de resposta dos botões (ms)',
+      label: 'Button debounce time (ms)',
       type: 'number',
       min: 2,
       max: 25,
       default: 4,
-      description: 'Vai junto com cada cor. Valores baixos demais podem causar clique duplo.'
+      description: 'Sent along with every color. Values that are too low can cause double clicks.'
     }
   },
   fps: 30,

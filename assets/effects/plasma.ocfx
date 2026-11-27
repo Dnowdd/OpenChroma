@@ -1,29 +1,41 @@
 {
   "openchroma": 1,
   "name": "Plasma",
-  "description": "Manchas de cor que se misturam como tinta em movimento.",
+  "description": "Blobs of color blending like paint in motion.",
   "author": "OpenChroma",
+  "i18n": {
+    "pt": {
+      "name": "Plasma",
+      "description": "Manchas de cor que se misturam como tinta em movimento.",
+      "params": {
+        "speed": "Velocidade",
+        "first": "Cor 1",
+        "second": "Cor 2",
+        "third": "Cor 3"
+      }
+    }
+  },
   "background": "#000000",
   "params": {
     "speed": {
-      "label": "Velocidade",
+      "label": "Speed",
       "type": "number",
       "min": 0,
       "max": 100,
       "default": 30
     },
     "first": {
-      "label": "Cor 1",
+      "label": "Color 1",
       "type": "color",
       "default": "#FF2D95"
     },
     "second": {
-      "label": "Cor 2",
+      "label": "Color 2",
       "type": "color",
       "default": "#5B21B6"
     },
     "third": {
-      "label": "Cor 3",
+      "label": "Color 3",
       "type": "color",
       "default": "#06B6D4"
     }

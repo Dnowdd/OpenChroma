@@ -92,7 +92,7 @@ void main() {
     await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
     await tester.pump();
 
-    await tester.tap(find.text('Enviar para a tela'));
+    await tester.tap(find.text('Send to screen'));
     await tester.pumpAndSettle();
 
     final texts = result!.texts;

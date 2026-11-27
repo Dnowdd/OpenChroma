@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import '../engine/engine.dart';
+import '../i18n/l10n.dart';
 import 'accent.dart';
 import 'auto_layout.dart';
 import 'theme.dart';
@@ -141,21 +142,21 @@ class _LayoutPageState extends State<LayoutPage> {
                   crossAxisAlignment: WrapCrossAlignment.center,
                   children: [
                     if (preview) ...[
-                      const Text('Preview', style: OcText.label),
+                      Text(l10n.layoutPreview, style: OcText.label),
                       OcButton(
-                        label: 'Apply',
+                        label: l10n.layoutApply,
                         variant: OcButtonVariant.primary,
                         onPressed: () => _apply(running, proposal!),
                       ),
                       OcButton(
-                        label: 'Cancel',
+                        label: l10n.layoutCancel,
                         variant: OcButtonVariant.ghost,
                         onPressed: () => setState(() => _preview = false),
                       ),
                     ] else ...[
                       if (canArrange)
                         OcButton(
-                          label: 'Auto Arrange',
+                          label: l10n.layoutAutoArrange,
                           icon: Icons.auto_awesome_rounded,
                           onPressed: () {
                             engine.stopIdentifyingZone();
@@ -164,7 +165,7 @@ class _LayoutPageState extends State<LayoutPage> {
                         ),
                       if (undoable.isNotEmpty)
                         OcButton(
-                          label: 'Undo',
+                          label: l10n.layoutUndo,
                           icon: Icons.undo_rounded,
                           variant: OcButtonVariant.ghost,
                           onPressed: () {
@@ -176,15 +177,12 @@ class _LayoutPageState extends State<LayoutPage> {
                           },
                         ),
                       if (canArrange)
-                        const Text(
-                          'Click a zone to identify its LEDs, or drag to move it.',
-                          style: OcText.secondary,
-                        ),
+                        Text(l10n.layoutHint, style: OcText.secondary),
                     ],
                     Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        const Text('Escurecer efeito', style: OcText.secondary),
+                        Text(l10n.layoutDimEffect, style: OcText.secondary),
                         const SizedBox(width: 10),
                         OcSwitch(
                           value: _dim,
@@ -270,12 +268,12 @@ class _LayoutPageState extends State<LayoutPage> {
             padding: const EdgeInsets.fromLTRB(16, 20, 16, 20),
             children: [
               if (running.isEmpty)
-                const Padding(
-                  padding: EdgeInsets.only(top: 60),
+                Padding(
+                  padding: const EdgeInsets.only(top: 60),
                   child: EmptyState(
                     icon: Icons.space_dashboard_outlined,
-                    title: 'Nada para posicionar',
-                    message: 'Os dispositivos conectados aparecem aqui.',
+                    title: l10n.layoutNothingTitle,
+                    message: l10n.layoutNothingMessage,
                   ),
                 ),
               if (!preview &&
@@ -297,9 +295,9 @@ class _LayoutPageState extends State<LayoutPage> {
                       _ZoneTile(
                         // Subdevice names are usually "<Parent> - <Zone>".
                         label: z.key == 'main'
-                            ? 'Dispositivo'
+                            ? l10n.layoutDevice
                             : z.label.split(' - ').last,
-                        detail: '${z.positions.length} LEDs',
+                        detail: l10n.devicesLedCount(z.positions.length),
                         selected: _selDevice == d.key && _selZone == z.key,
                         onTap: () => _select(d, z, identify: !preview),
                       ),
@@ -525,9 +523,9 @@ class _ZoneEditor extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         SectionLabel(
-          'Zona selecionada',
+          l10n.layoutSelectedZone,
           trailing: OcButton(
-            label: 'Preencher',
+            label: l10n.layoutFill,
             icon: Icons.fit_screen_rounded,
             variant: OcButtonVariant.ghost,
             onPressed: () {
@@ -544,19 +542,16 @@ class _ZoneEditor extends StatelessWidget {
           ),
         ),
         if (device.activeMode != null)
-          const Padding(
-            padding: EdgeInsets.only(bottom: 8),
-            child: Text(
-              'Switch to OpenChroma effects to identify this zone.',
-              style: OcText.secondary,
-            ),
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: Text(l10n.layoutSwitchToApp, style: OcText.secondary),
           ),
         Wrap(
           spacing: 6,
           runSpacing: 6,
           children: [
             OcButton(
-              label: 'Rotate 90°',
+              label: l10n.layoutRotate,
               icon: Icons.rotate_right_rounded,
               onPressed: () {
                 final (oldWidth, oldHeight) = item.sizeOf(zone);
@@ -571,7 +566,7 @@ class _ZoneEditor extends StatelessWidget {
               },
             ),
             OcButton(
-              label: 'Flip horizontal',
+              label: l10n.layoutFlipHorizontal,
               icon: Icons.swap_horiz_rounded,
               variant: item.flipX
                   ? OcButtonVariant.primary
@@ -582,7 +577,7 @@ class _ZoneEditor extends StatelessWidget {
               },
             ),
             OcButton(
-              label: 'Flip vertical',
+              label: l10n.layoutFlipVertical,
               icon: Icons.swap_vert_rounded,
               variant: item.flipY
                   ? OcButtonVariant.primary
@@ -598,21 +593,21 @@ class _ZoneEditor extends StatelessWidget {
         OcPanel(
           children: [
             slider(
-              'Escala',
+              l10n.layoutScale,
               item.scale,
               math.min(.5, item.scale),
               math.max(40, item.scale),
               (v) => item.scale = v,
             ),
             slider(
-              'Posição X',
+              l10n.layoutPositionX,
               item.x,
               -canvasWidth / 2,
               canvasWidth,
               (v) => item.x = v,
             ),
             slider(
-              'Posição Y',
+              l10n.layoutPositionY,
               item.y,
               -canvasHeight / 2,
               canvasHeight,

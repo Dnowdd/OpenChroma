@@ -1,0 +1,31 @@
+{
+  "ocfxErrorInvalidJson": "The file isn't valid JSON ({message}).",
+  "@ocfxErrorInvalidJson": {
+    "placeholders": {
+      "message": {"type": "String"}
+    }
+  },
+  "ocfxErrorNotObject": "The file must be a JSON object.",
+  "ocfxErrorMissingVersion": "The \"openchroma\": 1 field is missing.",
+  "ocfxErrorMissingName": "The \"name\" field is missing.",
+  "ocfxErrorNoLayers": "The effect needs at least one layer in \"layers\".",
+  "ocfxErrorLayerType": "Layer {index}: \"type\" must be one of: {types}.",
+  "@ocfxErrorLayerType": {
+    "placeholders": {
+      "index": {"type": "int"},
+      "types": {"type": "String"}
+    }
+  },
+  "ocfxErrorParamsNotObject": "\"params\" must be an object.",
+  "ocfxErrorParamType": "Parameter \"{key}\": \"type\" must be one of: {types}.",
+  "@ocfxErrorParamType": {
+    "placeholders": {
+      "key": {"type": "String"},
+      "types": {"type": "String"}
+    }
+  },
+  "ocfxErrorI18nNotObject": "\"i18n\" must be an object with one object per language.",
+  "paramColorPickerTitle": "Color",
+  "paramColorPickerCancel": "Cancel",
+  "paramColorPickerApply": "Apply"
+}

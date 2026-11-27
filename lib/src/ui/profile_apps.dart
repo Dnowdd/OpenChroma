@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:path/path.dart' as p;
 
 import '../engine/engine.dart';
+import '../i18n/l10n.dart';
 import '../system/processes.dart';
 import 'theme.dart';
 import 'widgets.dart';
@@ -60,8 +61,11 @@ class _ProfileAppsDialogState extends State<_ProfileAppsDialog> {
 
   Future<void> _browse() async {
     final file = await openFile(
-      acceptedTypeGroups: const [
-        XTypeGroup(label: 'Programas', extensions: ['exe']),
+      acceptedTypeGroups: [
+        XTypeGroup(
+          label: l10n.profileAppsFileTypeLabel,
+          extensions: const ['exe'],
+        ),
       ],
     );
     if (file != null) _add(p.basename(file.path));
@@ -70,7 +74,7 @@ class _ProfileAppsDialogState extends State<_ProfileAppsDialog> {
   @override
   Widget build(BuildContext context) => AlertDialog(
     title: Text(
-      'Ligar "${widget.profile.name}" com programas',
+      l10n.profileAppsTitle(widget.profile.name),
       style: OcText.title,
     ),
     content: SizedBox(
@@ -79,17 +83,12 @@ class _ProfileAppsDialogState extends State<_ProfileAppsDialog> {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const Text(
-            'Quando um destes programas abrir, o perfil liga sozinho. Quando '
-            'fechar, a iluminação de antes volta, a não ser que você tenha '
-            'escolhido outra nesse meio-tempo.',
-            style: OcText.secondary,
-          ),
+          Text(l10n.profileAppsDescription, style: OcText.secondary),
           const SizedBox(height: 14),
           if (_apps.isEmpty)
-            const Padding(
-              padding: EdgeInsets.symmetric(vertical: 8),
-              child: Text('Nenhum programa ainda.', style: OcText.caption),
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              child: Text(l10n.profileAppsNone, style: OcText.caption),
             )
           else
             Wrap(
@@ -100,7 +99,7 @@ class _ProfileAppsDialogState extends State<_ProfileAppsDialog> {
                   InputChip(
                     label: Text(a, style: const TextStyle(fontSize: 12)),
                     onDeleted: () => setState(() => _apps.remove(a)),
-                    deleteButtonTooltipMessage: 'Remover',
+                    deleteButtonTooltipMessage: l10n.profileAppsRemove,
                   ),
               ],
             ),
@@ -108,14 +107,14 @@ class _ProfileAppsDialogState extends State<_ProfileAppsDialog> {
           TextField(
             controller: _typed,
             style: OcText.body,
-            decoration: ocFieldDecoration('Nome do programa, ex.: cs2.exe'),
+            decoration: ocFieldDecoration(l10n.profileAppsNameHint),
             onSubmitted: (v) {
               _add(v);
               _typed.clear();
             },
           ),
           const SizedBox(height: 18),
-          const SectionLabel('Abertos agora'),
+          SectionLabel(l10n.profileAppsOpenNow),
           const SizedBox(height: 6),
           SizedBox(
             height: 220,
@@ -137,9 +136,9 @@ class _ProfileAppsDialogState extends State<_ProfileAppsDialog> {
                       a,
                 ];
                 if (open.isEmpty) {
-                  return const Center(
+                  return Center(
                     child: Text(
-                      'Nenhum outro programa com janela aberta.',
+                      l10n.profileAppsNoOthers,
                       style: OcText.caption,
                     ),
                   );
@@ -193,13 +192,16 @@ class _ProfileAppsDialogState extends State<_ProfileAppsDialog> {
     ),
     actions: [
       OcButton(
-        label: 'Procurar .exe',
+        label: l10n.profileAppsBrowse,
         icon: Icons.folder_open_rounded,
         onPressed: _browse,
       ),
-      OcButton(label: 'Cancelar', onPressed: () => Navigator.pop(context)),
       OcButton(
-        label: 'Salvar',
+        label: l10n.profileAppsCancel,
+        onPressed: () => Navigator.pop(context),
+      ),
+      OcButton(
+        label: l10n.profileAppsSave,
         variant: OcButtonVariant.primary,
         onPressed: () => Navigator.pop(context, _apps),
       ),

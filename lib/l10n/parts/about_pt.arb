@@ -1,0 +1,18 @@
+{
+  "aboutSection": "Sobre",
+  "aboutUpdateAvailable": "A versão {version} está disponível.",
+  "aboutUpdateBanner": "O OpenChroma {version} está disponível.",
+  "aboutChecking": "Procurando atualizações…",
+  "aboutDevBuild": "Build de desenvolvimento: sem busca de atualizações.",
+  "aboutUpToDate": "Você está na versão mais recente.",
+  "aboutDownload": "Baixar",
+  "aboutCheckNow": "Verificar agora",
+  "aboutDismiss": "Dispensar",
+  "aboutAutoCheck": "Procurar atualizações sozinho",
+  "aboutAutoCheckDescription": "Uma vez por dia, o OpenChroma pergunta ao GitHub qual é a versão mais recente. Nada sobre o seu PC é enviado.",
+  "aboutReportProblem": "Relatar um problema",
+  "aboutReportProblemDescription": "Copie um resumo de diagnóstico (versão do app e do Windows, dispositivos e erros; sem números de série) e cole numa issue do GitHub.",
+  "aboutCopyDiagnostics": "Copiar diagnóstico",
+  "aboutDiagnosticsCopied": "Diagnóstico copiado.",
+  "aboutOpenIssue": "Abrir uma issue"
+}

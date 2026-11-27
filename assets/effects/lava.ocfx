@@ -1,12 +1,21 @@
 {
   "openchroma": 1,
   "name": "Lava",
-  "description": "Rocha derretida borbulhando em vermelho e laranja.",
+  "description": "Molten rock bubbling in red and orange.",
   "author": "OpenChroma",
+  "i18n": {
+    "pt": {
+      "name": "Lava",
+      "description": "Rocha derretida borbulhando em vermelho e laranja.",
+      "params": {
+        "speed": "Velocidade"
+      }
+    }
+  },
   "background": "#000000",
   "params": {
     "speed": {
-      "label": "Velocidade",
+      "label": "Speed",
       "type": "number",
       "min": 0,
       "max": 100,

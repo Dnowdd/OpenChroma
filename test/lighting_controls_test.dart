@@ -152,19 +152,19 @@ void main() {
         ),
       ),
     );
-    expect(find.text('Tudo'), findsNothing);
+    expect(find.text('All'), findsNothing);
 
     final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
     await mouse.addPointer(location: Offset.zero);
     addTearDown(mouse.removePointer);
     await mouse.moveTo(tester.getCenter(find.byType(BrightnessControl)));
     await tester.pump();
-    expect(find.text('Tudo'), findsOneWidget);
-    expect(find.text('Nenhum dispositivo conectado.'), findsOneWidget);
+    expect(find.text('All'), findsOneWidget);
+    expect(find.text('No devices connected.'), findsOneWidget);
 
     await mouse.moveTo(Offset.zero);
     await tester.pump(const Duration(milliseconds: 400));
-    expect(find.text('Tudo'), findsNothing);
+    expect(find.text('All'), findsNothing);
 
     await tester.tap(find.byType(PauseButton));
     await tester.pump();

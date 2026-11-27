@@ -1,0 +1,14 @@
+{
+  "ocfxErrorInvalidJson": "O arquivo não é um JSON válido ({message}).",
+  "ocfxErrorNotObject": "O arquivo precisa ser um objeto JSON.",
+  "ocfxErrorMissingVersion": "Falta o campo \"openchroma\": 1.",
+  "ocfxErrorMissingName": "Falta o campo \"name\".",
+  "ocfxErrorNoLayers": "O efeito precisa de pelo menos uma camada em \"layers\".",
+  "ocfxErrorLayerType": "Camada {index}: \"type\" deve ser um destes: {types}.",
+  "ocfxErrorParamsNotObject": "\"params\" precisa ser um objeto.",
+  "ocfxErrorParamType": "Parâmetro \"{key}\": \"type\" deve ser {types}.",
+  "ocfxErrorI18nNotObject": "\"i18n\" precisa ser um objeto com um objeto por idioma.",
+  "paramColorPickerTitle": "Cor",
+  "paramColorPickerCancel": "Cancelar",
+  "paramColorPickerApply": "Aplicar"
+}

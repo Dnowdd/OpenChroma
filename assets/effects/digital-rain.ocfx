@@ -1,24 +1,35 @@
 {
   "openchroma": 1,
-  "name": "Chuva Digital",
-  "description": "Gotas de luz caindo em colunas, como um terminal antigo.",
+  "name": "Digital Rain",
+  "description": "Drops of light falling in columns, like an old terminal.",
   "author": "OpenChroma",
+  "i18n": {
+    "pt": {
+      "name": "Chuva Digital",
+      "description": "Gotas de luz caindo em colunas, como um terminal antigo.",
+      "params": {
+        "color": "Cor",
+        "speed": "Velocidade",
+        "density": "Quantidade"
+      }
+    }
+  },
   "background": "#010A03",
   "params": {
     "color": {
-      "label": "Cor",
+      "label": "Color",
       "type": "color",
       "default": "#22C55E"
     },
     "speed": {
-      "label": "Velocidade",
+      "label": "Speed",
       "type": "number",
       "min": 0,
       "max": 100,
       "default": 40
     },
     "density": {
-      "label": "Quantidade",
+      "label": "Amount",
       "type": "number",
       "min": 5,
       "max": 80,

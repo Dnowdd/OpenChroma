@@ -8,6 +8,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../engine/engine.dart';
+import '../i18n/l10n.dart';
 import 'accent.dart';
 import 'property_controls.dart';
 import 'theme.dart';
@@ -278,7 +279,7 @@ class _ScreenEditorState extends State<_ScreenEditor> {
       },
       onError: (_) {
         if (mounted) {
-          setState(() => _error = 'Não foi possível abrir a imagem.');
+          setState(() => _error = l10n.screenEditorCannotOpen);
         }
       },
     );
@@ -300,7 +301,7 @@ class _ScreenEditorState extends State<_ScreenEditor> {
   }
 
   void _addText() {
-    final list = [..._edit.texts, const ScreenText()];
+    final list = [..._edit.texts, ScreenText(text: l10n.screenDefaultText)];
     _fields.add(TextEditingController(text: list.last.text));
     setState(() {
       _edit = _edit.copyWith(texts: list);
@@ -510,13 +511,12 @@ class _ScreenEditorState extends State<_ScreenEditor> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const Text('Editar imagem da tela', style: OcText.title),
+              Text(l10n.screenEditorTitle, style: OcText.title),
               const SizedBox(height: 4),
               Text(
                 _selected == null
-                    ? 'Clique num texto para selecioná-lo. Arraste a imagem para posicionar e use a roda do mouse para o zoom.'
-                    : 'Arraste para mover e puxe o canto (ou use a roda do mouse sobre o texto) para mudar o tamanho. '
-                          'Setas ajustam a posição, Delete remove, Ctrl+D duplica e Esc solta a seleção.',
+                    ? l10n.screenEditorHintIdle
+                    : l10n.screenEditorHintSelected,
                 style: OcText.secondary,
               ),
               const SizedBox(height: 16),
@@ -619,13 +619,13 @@ class _ScreenEditorState extends State<_ScreenEditor> {
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
                   OcButton(
-                    label: 'Cancelar',
+                    label: l10n.screenEditorCancel,
                     variant: OcButtonVariant.ghost,
                     onPressed: () => Navigator.pop(context),
                   ),
                   const SizedBox(width: 8),
                   OcButton(
-                    label: 'Enviar para a tela',
+                    label: l10n.screenEditorSend,
                     icon: Icons.upload_rounded,
                     variant: OcButtonVariant.primary,
                     onPressed:
@@ -654,11 +654,11 @@ class _ScreenEditorState extends State<_ScreenEditor> {
     }
     return ListView(
       children: [
-        const SectionLabel('Enquadramento'),
+        SectionLabel(l10n.screenEditorFraming),
         Row(
           children: [
             OcButton(
-              label: 'Preencher',
+              label: l10n.screenEditorFill,
               icon: Icons.crop_free_rounded,
               onPressed: () => setState(
                 () => _edit = _edit.copyWith(zoom: 1, panX: 0, panY: 0),
@@ -666,7 +666,7 @@ class _ScreenEditorState extends State<_ScreenEditor> {
             ),
             const SizedBox(width: 8),
             OcButton(
-              label: 'Inteira',
+              label: l10n.screenEditorFit,
               icon: Icons.fit_screen_rounded,
               onPressed: () => setState(
                 () => _edit = _edit.copyWith(zoom: _fitZoom, panX: 0, panY: 0),
@@ -674,7 +674,7 @@ class _ScreenEditorState extends State<_ScreenEditor> {
             ),
             const Spacer(),
             Tooltip(
-              message: 'Cor do fundo',
+              message: l10n.screenEditorBackgroundColor,
               child: InkWell(
                 borderRadius: Oc.pill,
                 onTap: () async {
@@ -694,7 +694,7 @@ class _ScreenEditorState extends State<_ScreenEditor> {
           ],
         ),
         const SizedBox(height: 8),
-        Text('Zoom', style: OcText.caption),
+        Text(l10n.screenEditorZoom, style: OcText.caption),
         OcSlider(
           value: _edit.zoom,
           min: math.min(_fitZoom, 1.0),
@@ -705,7 +705,7 @@ class _ScreenEditorState extends State<_ScreenEditor> {
         ),
         if (n > 1) ...[
           const SizedBox(height: 12),
-          const SectionLabel('Trecho do GIF'),
+          SectionLabel(l10n.screenEditorGifClip),
           RangeSlider(
             values: RangeValues(first.toDouble(), last.toDouble()),
             min: 0,
@@ -720,17 +720,19 @@ class _ScreenEditorState extends State<_ScreenEditor> {
             ),
           ),
           Text(
-            'Quadros ${first + 1} a ${last + 1} de $n · ${_seconds(ms)}'
-            '${kept > widget.spec.maxFrames ? ' · será reduzido a ${widget.spec.maxFrames} quadros' : ''}',
+            l10n.screenEditorFrameRange(first + 1, last + 1, n, _seconds(ms)) +
+                (kept > widget.spec.maxFrames
+                    ? l10n.screenEditorFramesReduced(widget.spec.maxFrames)
+                    : ''),
             style: OcText.caption,
           ),
         ],
         const SizedBox(height: 16),
         Row(
           children: [
-            const Expanded(child: SectionLabel('Textos')),
+            Expanded(child: SectionLabel(l10n.screenEditorTexts)),
             OcButton(
-              label: 'Adicionar',
+              label: l10n.screenEditorAddText,
               icon: Icons.add_rounded,
               onPressed: _addText,
             ),
@@ -740,9 +742,10 @@ class _ScreenEditorState extends State<_ScreenEditor> {
           Padding(
             padding: const EdgeInsets.only(top: 4),
             child: Text(
-              'Valores ao vivo: ${_edit.sources.length} de '
-              '${widget.spec.liveValues}. A tela atualiza a cada segundo '
-              'enquanto o app estiver aberto.',
+              l10n.screenEditorLiveValues(
+                _edit.sources.length,
+                widget.spec.liveValues,
+              ),
               style: _edit.sources.length > widget.spec.liveValues
                   ? OcText.caption.copyWith(color: Oc.danger)
                   : OcText.caption,
@@ -783,10 +786,10 @@ class _ScreenEditorState extends State<_ScreenEditor> {
                       : TextField(
                           controller: _fields[i],
                           style: OcText.body,
-                          decoration: const InputDecoration(
+                          decoration: InputDecoration(
                             isDense: true,
                             border: InputBorder.none,
-                            hintText: 'Texto',
+                            hintText: l10n.screenEditorTextHint,
                           ),
                           onTap: () => setState(() => _selected = i),
                           onChanged: (v) => _setText(i, t.copyWith(text: v)),
@@ -796,11 +799,13 @@ class _ScreenEditorState extends State<_ScreenEditor> {
                   icon: t.bold
                       ? Icons.format_bold_rounded
                       : Icons.text_fields_rounded,
-                  tooltip: t.bold ? 'Negrito' : 'Normal',
+                  tooltip: t.bold
+                      ? l10n.screenEditorBold
+                      : l10n.screenEditorNormal,
                   onPressed: () => _setText(i, t.copyWith(bold: !t.bold)),
                 ),
                 Tooltip(
-                  message: 'Cor do texto',
+                  message: l10n.screenEditorTextColor,
                   child: InkWell(
                     borderRadius: Oc.pill,
                     onTap: () async {
@@ -817,12 +822,12 @@ class _ScreenEditorState extends State<_ScreenEditor> {
                 ),
                 OcIconButton(
                   icon: Icons.copy_rounded,
-                  tooltip: 'Duplicar',
+                  tooltip: l10n.screenEditorDuplicate,
                   onPressed: () => _duplicate(i),
                 ),
                 OcIconButton(
                   icon: Icons.delete_outline_rounded,
-                  tooltip: 'Remover',
+                  tooltip: l10n.screenEditorRemove,
                   onPressed: () => _removeText(i),
                 ),
               ],
@@ -835,10 +840,10 @@ class _ScreenEditorState extends State<_ScreenEditor> {
                     Expanded(
                       child: Text(
                         t.live
-                            ? 'Ao vivo · coloque a unidade '
-                                  '(${ScreenSource.byKey(t.source)?.unit}) '
-                                  'num texto fixo'
-                            : 'Mostrar',
+                            ? l10n.screenEditorLiveHint(
+                                '${ScreenSource.byKey(t.source)?.unit}',
+                              )
+                            : l10n.screenEditorShow,
                         style: OcText.caption,
                       ),
                     ),
@@ -850,7 +855,7 @@ class _ScreenEditorState extends State<_ScreenEditor> {
                         for (final src in ScreenSource.all) src.key,
                       ],
                       labelOf: (k) => k.isEmpty
-                          ? 'Texto fixo'
+                          ? l10n.screenEditorFixedText
                           : ScreenSource.byKey(k)!.label,
                       onChanged: (k) => _setText(
                         i,

@@ -80,16 +80,16 @@ void main() {
         _system(modules: [_dimm('CHANNEL A', configured: 4800)], memUsed: 15),
       ),
     ).map((a) => a.title);
-    expect(titles, contains('Memória em single channel'));
-    expect(titles, contains('Memória no limite'));
-    expect(titles, contains('A memória roda abaixo do que suporta'));
+    expect(titles, contains('Single-channel memory'));
+    expect(titles, contains('Memory almost full'));
+    expect(titles, contains('The memory runs below what it supports'));
   });
 
   test('two modules on one channel are flagged', () {
     final titles = recommendationsFor(
       _report(_system(modules: [_dimm('CHANNEL A'), _dimm('CHANNEL A')])),
     ).map((a) => a.title);
-    expect(titles, contains('Os pentes estão no mesmo canal'));
+    expect(titles, contains('The modules are on the same channel'));
   });
 
   test('errors and blue screens come first and name the suspect', () {
@@ -104,15 +104,15 @@ void main() {
       ),
     );
     expect(advice.first.severity, Severity.bad);
-    final blue = advice.firstWhere((a) => a.title.contains('telas azuis'));
+    final blue = advice.firstWhere((a) => a.title.contains('blue screens'));
     expect(blue.detail, contains('vigembus.sys'));
     expect(
       advice.map((a) => a.title),
-      contains('A CPU errou cálculos sob carga'),
+      contains('The CPU made calculation errors under load'),
     );
     expect(
       advice.map((a) => a.title),
-      contains('A CPU chega a 96 °C em carga total'),
+      contains('The CPU reaches 96 °C at full load'),
     );
     expect(advice.any((a) => a.severity == Severity.good), isFalse);
   });

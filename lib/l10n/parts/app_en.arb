@@ -1,0 +1,380 @@
+{
+  "fansTitle": "Fans",
+  "fansProfileSilent": "Silent",
+  "fansProfileBalanced": "Balanced",
+  "fansProfileTurbo": "Turbo",
+  "fansProfileCustom": "Custom",
+  "fansConnected": "Connected",
+  "fansHideEmpty": "Hide empty",
+  "fansShowEmpty": "Show empty ({count})",
+  "@fansShowEmpty": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "fansConflictTitle": "{program} is open.",
+  "@fansConflictTitle": {
+    "placeholders": {
+      "program": {
+        "type": "String"
+      }
+    }
+  },
+  "fansConflictText": "Two programs on the same fans fight over the speed. Close it, including from the tray, to control them here.",
+  "fansAdminTitle": "Administrator mode",
+  "fansAdminText": "is needed to control fans and see the motherboard ones.",
+  "fansRestartAsAdmin": "Restart as administrator",
+  "fansInstallPawnIoTitle": "Install PawnIO",
+  "fansInstallPawnIoText": "to see the motherboard fans.",
+  "fansDownload": "Download",
+  "fansBusyTitle": "The motherboard was busy",
+  "fansBusyText": "with another program. Reopen OpenChroma to try again.",
+  "fansPumpQuestionTitle": "Have a water cooler?",
+  "fansPumpQuestionText": "Tap the pump to protect it: it never drops below 70% or stops.",
+  "fansPumpNone": "I don't have one",
+  "fansCurveTitle": "Curve",
+  "fansCpuTempNeedsAdmin": "CPU temperature needs administrator mode",
+  "fansSearching": "Looking for fans…",
+  "fansNone": "No fans",
+  "fansNoTempDriver": "No temperature · driver in control",
+  "fansNoTempBios": "No temperature · BIOS in control",
+  "fansModeAuto": "Auto",
+  "fansModeCurve": "Curve",
+  "fansModeFixed": "Fixed",
+  "fansMotherboardDevice": "Motherboard · {device}",
+  "@fansMotherboardDevice": {
+    "placeholders": {
+      "device": {
+        "type": "String"
+      }
+    }
+  },
+  "fansStopWhenCold": "Stop when cold",
+  "fansPumpToggle": "Water cooler pump",
+  "fansBlockedConflict": "{program} is open",
+  "@fansBlockedConflict": {
+    "placeholders": {
+      "program": {
+        "type": "String"
+      }
+    }
+  },
+  "fansBlockedNeedsAdmin": "Controlling needs administrator mode",
+  "fansBlockedReadOnly": "Read-only",
+  "fansDefaultName": "Fan {index}",
+  "@fansDefaultName": {
+    "placeholders": {
+      "index": {
+        "type": "int"
+      }
+    }
+  },
+  "effectsFilterAll": "All",
+  "effectsFilterFavorites": "Favorites",
+  "effectsFilterAudio": "Sound-reactive",
+  "effectsFilterImported": "Imported",
+  "effectsSearchHint": "Search effects",
+  "effectsImport": "Import",
+  "effectsEmptyFavoritesTitle": "No favorites yet",
+  "effectsEmptyFavoritesMessage": "Hover over an effect and click the star to keep it here.",
+  "effectsEmptyImportedTitle": "No imported effects",
+  "effectsEmptyImportedMessage": "Create an .ocfx effect or bring an .html file.",
+  "effectsImportEffect": "Import effect",
+  "effectsNotFoundTitle": "Nothing found",
+  "effectsNotFoundMessage": "Try a different search term.",
+  "effectsReactsToSound": "Reacts to sound",
+  "effectsRemoveFavorite": "Remove from favorites",
+  "effectsAddFavorite": "Add to favorites",
+  "effectsLive": "Live",
+  "effectsRemoveImported": "Remove imported effect",
+  "effectsByAuthor": "by {author}",
+  "@effectsByAuthor": {
+    "placeholders": {
+      "author": {
+        "type": "String"
+      }
+    }
+  },
+  "effectsAdjustments": "Adjustments",
+  "effectsReset": "Reset",
+  "effectsNoAdjustments": "This effect has no adjustments.",
+  "effectsRemoveTitle": "Remove \"{title}\"?",
+  "@effectsRemoveTitle": {
+    "placeholders": {
+      "title": {
+        "type": "String"
+      }
+    }
+  },
+  "effectsRemoveMessage": "The effect is removed from the library. The original file you imported is not deleted.",
+  "effectsCancel": "Cancel",
+  "effectsRemove": "Remove",
+  "effectsFileTypeEffects": "Effects",
+  "effectsFileTypeOpenChroma": "OpenChroma effect",
+  "effectsTemplateFileName": "my-effect.ocfx",
+  "effectsTemplateName": "My effect",
+  "effectsTemplateDescription": "A short sentence about the effect.",
+  "effectsTemplateAuthor": "Your name",
+  "effectsTemplateSpeed": "Speed",
+  "effectsTemplateColor": "Color",
+  "effectsImportFailed": "Could not import: {error}",
+  "@effectsImportFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "effectsImportIntro": "Bring an .ocfx effect, OpenChroma's format, or an .html page that draws on a 320×200 canvas.",
+  "effectsFormatLayers": "Layers",
+  "effectsFormatLayersText": "gradient, spectrum, wave, pulse, sweep, rings, sparkle and solid, stacked with normal, screen, add, multiply or overlay blending.",
+  "effectsFormatParams": "Parameters",
+  "effectsFormatParamsText": "Declare them in \"params\" and use them as \"$name\" in any layer. They become controls in the app.",
+  "effectsTemplateSaved": "Template saved to {path}",
+  "@effectsTemplateSaved": {
+    "placeholders": {
+      "path": {
+        "type": "String"
+      }
+    }
+  },
+  "effectsSaveTemplate": "Save template",
+  "effectsChooseFile": "Choose file",
+  "settingsTitle": "Settings",
+  "settingsLighting": "Lighting",
+  "settingsBrightness": "Brightness",
+  "settingsEffectAudio": "Effect audio",
+  "settingsAudioUnavailable": "Unavailable in this build.",
+  "settingsLibrary": "Library",
+  "settingsDevices": "Devices",
+  "settingsDevicesConnected": "{count, plural, =1{1 connected} other{{count} connected}}",
+  "@settingsDevicesConnected": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "settingsScan": "Scan",
+  "settingsEffects": "Effects",
+  "settingsEffectsInLibrary": "{count} in the library",
+  "@settingsEffectsInLibrary": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "settingsImport": "Import",
+  "settingsPlugins": "Device plugins",
+  "settingsPluginsLoaded": "{count, plural, =1{1 loaded} other{{count} loaded}}. New or changed .js files in the folder run only after you approve them.",
+  "@settingsPluginsLoaded": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "settingsReloadPlugins": "Reload plugins",
+  "settingsOpenFolder": "Open folder",
+  "settingsDataFolder": "Data folder",
+  "settingsOpen": "Open",
+  "settingsAlerts": "Alerts",
+  "settingsWindowsNotifications": "Windows notifications",
+  "settingsWindowsNotificationsDescription": "Warns you when something gets too hot, memory or disk fills up, or the water cooler pump stops, even with the app in the tray.",
+  "settingsFlashLeds": "Flash the LEDs red",
+  "settingsFlashLedsDescription": "Devices flash for a few seconds along with the alert.",
+  "settingsAiAssistant": "AI assistant",
+  "settingsAiKeyNote": "The key stays only on this PC, encrypted for your Windows user, and is only sent to the chosen provider. When you ask something, the provider also receives your PC's readings: hardware model, temperatures, usage, device names and the names of the heaviest processes.",
+  "settingsStartup": "Startup and permissions",
+  "settingsAdminMode": "Administrator mode",
+  "settingsAdminActive": "Active. CPU temperature shows up in Monitor.",
+  "settingsAdminInactive": "Off. Required to read the CPU temperature.",
+  "settingsAdminAlreadyActive": "Already active",
+  "settingsRestartAsAdmin": "Restart as administrator",
+  "settingsAlwaysAdmin": "Always open as administrator",
+  "settingsAlwaysAdminDescription": "Windows asks for permission (UAC) every time OpenChroma opens.",
+  "settingsStartWithWindows": "Open at PC startup",
+  "settingsStartWithWindowsAdminDescription": "Opens in the tray, as administrator, when you sign in to Windows, without asking for permission. Turning it on or off asks for UAC once.",
+  "settingsStartWithWindowsDescription": "Opens in the tray along with Windows.",
+  "settingsRunInBackground": "Keep running in the background",
+  "settingsRunInBackgroundDescription": "When you close the window, OpenChroma stays in the tray and keeps controlling lights and fans.",
+  "aiProviderCompatible": "OpenAI-compatible",
+  "aiProvider": "Provider",
+  "aiApiKey": "API key",
+  "aiKeyHintAnthropic": "Create one at console.anthropic.com.",
+  "aiKeyHintOpenai": "Create one at platform.openai.com.",
+  "aiKeyHintCompatible": "Optional for local servers (Ollama, LM Studio).",
+  "aiBaseUrl": "API address",
+  "aiBaseUrlHint": "E.g. https://openrouter.ai/api/v1, http://localhost:11434/v1 (Ollama).",
+  "aiModel": "Model",
+  "aiModelsLoading": "Fetching the available models…",
+  "aiModelsNeedKey": "Enter the key to see the models.",
+  "aiModelsNone": "No models found.",
+  "aiModelsAvailable": "{count} available, updated automatically.",
+  "@aiModelsAvailable": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "aiRefreshList": "Refresh list",
+  "aiPasteKey": "Paste the key here",
+  "aiHide": "Hide",
+  "aiShow": "Show",
+  "aiErrorListModels": "Could not list the models ({error}).",
+  "@aiErrorListModels": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "aiErrorTimeout": "The server took too long to respond.",
+  "aiErrorNoConnection": "Could not connect to {host} ({message}).",
+  "@aiErrorNoConnection": {
+    "placeholders": {
+      "host": {
+        "type": "String"
+      },
+      "message": {
+        "type": "String"
+      }
+    }
+  },
+  "aiErrorSecureConnection": "Secure connection to {host} failed.",
+  "@aiErrorSecureConnection": {
+    "placeholders": {
+      "host": {
+        "type": "String"
+      }
+    }
+  },
+  "aiErrorUnexpectedResponse": "Unexpected response from the server.",
+  "aiErrorInvalidKey": "Invalid API key or missing permission.",
+  "aiErrorNotFound": "Address or model not found.",
+  "aiErrorRateLimit": "Usage limit reached. Try again in a moment.",
+  "aiErrorProviderUnstable": "The provider is unstable right now ({status}).",
+  "@aiErrorProviderUnstable": {
+    "placeholders": {
+      "status": {
+        "type": "int"
+      }
+    }
+  },
+  "aiErrorStatus": "Error {status}.",
+  "@aiErrorStatus": {
+    "placeholders": {
+      "status": {
+        "type": "int"
+      }
+    }
+  },
+  "aiErrorNoKey": "Set an API key in Settings.",
+  "aiErrorNoModel": "Pick a model in Settings.",
+  "aiErrorRefused": "The model declined this request.",
+  "aiErrorEmptyReply": "The model returned nothing.",
+  "aiEffectDone": "Done, I made the effect.",
+  "alertsTempWarm": "{what} hot",
+  "@alertsTempWarm": {
+    "placeholders": {
+      "what": {
+        "type": "String"
+      }
+    }
+  },
+  "alertsTempHot": "{what} very hot",
+  "@alertsTempHot": {
+    "placeholders": {
+      "what": {
+        "type": "String"
+      }
+    }
+  },
+  "alertsTempNow": "{temp} °C right now",
+  "@alertsTempNow": {
+    "placeholders": {
+      "temp": {
+        "type": "String"
+      }
+    }
+  },
+  "alertsDiskFallback": "Disk",
+  "alertsMemoryTitle": "Memory almost full",
+  "alertsMemoryDetail": "{percent}% in use · {free} free",
+  "@alertsMemoryDetail": {
+    "placeholders": {
+      "percent": {
+        "type": "String"
+      },
+      "free": {
+        "type": "String"
+      }
+    }
+  },
+  "alertsVolumeTitle": "Drive {letter}: almost full",
+  "@alertsVolumeTitle": {
+    "placeholders": {
+      "letter": {
+        "type": "String"
+      }
+    }
+  },
+  "alertsVolumeDetail": "{free} free of {total}",
+  "@alertsVolumeDetail": {
+    "placeholders": {
+      "free": {
+        "type": "String"
+      },
+      "total": {
+        "type": "String"
+      }
+    }
+  },
+  "alertsPumpTitle": "Water cooler pump stopped",
+  "alertsPumpDetail": "{name} at {rpm} RPM",
+  "@alertsPumpDetail": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      },
+      "rpm": {
+        "type": "int"
+      }
+    }
+  },
+  "audioSourceOff": "Off",
+  "audioSourceSystem": "PC sound",
+  "audioSourceMicrophone": "Microphone",
+  "audioSourceBoth": "PC sound and microphone",
+  "profileAppsTitle": "Turn on \"{profile}\" with programs",
+  "@profileAppsTitle": {
+    "placeholders": {
+      "profile": {
+        "type": "String"
+      }
+    }
+  },
+  "profileAppsDescription": "When one of these programs opens, the profile turns on by itself. When it closes, your previous lighting comes back, unless you picked another one in the meantime.",
+  "profileAppsNone": "No programs yet.",
+  "profileAppsRemove": "Remove",
+  "profileAppsNameHint": "Program name, e.g. cs2.exe",
+  "profileAppsOpenNow": "Open now",
+  "profileAppsNoOthers": "No other program with an open window.",
+  "profileAppsBrowse": "Browse for .exe",
+  "profileAppsCancel": "Cancel",
+  "profileAppsSave": "Save",
+  "profileAppsFileTypeLabel": "Programs",
+  "aiErrorInsecureUrl": "Only HTTPS addresses are allowed for {host}. Plain HTTP is accepted only for servers on this PC (localhost).",
+  "@aiErrorInsecureUrl": {
+    "placeholders": {
+      "host": {
+        "type": "String"
+      }
+    }
+  },
+  "settingsManagePlugins": "Manage"
+}

@@ -1,0 +1,594 @@
+{
+  "perfTitle": "Performance",
+  "perfRestartAsAdmin": "Restart as administrator",
+  "perfClose": "Close",
+  "monitorUnavailableTitle": "Monitor unavailable",
+  "monitorUnavailableMessage": "This build does not include the system sensors.",
+  "monitorReadingSensors": "Reading sensors…",
+  "monitorSubtitle": "Updated every second · PC up for {uptime}",
+  "@monitorSubtitle": {
+    "placeholders": {
+      "uptime": {
+        "type": "String"
+      }
+    }
+  },
+  "monitorStalledTitle": "Sensors did not respond",
+  "monitorStalledMessage": "No readings arrived from the system. Close and reopen OpenChroma; if it keeps happening, let us know.",
+  "monitorProcessesAt": "Processes at {time}",
+  "@monitorProcessesAt": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "monitorInspectSummary": "CPU {cpu} · Memory {memory}",
+  "@monitorInspectSummary": {
+    "placeholders": {
+      "cpu": {
+        "type": "String"
+      },
+      "memory": {
+        "type": "String"
+      }
+    }
+  },
+  "monitorProcessor": "Processor",
+  "monitorCoresThreads": "{cores} cores · {threads} threads",
+  "@monitorCoresThreads": {
+    "placeholders": {
+      "cores": {
+        "type": "int"
+      },
+      "threads": {
+        "type": "int"
+      }
+    }
+  },
+  "monitorUsage": "Usage",
+  "monitorTemperature": "Temperature",
+  "monitorClock": "Clock",
+  "monitorPower": "Power",
+  "monitorUsagePerThread": "Usage per thread",
+  "monitorNeedsAdminTitle": "Administrator required",
+  "monitorNeedsAdminMessage": "The CPU sensor is read by the PawnIO driver, which only serves programs running as administrator.",
+  "monitorSensorPendingTitle": "Reading the sensor…",
+  "monitorSensorPendingMessage": "Opening the PawnIO driver.",
+  "monitorSensorFailedTitle": "The sensor did not respond",
+  "monitorSensorFailedMessage": "The PawnIO driver stopped responding. The other readings keep working.",
+  "monitorNoDriverTitle": "PawnIO driver not found",
+  "monitorNoDriverMessage": "Install PawnIO (pawnio.eu) to see the CPU temperature.",
+  "monitorNoSensorTitle": "No sensor",
+  "monitorNoSensorMessage": "This processor has no supported temperature sensor.",
+  "monitorGraphicsCard": "Graphics card",
+  "monitorTemperatureUnavailable": "Temperature unavailable",
+  "monitorFan": "Fan",
+  "monitorVideoMemory": "Video memory",
+  "monitorUsedOfTotal": "{used} of {total}",
+  "@monitorUsedOfTotal": {
+    "placeholders": {
+      "used": {
+        "type": "String"
+      },
+      "total": {
+        "type": "String"
+      }
+    }
+  },
+  "monitorIntegratedGpu": "{name} · integrated",
+  "@monitorIntegratedGpu": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "monitorMemoryRam": "RAM",
+  "monitorMemoryInstalled": "{size} installed",
+  "@monitorMemoryInstalled": {
+    "placeholders": {
+      "size": {
+        "type": "String"
+      }
+    }
+  },
+  "monitorMemoryAvailable": "Available",
+  "monitorMemoryCached": "Cached",
+  "monitorMemoryCommitted": "Committed",
+  "monitorStorage": "Storage",
+  "monitorDiskCount": "{count, plural, =1{1 disk} other{{count} disks}}",
+  "@monitorDiskCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "monitorDiskNumber": "Disk {number}",
+  "@monitorDiskNumber": {
+    "placeholders": {
+      "number": {
+        "type": "int"
+      }
+    }
+  },
+  "monitorDiskActive": "Active {percent}",
+  "@monitorDiskActive": {
+    "placeholders": {
+      "percent": {
+        "type": "String"
+      }
+    }
+  },
+  "monitorVolumeRemovable": "Removable",
+  "monitorVolumeLocal": "Local disk",
+  "monitorFreeOfTotal": "{free} free of {total}",
+  "@monitorFreeOfTotal": {
+    "placeholders": {
+      "free": {
+        "type": "String"
+      },
+      "total": {
+        "type": "String"
+      }
+    }
+  },
+  "monitorNetwork": "Network",
+  "monitorTraffic": "Traffic",
+  "monitorDownload": "Download",
+  "monitorUpload": "Upload",
+  "monitorProcesses": "Processes",
+  "monitorTopMemory": "Top memory users",
+  "monitorTopCpu": "Top CPU users",
+  "monitorColumnName": "Name",
+  "monitorColumnCpu": "CPU",
+  "monitorColumnMemory": "Memory",
+  "monitorNoProcessData": "No process data for this sample.",
+  "monitorSortTooltip": "Sort by {column}, highest first",
+  "@monitorSortTooltip": {
+    "placeholders": {
+      "column": {
+        "type": "String"
+      }
+    }
+  },
+  "monitorTempNormal": "Normal",
+  "monitorTempWarm": "Warm",
+  "monitorTempHot": "Very hot",
+  "monitorThreadTooltip": "Thread {number}: {usage}",
+  "@monitorThreadTooltip": {
+    "placeholders": {
+      "number": {
+        "type": "int"
+      },
+      "usage": {
+        "type": "String"
+      }
+    }
+  },
+  "monitorClickToInspect": "Click to inspect",
+  "monitorNow": "now",
+  "monitorSecondsAgo": "{seconds} s ago",
+  "@monitorSecondsAgo": {
+    "placeholders": {
+      "seconds": {
+        "type": "int"
+      }
+    }
+  },
+  "checkupSubtitleRunning": "Checkup in progress",
+  "checkupSubtitleEmpty": "Test your PC stability and health",
+  "checkupSubtitleLast": "Last checkup {when}",
+  "@checkupSubtitleLast": {
+    "placeholders": {
+      "when": {
+        "type": "String"
+      }
+    }
+  },
+  "checkupWhenToday": "today at {time}",
+  "@checkupWhenToday": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "checkupWhenYesterday": "yesterday at {time}",
+  "@checkupWhenYesterday": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "checkupWhenDate": "on {date} at {time}",
+  "@checkupWhenDate": {
+    "placeholders": {
+      "date": {
+        "type": "String"
+      },
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "checkupTests": "Tests",
+  "checkupSelectedCount": "{selected} of {total}",
+  "@checkupSelectedCount": {
+    "placeholders": {
+      "selected": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
+  "checkupPlanQuick": "Quick",
+  "checkupPlanStandard": "Standard",
+  "checkupPlanLong": "Long",
+  "checkupTestCpuSingle": "Processor · 1 core",
+  "checkupTestCpuAll": "Processor · all cores",
+  "checkupTestMemory": "RAM",
+  "checkupTestGpu": "Graphics card",
+  "checkupTestCpuGpu": "CPU + GPU together",
+  "checkupTestDisk": "Storage",
+  "checkupThousands": "{value}k",
+  "@checkupThousands": {
+    "placeholders": {
+      "value": {
+        "type": "String"
+      }
+    }
+  },
+  "checkupMemoryMetricRead": "Reads {read} GB/s",
+  "@checkupMemoryMetricRead": {
+    "placeholders": {
+      "read": {
+        "type": "String"
+      }
+    }
+  },
+  "checkupMemoryMetricWrite": "writes {write}",
+  "@checkupMemoryMetricWrite": {
+    "placeholders": {
+      "write": {
+        "type": "String"
+      }
+    }
+  },
+  "checkupDiskMetricWrite": "Writes {write} GB/s",
+  "@checkupDiskMetricWrite": {
+    "placeholders": {
+      "write": {
+        "type": "String"
+      }
+    }
+  },
+  "checkupDiskMetricRead": "reads {read}",
+  "@checkupDiskMetricRead": {
+    "placeholders": {
+      "read": {
+        "type": "String"
+      }
+    }
+  },
+  "checkupTitle": "Checkup",
+  "checkupCancel": "Cancel",
+  "checkupPreparing": "Preparing…",
+  "checkupStart": "Start checkup",
+  "checkupRunAgain": "Run again",
+  "checkupNoAdminNote": "Without administrator rights, the CPU temperature and the cause of blue screens are left out.",
+  "checkupProblemCount": "{count, plural, =1{1 problem} other{{count} problems}}",
+  "@checkupProblemCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "checkupWarningCount": "{count, plural, =1{1 warning} other{{count} warnings}}",
+  "@checkupWarningCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "checkupAllGood": "All good",
+  "checkupCalcErrors": "{count, plural, =0{No calculation errors} =1{1 calculation error} other{{count} calculation errors}}",
+  "@checkupCalcErrors": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "checkupNext": "Next: {plan} · ≈ {minutes} min",
+  "@checkupNext": {
+    "placeholders": {
+      "plan": {
+        "type": "String"
+      },
+      "minutes": {
+        "type": "int"
+      }
+    }
+  },
+  "checkupTestCount": "{count, plural, =1{1 test} other{{count} tests}}",
+  "@checkupTestCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "checkupFinishing": "Finishing…",
+  "checkupTestProgress": "Test {index} of {total}",
+  "@checkupTestProgress": {
+    "placeholders": {
+      "index": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
+  "checkupProgressRemaining": "{percent}% · {time} left",
+  "@checkupProgressRemaining": {
+    "placeholders": {
+      "percent": {
+        "type": "int"
+      },
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "checkupStatusQueued": "Queued",
+  "checkupStatusStable": "Stable",
+  "checkupStatusErrors": "{count, plural, =1{1 error} other{{count} errors}}",
+  "@checkupStatusErrors": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "checkupStatusStopped": "Stopped",
+  "checkupStatusDidNotRun": "Did not run",
+  "checkupStatusCancelled": "Cancelled",
+  "systemCardTitle": "System",
+  "systemAfterFirstCheckup": "Appears after the first checkup",
+  "systemMotherboard": "Motherboard",
+  "systemProcessor": "Processor",
+  "systemGraphicsCard": "Graphics card",
+  "systemMemory": "Memory",
+  "systemModuleCount": "{count, plural, =1{1 module} other{{count} modules}}",
+  "@systemModuleCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "systemSlotCount": "{count} slots",
+  "@systemSlotCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "systemMemoryInUse": "Memory in use",
+  "systemMemoryUsedOfTotal": "{used} of {total} GB",
+  "@systemMemoryUsedOfTotal": {
+    "placeholders": {
+      "used": {
+        "type": "String"
+      },
+      "total": {
+        "type": "String"
+      }
+    }
+  },
+  "systemDrive": "System drive",
+  "systemDriveFree": "{free} GB free of {total} GB",
+  "@systemDriveFree": {
+    "placeholders": {
+      "free": {
+        "type": "String"
+      },
+      "total": {
+        "type": "String"
+      }
+    }
+  },
+  "systemBlueScreens": "Blue screens · 30 days",
+  "systemBlueScreensNone": "None",
+  "systemStartupApps": "Start with Windows",
+  "systemStartupAppsValue": "{count, plural, =1{1 program} other{{count} programs}}",
+  "@systemStartupAppsValue": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "systemIdleCpu": "CPU at idle",
+  "systemIdleCpuValue": "{temp} °C · {usage}% usage",
+  "@systemIdleCpuValue": {
+    "placeholders": {
+      "temp": {
+        "type": "int"
+      },
+      "usage": {
+        "type": "int"
+      }
+    }
+  },
+  "checkupRecommendations": "Recommendations",
+  "checkupRecommendationsEmpty": "Finish a checkup to see the recommendations",
+  "checkupAiTitle": "AI analysis",
+  "checkupAiNotReady": "Connect an AI in Settings to use this.",
+  "checkupAiRunFirst": "Run a checkup to analyze the results.",
+  "checkupAiHint": "Explains the results and suggests tweaks for your PC.",
+  "checkupAiAnalyze": "Analyze",
+  "checkupAiAnalyzeAgain": "Analyze again",
+  "checkupAiSystemPrompt": "You are an experienced hardware technician analyzing the checkup of a Windows PC run by the OpenChroma app. Answer in American English, in plain text (no tables), with: a one-line verdict; the real problems in order of importance, each with the probable cause and what to do; and what is fine. Be specific with the numbers in the report and do not invent data that is not in it. 250 words at most.",
+  "checkupAbortCpuTemp": "CPU went over {temp} °C",
+  "@checkupAbortCpuTemp": {
+    "placeholders": {
+      "temp": {
+        "type": "int"
+      }
+    }
+  },
+  "checkupAbortGpuTemp": "The graphics card went over {temp} °C",
+  "@checkupAbortGpuTemp": {
+    "placeholders": {
+      "temp": {
+        "type": "int"
+      }
+    }
+  },
+  "checkupAbortPump": "The liquid cooler pump stopped",
+  "checkupAdviceAbortedTitle": "Test stopped: {reason}",
+  "@checkupAdviceAbortedTitle": {
+    "placeholders": {
+      "reason": {
+        "type": "String"
+      }
+    }
+  },
+  "checkupAdviceAbortedDetail": "Cooling could not keep up with the load. Check the cooler (mounting, thermal paste, fans and pump) before using the PC under heavy load.",
+  "checkupAdviceCpuErrorsTitle": "The CPU made calculation errors under load",
+  "checkupAdviceCpuErrorsDetail": "Sign of instability. Undo any overclock or undervolt (PBO, Curve Optimizer) and update the BIOS; if it keeps happening, it may be a defect.",
+  "checkupAdviceGpuErrorsTitle": "The graphics card calculated incorrectly",
+  "checkupAdviceGpuErrorsDetail": "Remove any GPU overclock and update the graphics driver.",
+  "checkupAdviceMemoryErrorsTitle": "The memory returned wrong data",
+  "checkupAdviceMemoryErrorsDetail": "Turn off EXPO/XMP in the BIOS and test again. If it keeps happening, test one module at a time to find the faulty one.",
+  "checkupAdviceDiskErrorsTitle": "The disk returned data different from what was written",
+  "checkupAdviceDiskErrorsDetail": "Back up now and check the disk health.",
+  "checkupAdviceBlueScreensTitle": "{count, plural, =1{1 blue screen in the last 30 days} other{{count} blue screens in the last 30 days}}",
+  "@checkupAdviceBlueScreensTitle": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "checkupAdviceBlueScreensSuspect": "The driver {driver} appears in {count} of {total} crash records. Update or uninstall the program that owns it.",
+  "@checkupAdviceBlueScreensSuspect": {
+    "placeholders": {
+      "driver": {
+        "type": "String"
+      },
+      "count": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
+  "checkupAdviceBlueScreensNoSuspect": "The records do not point to a third-party driver. Update the BIOS, the chipset and the graphics driver, and test the memory.",
+  "checkupAdviceBlueScreensNeedAdmin": "Run the checkup as administrator to find the responsible driver.",
+  "checkupAdviceCpuHotTitle": "The CPU reaches {temp} °C at full load",
+  "@checkupAdviceCpuHotTitle": {
+    "placeholders": {
+      "temp": {
+        "type": "int"
+      }
+    }
+  },
+  "checkupAdviceCpuHotDetail": "It is at its thermal limit and loses performance. Improve cooling or limit the temperature/power in the BIOS (Eco Mode on AMD, PL1/PL2 on Intel).",
+  "checkupAdviceGpuHotTitle": "The graphics card reaches {temp} °C",
+  "@checkupAdviceGpuHotTitle": {
+    "placeholders": {
+      "temp": {
+        "type": "int"
+      }
+    }
+  },
+  "checkupAdviceGpuHotDetail": "Improve the case airflow or adjust the GPU fan curve.",
+  "checkupAdviceSingleChannelTitle": "Single-channel memory",
+  "checkupAdviceSingleChannelDetail": "A single module uses half the bandwidth. Adding an identical one (same model) enables dual channel.",
+  "checkupAdviceSameChannelTitle": "The modules are on the same channel",
+  "checkupAdviceSameChannelDetail": "Move them to the slots shown in the motherboard manual (usually A2 and B2).",
+  "checkupAdviceSlowMemoryTitle": "The memory runs below what it supports",
+  "checkupAdviceSlowMemoryDetail": "{configured} of {speed} MT/s. Turn on EXPO (AMD) or XMP (Intel) in the BIOS.",
+  "@checkupAdviceSlowMemoryDetail": {
+    "placeholders": {
+      "configured": {
+        "type": "int"
+      },
+      "speed": {
+        "type": "int"
+      }
+    }
+  },
+  "checkupAdviceProfileOffTitle": "EXPO/XMP is probably off",
+  "checkupAdviceProfileOffDetail": "The memory is at its base speed ({configured} MT/s). If the module is rated for a higher speed, turn on EXPO/XMP in the BIOS.",
+  "@checkupAdviceProfileOffDetail": {
+    "placeholders": {
+      "configured": {
+        "type": "int"
+      }
+    }
+  },
+  "checkupAdviceMemoryFullTitle": "Memory almost full",
+  "checkupAdviceMemoryFullDetail": "{used} of {total} GB in use and {committed} GB requested by programs; the excess goes to disk and slows everything down. Close heavy apps or add RAM.",
+  "@checkupAdviceMemoryFullDetail": {
+    "placeholders": {
+      "used": {
+        "type": "String"
+      },
+      "total": {
+        "type": "String"
+      },
+      "committed": {
+        "type": "String"
+      }
+    }
+  },
+  "checkupAdviceDriveFullTitle": "System drive almost full",
+  "checkupAdviceDriveFullDetail": "Only {free} GB free. Below 10%, Windows slows down, runs short of space for virtual memory and deletes crash records.",
+  "@checkupAdviceDriveFullDetail": {
+    "placeholders": {
+      "free": {
+        "type": "String"
+      }
+    }
+  },
+  "checkupAdviceStartupTitle": "{count} programs start with Windows",
+  "@checkupAdviceStartupTitle": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "checkupAdviceStartupDetail": "Turn off the ones you do not use every day in Task Manager > Startup apps.",
+  "checkupAdviceBusyTitle": "The PC was busy before the tests",
+  "checkupAdviceBusyDetail": "{usage}% CPU usage at idle: background programs heat up the PC and affect the results.",
+  "@checkupAdviceBusyDetail": {
+    "placeholders": {
+      "usage": {
+        "type": "int"
+      }
+    }
+  },
+  "checkupAdviceNoCpuTempTitle": "No CPU temperature",
+  "checkupAdviceNoCpuTempDetail": "Run the checkup as administrator to measure the temperature and protect the CPU during the tests.",
+  "checkupAdviceAllGoodDetail": "No errors in the tests and nothing out of the ordinary on the system.",
+  "systemErrorWindowsSetting": "Could not change the Windows setting.",
+  "systemErrorSaveSetting": "Could not save the setting.",
+  "systemErrorEnableStartup": "Could not turn on starting with Windows.",
+  "systemErrorTaskNotCreated": "The startup task was not created. You need to accept the Windows permission prompt.",
+  "systemErrorTaskNotRemoved": "The startup task was not removed. You need to accept the Windows permission prompt.",
+  "systemTaskDescription": "Opens OpenChroma as administrator when you sign in to Windows."
+}

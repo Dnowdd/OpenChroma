@@ -1,6 +1,7 @@
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 
 import 'src/ai/ai_service.dart';
 import 'src/ai/assistant.dart';
@@ -10,13 +11,17 @@ import 'src/effects/effect_host.dart';
 import 'src/effects/ocfx_player.dart';
 import 'src/engine/engine.dart';
 import 'src/fans/fan_service.dart';
+import 'src/i18n/l10n.dart';
 import 'src/monitor/system_monitor.dart';
 import 'src/system/background_trim.dart';
+import 'src/system/update_check.dart';
 import 'src/ui/shell.dart';
 import 'src/ui/theme.dart';
 
 Future<void> main(List<String> args) async {
   WidgetsFlutterBinding.ensureInitialized();
+  final language = LanguageController();
+  final updates = UpdateChecker()..start();
   final engine = Engine();
   OcfxPlayer(engine);
   final monitor = SystemMonitor();
@@ -75,6 +80,8 @@ Future<void> main(List<String> args) async {
       alerts: alerts,
       ai: ai,
       assistant: assistant,
+      language: language,
+      updates: updates,
       initialPage: page,
     ),
   );
@@ -90,6 +97,8 @@ class OpenChromaApp extends StatefulWidget {
     required this.alerts,
     required this.ai,
     required this.assistant,
+    required this.language,
+    required this.updates,
     this.initialPage,
   });
   final Engine engine;
@@ -98,6 +107,8 @@ class OpenChromaApp extends StatefulWidget {
   final AlertService alerts;
   final AiService ai;
   final Assistant assistant;
+  final LanguageController language;
+  final UpdateChecker updates;
   final int? initialPage;
 
   @override
@@ -107,10 +118,12 @@ class OpenChromaApp extends StatefulWidget {
 class _OpenChromaAppState extends State<OpenChromaApp> {
   late final AppLifecycleListener _lifecycle;
   final _trim = BackgroundTrim();
+  int? _page;
 
   @override
   void initState() {
     super.initState();
+    widget.language.addListener(() => _page = Pages.settings);
     // Give plugins a chance to apply their shutdown color before exiting.
     _lifecycle = AppLifecycleListener(
       onExitRequested: () async {
@@ -132,23 +145,37 @@ class _OpenChromaAppState extends State<OpenChromaApp> {
   }
 
   @override
-  Widget build(BuildContext context) => MaterialApp(
-    title: 'OpenChroma',
-    debugShowCheckedModeBanner: false,
-    theme: buildTheme(),
-    // The Windows embedder's accessibility bridge crashes (null dereference
-    // in accessibility_bridge.cc) after it fails to apply semantics updates
-    // that move nodes between parents, which this UI does on filtering and
-    // resizing. Publishing no semantics tree avoids that code path.
-    builder: (context, child) => ExcludeSemantics(child: child!),
-    home: Shell(
-      engine: widget.engine,
-      monitor: widget.monitor,
-      fans: widget.fans,
-      alerts: widget.alerts,
-      ai: widget.ai,
-      assistant: widget.assistant,
-      initialPage: widget.initialPage,
+  Widget build(BuildContext context) => ListenableBuilder(
+    listenable: widget.language,
+    builder: (context, _) => MaterialApp(
+      key: ValueKey(widget.language.locale),
+      title: 'OpenChroma',
+      debugShowCheckedModeBanner: false,
+      theme: buildTheme(),
+      locale: widget.language.locale,
+      supportedLocales: const [Locale('en', 'US'), Locale('pt', 'BR')],
+      localizationsDelegates: const [
+        AppLocalizations.delegate,
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
+      // The Windows embedder's accessibility bridge crashes (null dereference
+      // in accessibility_bridge.cc) after it fails to apply semantics updates
+      // that move nodes between parents, which this UI does on filtering and
+      // resizing. Publishing no semantics tree avoids that code path.
+      builder: (context, child) => ExcludeSemantics(child: child!),
+      home: Shell(
+        engine: widget.engine,
+        monitor: widget.monitor,
+        fans: widget.fans,
+        alerts: widget.alerts,
+        ai: widget.ai,
+        assistant: widget.assistant,
+        language: widget.language,
+        updates: widget.updates,
+        initialPage: _page ?? widget.initialPage,
+      ),
     ),
   );
 }

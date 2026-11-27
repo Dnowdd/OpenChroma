@@ -1,12 +1,21 @@
 {
   "openchroma": 1,
-  "name": "Oceano",
-  "description": "Camadas de azul e turquesa se movendo como ondas no mar.",
+  "name": "Ocean",
+  "description": "Layers of blue and turquoise moving like ocean waves.",
   "author": "OpenChroma",
+  "i18n": {
+    "pt": {
+      "name": "Oceano",
+      "description": "Camadas de azul e turquesa se movendo como ondas no mar.",
+      "params": {
+        "speed": "Velocidade"
+      }
+    }
+  },
   "background": "#001226",
   "params": {
     "speed": {
-      "label": "Velocidade",
+      "label": "Speed",
       "type": "number",
       "min": 0,
       "max": 100,

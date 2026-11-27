@@ -63,7 +63,7 @@ var K86_LEDS = [
 ];
 
 // Speed and brightness ranges of these models (OpenRGB's EpomakerLegacy
-// profile); 0 brightness turns the lights off, which "Desligado" already does.
+// profile); 0 brightness turns the lights off, which "Off" already does.
 var SPEED = { min: 0, max: 5, default: 4 };
 var BRIGHTNESS = { min: 1, max: 4, default: 4 };
 
@@ -72,19 +72,19 @@ function effect(id, name) {
 }
 
 var EFFECTS = [
-  effect(0x02, 'Respirar'),
-  effect(0x03, 'Arco-íris'),
-  effect(0x04, 'Deriva'),
-  effect(0x05, 'Ondas'),
-  effect(0x06, 'Estrelas'),
-  effect(0x07, 'Correnteza'),
-  effect(0x08, 'Ao digitar'),
-  effect(0x0A, 'Senoide'),
-  effect(0x0C, 'Flores'),
+  effect(0x02, 'Breathing'),
+  effect(0x03, 'Rainbow'),
+  effect(0x04, 'Drift'),
+  effect(0x05, 'Waves'),
+  effect(0x06, 'Stars'),
+  effect(0x07, 'Flow'),
+  effect(0x08, 'Reactive'),
+  effect(0x0A, 'Sine wave'),
+  effect(0x0C, 'Flowers'),
   effect(0x0E, 'Laser'),
-  effect(0x10, 'Chuva'),
-  effect(0x11, 'Neve'),
-  effect(0x12, 'Meteoro')
+  effect(0x10, 'Rain'),
+  effect(0x11, 'Snow'),
+  effect(0x12, 'Meteor')
 ];
 
 // OpenRGB's checksum for these keyboards: the distance from the sum to the
@@ -124,7 +124,7 @@ function rgb565(r, g, b) {
 }
 
 plugin({
-  name: 'Teclado ROYUAN',
+  name: 'ROYUAN keyboard',
   vendor: 'ROYUAN',
   type: 'keyboard',
   devices: [
@@ -140,22 +140,22 @@ plugin({
     return -1;
   },
   zones: function (dev) {
-    if (!this.k86) return [{ name: 'Teclado', leds: 1 }];
+    if (!this.k86) return [{ name: 'Keyboard', leds: 1 }];
     var map = [];
     for (var i = 0; i < K86_GRID.width * K86_GRID.height; i++) map.push(-1);
     for (var k = 0; k < K86_LEDS.length; k += 3) {
       map[K86_LEDS[k + 2] * K86_GRID.width + K86_LEDS[k + 1]] = k / 3;
     }
-    return [{ name: 'Teclado', width: K86_GRID.width, height: K86_GRID.height, map: map }];
+    return [{ name: 'Keyboard', width: K86_GRID.width, height: K86_GRID.height, map: map }];
   },
   modes: function (dev) {
     var list = EFFECTS.slice();
     if (this.k86) {
-      list.push({ id: 'picture1', name: 'Imagem 1 do teclado' });
-      list.push({ id: 'picture2', name: 'Imagem 2 do teclado' });
-      list.push({ id: 'picture3', name: 'Imagem 3 do teclado' });
+      list.push({ id: 'picture1', name: 'Keyboard picture 1' });
+      list.push({ id: 'picture2', name: 'Keyboard picture 2' });
+      list.push({ id: 'picture3', name: 'Keyboard picture 3' });
     }
-    list.push({ id: 0x00, name: 'Desligado' });
+    list.push({ id: 0x00, name: 'Off' });
     return list;
   },
   screen: function (dev) {
@@ -163,26 +163,26 @@ plugin({
   },
   settings: {
     live: {
-      label: 'Como enviar a cor',
+      label: 'Color delivery',
       type: 'combobox',
-      values: ['Automático', 'Ao vivo A', 'Ao vivo B', 'Compatível'],
-      default: 'Automático',
-      description: 'Ao vivo muda a cor sem piscar; Compatível funciona em todos os modelos, mas pisca com efeitos animados. Automático usa Ao vivo nos modelos testados. Se o teclado não mudar de cor em Ao vivo, use Compatível.'
+      values: ['Auto', 'Live A', 'Live B', 'Compatible'],
+      default: 'Auto',
+      description: "Live changes the color without flicker; Compatible works on every model but flickers with animated effects. Auto uses Live on tested models. If the keyboard doesn't change color in Live, use Compatible."
     },
     perKey: {
-      label: 'Cores tecla por tecla',
+      label: 'Per-key colors',
       type: 'combobox',
-      values: ['Quando o efeito para', 'Nunca'],
-      default: 'Quando o efeito para',
-      description: 'O K86 não recebe cores por tecla ao vivo: efeitos que se mexem vão como uma cor só. Quando o efeito fica parado, as cores de cada tecla são gravadas na imagem 3 do teclado e aparecem tecla por tecla.'
+      values: ['When the effect stops', 'Never'],
+      default: 'When the effect stops',
+      description: "The K86 doesn't take live per-key colors: moving effects go out as a single color. When the effect holds still, each key's color is saved to keyboard picture 3 and shows key by key."
     },
     rate: {
-      label: 'Atualizações por segundo (Compatível)',
+      label: 'Updates per second (Compatible)',
       type: 'number',
       min: 1,
       max: 30,
       default: 8,
-      description: 'Só no modo Compatível: menos atualizações poupam o teclado; mais deixam efeitos rápidos mais suaves.'
+      description: 'Compatible mode only: fewer updates spare the keyboard; more make fast effects smoother.'
     }
   },
   fps: 30,
@@ -255,11 +255,12 @@ plugin({
   },
 
   // 'A' or 'B' for the live command, or null for the mode command. Accepts
-  // the names older versions saved ("Direto A (teste)", "Padrão").
+  // the names older versions saved ("Automático", "Ao vivo A", "Direto A
+  // (teste)", "Padrão").
   liveVariant: function (dev) {
-    var live = dev.setting('live') || 'Automático';
-    if (live === 'Automático') return LIVE_MODELS[dev.info.pid] || null;
-    if (live.indexOf('Ao vivo') === 0 || live.indexOf('Direto') === 0) {
+    var live = dev.setting('live') || 'Auto';
+    if (live === 'Auto' || live === 'Automático') return LIVE_MODELS[dev.info.pid] || null;
+    if (live.indexOf('Live') === 0 || live.indexOf('Ao vivo') === 0 || live.indexOf('Direto') === 0) {
       return live.indexOf(' B') > 0 ? 'B' : 'A';
     }
     return null;
@@ -317,7 +318,8 @@ plugin({
     if (now - this.clockAt > CLOCK_EVERY) this.setClock(dev);
     var c = this.frame;
     if (!c || this.pictureOn || c.length < 6) return;
-    if ((dev.setting('perKey') || 'Quando o efeito para') === 'Nunca') return;
+    var perKeySetting = dev.setting('perKey');
+    if (perKeySetting === 'Never' || perKeySetting === 'Nunca') return;
     if (now - this.changedAt < STILL_MS) return;
     var same = true;
     for (var i = 3; i < c.length && same; i++) same = c[i] === c[i % 3];

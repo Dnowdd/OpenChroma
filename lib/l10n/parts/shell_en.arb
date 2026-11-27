@@ -1,0 +1,247 @@
+{
+  "commonSearch": "Search",
+  "commonCancel": "Cancel",
+  "commonSave": "Save",
+  "commonOff": "Off",
+  "commonPaused": "Paused",
+  "commonLive": "Live",
+  "commonNoEffect": "No effect",
+  "windowMinimize": "Minimize",
+  "windowMaximize": "Maximize",
+  "windowRestore": "Restore",
+  "windowClose": "Close",
+  "shellNavHome": "Home",
+  "shellNavLighting": "Lighting",
+  "shellNavDevices": "Devices",
+  "shellNavFans": "Fans",
+  "shellNavPerformance": "Performance",
+  "shellNavSettings": "Settings",
+  "shellAdminActive": "Administrator mode on",
+  "shellRestartAsAdmin": "Restart as administrator",
+  "shellTabEffects": "Effects",
+  "shellTabLayout": "Layout",
+  "shellTabMonitor": "Monitor",
+  "shellTabDiagnostics": "Diagnostics",
+  "shellConflictOpen": "{count, plural, =1{{names} is open.} other{{names} are open.}}",
+  "@shellConflictOpen": {
+    "placeholders": {
+      "names": {
+        "type": "String"
+      },
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "shellConflictAdvice": "Two programs on the same LEDs make the colors flicker. Close it, including in the tray.",
+  "shellWebviewMissing": "Effects need Microsoft WebView2, which isn't installed on this PC.",
+  "shellWebviewDownload": "Download WebView2",
+  "shellPlayerOffPaused": "Off · effect paused",
+  "shellPlayerLiveOnDevices": "{count, plural, =1{Live on 1 device} other{Live on {count} devices}}",
+  "@shellPlayerLiveOnDevices": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "lightingTitle": "Lighting",
+  "lightingBrightnessPerDevice": "Brightness of each device",
+  "lightingBrightnessTitle": "Brightness",
+  "lightingAll": "All",
+  "lightingLights": "Lights",
+  "lightingScreens": "Screens",
+  "lightingNoDevices": "No devices connected.",
+  "lightingBrightnessNote": "\"All\" applies to every device, on top of each one's own brightness. At 0%, the effect pauses and nothing is sent.",
+  "lightingPausedAtZero": "Paused: brightness is at 0%",
+  "lightingResumeEffect": "Resume the effect",
+  "lightingPauseEffect": "Pause the effect",
+  "homeGreetingNight": "Good night",
+  "homeGreetingMorning": "Good morning",
+  "homeGreetingAfternoon": "Good afternoon",
+  "homeGreetingEvening": "Good evening",
+  "homeStatusReading": "Reading sensors…",
+  "homeStatusAllGood": "Everything looks good with your PC.",
+  "homeStatusAlerts": "{count, plural, =1{1 alert needs attention.} other{{count} alerts need attention.}}",
+  "@homeStatusAlerts": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "homeWeekday": "{day, select, mon{Monday} tue{Tuesday} wed{Wednesday} thu{Thursday} fri{Friday} sat{Saturday} other{Sunday}}",
+  "@homeWeekday": {
+    "placeholders": {
+      "day": {
+        "type": "String"
+      }
+    }
+  },
+  "homeMonth": "{month, select, jan{January} feb{February} mar{March} apr{April} may{May} jun{June} jul{July} aug{August} sep{September} oct{October} nov{November} other{December}}",
+  "@homeMonth": {
+    "placeholders": {
+      "month": {
+        "type": "String"
+      }
+    }
+  },
+  "homeDate": "{weekday}, {month} {day}",
+  "@homeDate": {
+    "placeholders": {
+      "weekday": {
+        "type": "String"
+      },
+      "month": {
+        "type": "String"
+      },
+      "day": {
+        "type": "int"
+      }
+    }
+  },
+  "homeOpenLighting": "Open lighting",
+  "homeOnDevices": "{count, plural, =1{On 1 device} other{On {count} devices}}",
+  "@homeOnDevices": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "homeProfilesTitle": "Profiles",
+  "homeProfilesHint": "Right-click a profile to save the current lighting to it or to turn it on along with a program",
+  "homeProfileWithApp": "With {app}",
+  "@homeProfileWithApp": {
+    "placeholders": {
+      "app": {
+        "type": "String"
+      }
+    }
+  },
+  "homeProfileLightsOff": "Lights off",
+  "homeProfileCurrentEffect": "Current effect",
+  "homeProfileAutoOn": "Turns on automatically with {apps}",
+  "@homeProfileAutoOn": {
+    "placeholders": {
+      "apps": {
+        "type": "String"
+      }
+    }
+  },
+  "homeProfileSaveHere": "Save current lighting here",
+  "homeProfileRename": "Rename",
+  "homeProfileLinkApps": "Turn on with apps…",
+  "homeProfileReset": "Restore default profiles",
+  "homeProfileNameTitle": "Profile name",
+  "homeLevelNormal": "Normal",
+  "homeLevelWarm": "Warm",
+  "homeLevelHot": "Very hot",
+  "homeVitalUsage": "Usage {value}%",
+  "@homeVitalUsage": {
+    "placeholders": {
+      "value": {
+        "type": "String"
+      }
+    }
+  },
+  "homeVitalUsageNeedsAdmin": "Usage · temperature needs admin",
+  "homeVitalMemory": "Memory",
+  "homeVitalStorage": "Storage",
+  "homeVitalFreeUnit": "GB free",
+  "homeVitalMemoryUsed": "{used} of {total}",
+  "@homeVitalMemoryUsed": {
+    "placeholders": {
+      "used": {
+        "type": "String"
+      },
+      "total": {
+        "type": "String"
+      }
+    }
+  },
+  "homeVitalDiskUsed": "{letter}: · {percent}% used",
+  "@homeVitalDiskUsed": {
+    "placeholders": {
+      "letter": {
+        "type": "String"
+      },
+      "percent": {
+        "type": "String"
+      }
+    }
+  },
+  "homeAlertsTitle": "Alerts",
+  "homeAlertsAllGood": "All good",
+  "homeFansTitle": "Fans",
+  "homeFanSilent": "Silent",
+  "homeFanBalanced": "Balanced",
+  "homeFanTurbo": "Turbo",
+  "homeFanCount": "{count, plural, =1{1 fan} other{{count} fans}}",
+  "@homeFanCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "homeFanUpTo": "up to {rpm} RPM",
+  "@homeFanUpTo": {
+    "placeholders": {
+      "rpm": {
+        "type": "int"
+      }
+    }
+  },
+  "homeReactiveTitle": "Reactive light",
+  "homeReactiveNoGpu": "No GPU reading on this PC.",
+  "homeReactiveCpuNeedsAdmin": "CPU temperature needs administrator mode.",
+  "homeReactiveOn": "The LEDs show the temperature instead of the effect.",
+  "homeReactiveOff": "LED color follows the temperature.",
+  "homeScreenSending": "Sending… {percent}%",
+  "@homeScreenSending": {
+    "placeholders": {
+      "percent": {
+        "type": "int"
+      }
+    }
+  },
+  "homeScreenOff": "Screen off",
+  "homeScreenBrightness": "Brightness {percent}%",
+  "@homeScreenBrightness": {
+    "placeholders": {
+      "percent": {
+        "type": "int"
+      }
+    }
+  },
+  "homeScreenOn": "Screen on",
+  "homeScreenTurnOff": "Turn off the screen",
+  "homeScreenTurnOn": "Turn on the screen",
+  "homeDevicesTitle": "Devices",
+  "homeDevicesSearching": "Searching…",
+  "homeDevicesNone": "No devices",
+  "homeDeviceConnected": "Connected",
+  "homeDeviceStarting": "Starting",
+  "homeDeviceProblem": "Problem",
+  "homeAssistantTitle": "Assistant",
+  "homeAssistantNewChat": "New chat",
+  "homeAssistantSuggestionSlow": "Why is my PC slow?",
+  "homeAssistantSuggestionGpu": "What is heating up the GPU?",
+  "homeAssistantSuggestionEffect": "Create a calm blue effect",
+  "homeAssistantConnect": "Connect an AI to ask about your PC.",
+  "homeAssistantConnectHint": "Use your Anthropic or OpenAI key, or one from a compatible service.",
+  "homeAssistantSetUp": "Set up AI",
+  "homeAssistantAskAnything": "Ask anything about your PC.",
+  "homeAssistantThinking": "Thinking…",
+  "homeAssistantApplyEffect": "Apply effect",
+  "homeAssistantHint": "Ask something…",
+  "homeAssistantEffectOn": "\"{title}\" is on.",
+  "@homeAssistantEffectOn": {
+    "placeholders": {
+      "title": {
+        "type": "String"
+      }
+    }
+  }
+}

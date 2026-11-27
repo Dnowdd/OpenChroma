@@ -1,0 +1,10 @@
+{
+  "securityStartupAdminDescription": "Opens in the tray, as administrator, when you sign in to Windows, without asking for permission. Changing it needs OpenChroma running as administrator.",
+  "securityStartupInstallUnsafe": "To start as administrator automatically, install OpenChroma for all users (in Program Files). This copy can be modified without administrator rights, so it cannot be trusted to run with full access when you sign in.",
+  "securityStartupInstallUnsafeRemove": "This copy can be modified without administrator rights, so starting it as administrator is unsafe. Turn this off to remove the automatic start as administrator.",
+  "securityStartupNeedsAdmin": "Restart OpenChroma as administrator to change the automatic start as administrator.",
+  "securityErrorNeedsAdmin": "Restart OpenChroma as administrator to change this setting.",
+  "securityErrorInstallNotTrusted": "To start as administrator automatically, install OpenChroma for all users (in Program Files).",
+  "securityErrorTaskNotCreated": "The startup task was not created.",
+  "securityErrorTaskNotRemoved": "The startup task was not removed."
+}

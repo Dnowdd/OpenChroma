@@ -1,19 +1,29 @@
 {
   "openchroma": 1,
-  "name": "Arco-íris",
-  "description": "Todas as cores passando em faixas largas.",
+  "name": "Rainbow",
+  "description": "Every color passing by in wide bands.",
   "author": "OpenChroma",
+  "i18n": {
+    "pt": {
+      "name": "Arco-íris",
+      "description": "Todas as cores passando em faixas largas.",
+      "params": {
+        "speed": "Velocidade",
+        "angle": "Direção"
+      }
+    }
+  },
   "background": "#000000",
   "params": {
     "speed": {
-      "label": "Velocidade",
+      "label": "Speed",
       "type": "number",
       "min": 0,
       "max": 100,
       "default": 35
     },
     "angle": {
-      "label": "Direção",
+      "label": "Direction",
       "type": "number",
       "min": 0,
       "max": 360,

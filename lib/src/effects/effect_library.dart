@@ -3,18 +3,25 @@ import 'dart:io';
 
 import 'package:path/path.dart' as p;
 
-import '../i18n/pt_br.dart';
+import '../i18n/l10n.dart';
+import '../i18n/terms.dart';
 
 /// One adjustable effect parameter (an HTML effect `<meta property=...>` or
 /// an `.ocfx` `params` entry).
 class EffectProperty {
-  EffectProperty(this.attrs);
+  EffectProperty(this.attrs, {this.translations = const {}});
   final Map<String, String> attrs;
+  final Map<String, ParamText> translations;
+
+  ParamText? get _local => pickLocale(translations);
 
   String get name => attrs['property']!;
-  String get label => attrs['label'] ?? name;
+  String get label => _local?.label ?? localizeTerm(attrs['label'] ?? name);
   String get type => attrs['type'] ?? 'textfield';
-  String get tooltip => attrs['tooltip'] ?? '';
+  String get tooltip =>
+      _local?.description ?? localizeTerm(attrs['tooltip'] ?? '');
+  String optionLabel(String value) =>
+      _local?.options[value] ?? localizeTerm(value);
   String get defaultValue => attrs['default'] ?? '';
   double get min => double.tryParse(attrs['min'] ?? '') ?? 0;
   double get max => double.tryParse(attrs['max'] ?? '') ?? 100;
@@ -37,13 +44,38 @@ class EffectProperty {
   }
 }
 
+class ParamText {
+  const ParamText({this.label, this.description, this.options = const {}});
+  final String? label;
+  final String? description;
+  final Map<String, String> options;
+}
+
+class EffectText {
+  const EffectText({this.name, this.description});
+  final String? name;
+  final String? description;
+}
+
+T? pickLocale<T>(Map<String, T> byLocale) {
+  if (byLocale.isEmpty) return null;
+  final code = l10n.localeName.toLowerCase().replaceAll('-', '_');
+  final language = code.split('_').first;
+  return byLocale[code] ??
+      byLocale[language] ??
+      byLocale.entries
+          .where((e) => e.key.split('_').first == language)
+          .firstOrNull
+          ?.value;
+}
+
 enum EffectKind { html, ocfx }
 
 class EffectInfo {
   EffectInfo({
     required this.path,
-    required this.title,
-    required this.description,
+    required String title,
+    required String description,
     required this.author,
     required this.properties,
     required this.thumbnail,
@@ -51,12 +83,26 @@ class EffectInfo {
     required this.imported,
     this.usesAudio = false,
     this.definition,
-  });
+    this.translations = const {},
+  }) : baseTitle = title,
+       baseDescription = description;
 
   final String path;
-  final String title;
-  final String description;
+  final String baseTitle;
+  final String baseDescription;
+  final Map<String, EffectText> translations;
   final String author;
+
+  EffectText? get _local => pickLocale(translations);
+
+  String get title => _local?.name ?? baseTitle;
+  String get description => _local?.description ?? baseDescription;
+
+  Set<String> get allTitles => {
+    baseTitle,
+    for (final t in translations.values) ?t.name,
+  };
+
   final List<EffectProperty> properties;
 
   /// A preview image shipped next to the effect, if any.
@@ -76,6 +122,9 @@ class EffectInfo {
 }
 
 // ------------------------------------------------------------------ curation
+/// Parameters that depend on keyboard input, which this app does not read.
+const _hiddenParameters = {'keypress effects', 'key press effect'};
+
 /// Effects that need inputs this app does not capture (system audio, screen)
 /// would just sit black, so they are left out of the library.
 final _unsupportedInputs = RegExp(r'engine\.(audio|zone|vision)');
@@ -121,8 +170,9 @@ EffectInfo? parseHtmlEffect(
   for (final m in _metaTag.allMatches(head)) {
     final a = _parseAttrs(m.group(1)!);
     if (a.containsKey('property')) {
-      if (hiddenParameters.contains((a['label'] ?? '').toLowerCase())) continue;
-      props.add(EffectProperty(a));
+      if (!_hiddenParameters.contains((a['label'] ?? '').toLowerCase())) {
+        props.add(EffectProperty(a));
+      }
     } else if (a.containsKey('description')) {
       description = a['description']!;
     } else if (a.containsKey('publisher')) {
@@ -193,43 +243,53 @@ EffectInfo parseOcfx(String path, {bool imported = false}) {
   try {
     doc = jsonDecode(File(path).readAsStringSync());
   } on FormatException catch (e) {
-    throw FormatException('O arquivo não é um JSON válido (${e.message}).');
+    throw FormatException(l10n.ocfxErrorInvalidJson(e.message));
   }
   if (doc is! Map<String, dynamic>) {
-    throw const FormatException('O arquivo precisa ser um objeto JSON.');
+    throw FormatException(l10n.ocfxErrorNotObject);
   }
   if (doc['openchroma'] != 1) {
-    throw const FormatException('Falta o campo "openchroma": 1.');
+    throw FormatException(l10n.ocfxErrorMissingVersion);
   }
   final name = doc['name'];
   if (name is! String || name.trim().isEmpty) {
-    throw const FormatException('Falta o campo "name".');
+    throw FormatException(l10n.ocfxErrorMissingName);
   }
   final layers = doc['layers'];
   if (layers is! List || layers.isEmpty) {
-    throw const FormatException(
-      'O efeito precisa de pelo menos uma camada em "layers".',
-    );
+    throw FormatException(l10n.ocfxErrorNoLayers);
   }
   for (var i = 0; i < layers.length; i++) {
     final l = layers[i];
     if (l is! Map || !ocfxLayerTypes.contains(l['type'])) {
       throw FormatException(
-        'Camada ${i + 1}: "type" deve ser um destes: ${ocfxLayerTypes.join(', ')}.',
+        l10n.ocfxErrorLayerType(i + 1, ocfxLayerTypes.join(', ')),
       );
     }
   }
+  final i18n = doc['i18n'];
+  if (i18n != null && (i18n is! Map || i18n.values.any((v) => v is! Map))) {
+    throw FormatException(l10n.ocfxErrorI18nNotObject);
+  }
+  final locales = <String, Map>{
+    for (final MapEntry(:key, :value) in (i18n as Map? ?? {}).entries)
+      '$key'.toLowerCase().replaceAll('-', '_'): value as Map,
+  };
   final props = <EffectProperty>[];
   final params = doc['params'];
   if (params != null && params is! Map) {
-    throw const FormatException('"params" precisa ser um objeto.');
+    throw FormatException(l10n.ocfxErrorParamsNotObject);
   }
   (params as Map? ?? {}).forEach((key, value) {
     if (value is! Map || !_paramTypes.contains(value['type'])) {
       throw FormatException(
-        'Parâmetro "$key": "type" deve ser ${_paramTypes.join(', ')}.',
+        l10n.ocfxErrorParamType('$key', _paramTypes.join(', ')),
       );
     }
+    final translations = <String, ParamText>{
+      for (final MapEntry(key: locale, value: t) in locales.entries)
+        locale: ?_paramText(t['params'] is Map ? t['params'][key] : null),
+    };
     props.add(
       EffectProperty({
         'property': '$key',
@@ -241,13 +301,20 @@ EffectInfo parseOcfx(String path, {bool imported = false}) {
         if (value['values'] is List)
           'values': (value['values'] as List).join(','),
         if (value['description'] != null) 'tooltip': '${value['description']}',
-      }),
+      }, translations: translations),
     );
   });
   return EffectInfo(
     path: path,
     title: name.trim(),
     description: '${doc['description'] ?? ''}',
+    translations: {
+      for (final MapEntry(key: locale, value: t) in locales.entries)
+        locale: EffectText(
+          name: _text(t['name']),
+          description: _text(t['description']),
+        ),
+    },
     author: '${doc['author'] ?? ''}',
     properties: props,
     thumbnail: null,
@@ -258,6 +325,24 @@ EffectInfo parseOcfx(String path, {bool imported = false}) {
         layers.any((l) => _audioLayerTypes.contains((l as Map)['type'])) ||
         jsonEncode(layers).contains('"@'),
     definition: doc,
+  );
+}
+
+String? _text(Object? v) =>
+    v is String && v.trim().isNotEmpty ? v.trim() : null;
+
+ParamText? _paramText(Object? v) {
+  if (v is String) return _text(v) == null ? null : ParamText(label: _text(v));
+  if (v is! Map) return null;
+  final options = v['options'];
+  return ParamText(
+    label: _text(v['label']),
+    description: _text(v['description']),
+    options: {
+      if (options is Map)
+        for (final MapEntry(:key, :value) in options.entries)
+          '$key': ?_text(value),
+    },
   );
 }
 
@@ -272,8 +357,10 @@ List<EffectInfo> scanEffects({
   final seen = <String>{};
 
   void add(EffectInfo? e) {
-    if (e == null || _hidden.contains(e.title.toLowerCase())) return;
-    if (!seen.add(e.title.toLowerCase())) return;
+    if (e == null) return;
+    final titles = {for (final t in e.allTitles) t.toLowerCase()};
+    if (titles.any(_hidden.contains) || titles.any(seen.contains)) return;
+    seen.addAll(titles);
     out.add(e);
   }
 

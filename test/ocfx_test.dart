@@ -1,7 +1,10 @@
+import 'dart:convert';
 import 'dart:io';
+import 'dart:ui';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:openchroma/src/effects/effect_library.dart';
+import 'package:openchroma/src/i18n/l10n.dart';
 import 'package:openchroma/src/effects/ocfx_player.dart';
 import 'package:openchroma/src/effects/ocfx_renderer.dart';
 
@@ -46,6 +49,112 @@ void main() {
     expect(parseOcfx('assets/effects/aurora.ocfx').usesAudio, isFalse);
   });
 
+  group('translations', () {
+    tearDown(() => l10n = lookupAppLocalizations(const Locale('en')));
+
+    File write(String name, Map<String, dynamic> doc) =>
+        File('${Directory.systemTemp.path}/$name.ocfx')
+          ..writeAsStringSync(jsonEncode(doc));
+
+    final doc = {
+      'openchroma': 1,
+      'name': 'Waves',
+      'description': 'Blue waves.',
+      'params': {
+        'speed': {'label': 'Speed', 'type': 'number'},
+        'mode': {
+          'label': 'Mode',
+          'type': 'combobox',
+          'values': ['fast', 'slow'],
+        },
+      },
+      'i18n': {
+        'pt-BR': {
+          'name': 'Ondas',
+          'description': 'Ondas azuis.',
+          'params': {
+            'speed': 'Velocidade',
+            'mode': {
+              'label': 'Modo',
+              'options': {'fast': 'Rápido'},
+            },
+          },
+        },
+      },
+      'layers': [
+        {'type': 'solid', 'color': '#ffffff'},
+      ],
+    };
+
+    test('English is the default', () {
+      final e = parseOcfx(write('i18n-en', doc).path);
+      expect(e.title, 'Waves');
+      expect(e.description, 'Blue waves.');
+      expect(e.properties.first.label, 'Speed');
+      expect(e.properties.last.optionLabel('fast'), 'fast');
+      expect(e.allTitles, {'Waves', 'Ondas'});
+    });
+
+    test('the matching locale overrides the texts', () {
+      final e = parseOcfx(write('i18n-pt', doc).path);
+      l10n = lookupAppLocalizations(const Locale('pt'));
+      expect(e.title, 'Ondas');
+      expect(e.baseTitle, 'Waves');
+      expect(e.description, 'Ondas azuis.');
+      expect(e.properties.first.label, 'Velocidade');
+      expect(e.properties.last.label, 'Modo');
+      expect(e.properties.last.optionLabel('fast'), 'Rápido');
+      expect(e.properties.last.optionLabel('slow'), 'slow');
+    });
+
+    test('files without translations show their own text', () {
+      final e = parseOcfx(
+        write('i18n-none', {
+          'openchroma': 1,
+          'name': 'Pôr do Sol',
+          'params': {
+            'speed': {'label': 'Rapidez', 'type': 'number'},
+          },
+          'layers': [
+            {'type': 'solid', 'color': '#ffffff'},
+          ],
+        }).path,
+      );
+      for (final code in ['en', 'pt']) {
+        l10n = lookupAppLocalizations(Locale(code));
+        expect(e.title, 'Pôr do Sol');
+        expect(e.properties.single.label, 'Rapidez');
+      }
+    });
+
+    test('bundled effects are translated to Portuguese', () {
+      l10n = lookupAppLocalizations(const Locale('pt'));
+      final e = parseOcfx('assets/effects/aurora.ocfx');
+      expect(e.properties.first.label, 'Velocidade');
+      for (final f in bundled) {
+        final e = parseOcfx(f.path);
+        expect(e.translations['pt']?.name, isNotNull, reason: e.baseTitle);
+        expect(
+          e.properties.every((p) => p.translations['pt']?.label != null),
+          isTrue,
+          reason: e.baseTitle,
+        );
+      }
+    });
+
+    test('English parameter names are translated only in Portuguese', () {
+      final p = EffectProperty({'property': 'speed', 'label': 'Speed'});
+      expect(p.label, 'Speed');
+      l10n = lookupAppLocalizations(const Locale('pt'));
+      expect(p.label, 'Velocidade');
+    });
+
+    test('rejects a malformed i18n block', () {
+      final bad = write('i18n-bad', {...doc, 'i18n': 'pt'});
+      expect(() => parseOcfx(bad.path), throwsFormatException);
+    });
+  });
+
   test('rejects documents without layers', () {
     final tmp = File('${Directory.systemTemp.path}/bad.ocfx')
       ..writeAsStringSync('{"openchroma": 1, "name": "x", "layers": []}');
@@ -69,6 +178,21 @@ void main() {
       }
       expect(lit, greaterThan(40), reason: e.title);
     }
+  });
+
+  test('huge or non-finite counts cannot stall a frame', () {
+    final r = OcfxRenderer({
+      'layers': [
+        {'type': 'rain', 'density': 1e12},
+        {'type': 'stars', 'density': 'Infinity'},
+        {'type': 'sparkle', 'density': double.nan},
+        {'type': 'rings', 'spacing': double.infinity},
+        {'type': 'bars', 'count': 1e9},
+      ],
+    });
+    final watch = Stopwatch()..start();
+    r.render(1);
+    expect(watch.elapsed, lessThan(const Duration(seconds: 2)));
   });
 
   test('frames depend only on the time', () {

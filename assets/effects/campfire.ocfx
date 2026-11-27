@@ -1,19 +1,29 @@
 {
   "openchroma": 1,
-  "name": "Fogueira",
-  "description": "Chamas subindo de baixo, com o topo escuro.",
+  "name": "Campfire",
+  "description": "Flames rising from the bottom, with a dark top.",
   "author": "OpenChroma",
+  "i18n": {
+    "pt": {
+      "name": "Fogueira",
+      "description": "Chamas subindo de baixo, com o topo escuro.",
+      "params": {
+        "speed": "Velocidade",
+        "height": "Altura das chamas"
+      }
+    }
+  },
   "background": "#000000",
   "params": {
     "speed": {
-      "label": "Velocidade",
+      "label": "Speed",
       "type": "number",
       "min": 0,
       "max": 100,
       "default": 45
     },
     "height": {
-      "label": "Altura das chamas",
+      "label": "Flame height",
       "type": "number",
       "min": 10,
       "max": 100,

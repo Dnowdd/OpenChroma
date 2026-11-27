@@ -9,6 +9,7 @@ import '../alerts/alert_service.dart';
 import '../effects/effect_library.dart';
 import '../engine/engine.dart';
 import '../fans/fan_service.dart';
+import '../i18n/l10n.dart';
 import '../monitor/system_monitor.dart';
 import 'accent.dart';
 import 'device_art.dart';
@@ -191,47 +192,37 @@ class _Header extends StatelessWidget {
   final SystemSnapshot? snapshot;
   final int alerts;
 
-  static const _weekdays = [
-    'segunda',
-    'terça',
-    'quarta',
-    'quinta',
-    'sexta',
-    'sábado',
-    'domingo',
-  ];
+  static const _weekdays = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
   static const _months = [
-    'janeiro',
-    'fevereiro',
-    'março',
-    'abril',
-    'maio',
-    'junho',
-    'julho',
-    'agosto',
-    'setembro',
-    'outubro',
-    'novembro',
-    'dezembro',
+    'jan',
+    'feb',
+    'mar',
+    'apr',
+    'may',
+    'jun',
+    'jul',
+    'aug',
+    'sep',
+    'oct',
+    'nov',
+    'dec',
   ];
 
   @override
   Widget build(BuildContext context) {
     final now = DateTime.now();
     final greeting = now.hour < 5
-        ? 'Boa noite'
+        ? l10n.homeGreetingNight
         : now.hour < 12
-        ? 'Bom dia'
+        ? l10n.homeGreetingMorning
         : now.hour < 18
-        ? 'Boa tarde'
-        : 'Boa noite';
+        ? l10n.homeGreetingAfternoon
+        : l10n.homeGreetingEvening;
     final status = snapshot == null
-        ? 'Lendo os sensores…'
+        ? l10n.homeStatusReading
         : alerts == 0
-        ? 'Tudo certo com o seu PC.'
-        : alerts == 1
-        ? '1 aviso pede atenção.'
-        : '$alerts avisos pedem atenção.';
+        ? l10n.homeStatusAllGood
+        : l10n.homeStatusAlerts(alerts);
     return Padding(
       padding: const EdgeInsets.fromLTRB(4, 28, 4, 22),
       child: Row(
@@ -253,7 +244,11 @@ class _Header extends StatelessWidget {
               const _Clock(),
               const SizedBox(height: 2),
               Text(
-                '${_weekdays[now.weekday - 1]}, ${now.day} de ${_months[now.month - 1]}',
+                l10n.homeDate(
+                  l10n.homeWeekday(_weekdays[now.weekday - 1]),
+                  l10n.homeMonth(_months[now.month - 1]),
+                  now.day,
+                ),
                 style: OcText.secondary,
               ),
             ],
@@ -373,10 +368,10 @@ class _LightingHero extends StatelessWidget {
                     const SizedBox(width: 8),
                     Text(
                       engine.brightness == 0
-                          ? 'Desligado'
+                          ? l10n.commonOff
                           : engine.paused
-                          ? 'Pausado'
-                          : 'Ao vivo',
+                          ? l10n.commonPaused
+                          : l10n.commonLive,
                       style: const TextStyle(
                         fontSize: 12.5,
                         fontWeight: FontWeight.w600,
@@ -392,7 +387,7 @@ class _LightingHero extends StatelessWidget {
             top: 14,
             right: 14,
             child: Tooltip(
-              message: 'Abrir iluminação',
+              message: l10n.homeOpenLighting,
               child: Hover(
                 onTap: onOpen,
                 builder: (context, h) => AnimatedContainer(
@@ -430,7 +425,7 @@ class _LightingHero extends StatelessWidget {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Text(
-                        effect?.title ?? 'Nenhum efeito',
+                        effect?.title ?? l10n.commonNoEffect,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
@@ -444,9 +439,7 @@ class _LightingHero extends StatelessWidget {
                       ),
                       const SizedBox(height: 6),
                       Text(
-                        devices == 1
-                            ? 'Em 1 dispositivo'
-                            : 'Em $devices dispositivos',
+                        l10n.homeOnDevices(devices),
                         style: TextStyle(
                           fontSize: 13.5,
                           color: Colors.white.withValues(alpha: .7),
@@ -553,11 +546,9 @@ class _ProfilesCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           OcCardTitle(
-            'Perfis',
+            l10n.homeProfilesTitle,
             trailing: Tooltip(
-              message:
-                  'Clique com o botão direito num perfil para salvar '
-                  'nele a iluminação atual ou ligá-lo junto com um programa',
+              message: l10n.homeProfilesHint,
               child: const Icon(
                 Icons.info_outline_rounded,
                 size: 16,
@@ -600,10 +591,10 @@ class _ProfilesCard extends StatelessWidget {
     final fg = on ? onAccent(accent) : Oc.text;
     final byApp = engine.autoProfile == p.id ? engine.autoProfileApp : null;
     final detail = byApp != null
-        ? 'Com $byApp'
+        ? l10n.homeProfileWithApp(byApp)
         : p.brightness == 0
-        ? 'Luzes apagadas'
-        : '${p.effect ?? 'Efeito atual'} · ${p.brightness}%';
+        ? l10n.homeProfileLightsOff
+        : '${p.effect ?? l10n.homeProfileCurrentEffect} · ${p.brightness}%';
     return GestureDetector(
       onSecondaryTapUp: (d) => _menu(context, p, d.globalPosition),
       onLongPressStart: (d) => _menu(context, p, d.globalPosition),
@@ -626,7 +617,7 @@ class _ProfilesCard extends StatelessWidget {
                   const Spacer(),
                   if (p.apps.isNotEmpty)
                     Tooltip(
-                      message: 'Liga sozinho com ${p.apps.join(', ')}',
+                      message: l10n.homeProfileAutoOn(p.apps.join(', ')),
                       child: Icon(
                         Icons.bolt_rounded,
                         size: 16,
@@ -667,14 +658,11 @@ class _ProfilesCard extends StatelessWidget {
     final choice = await showMenu<String>(
       context: context,
       position: RelativeRect.fromLTRB(at.dx, at.dy, at.dx, at.dy),
-      items: const [
-        PopupMenuItem(
-          value: 'save',
-          child: Text('Salvar a iluminação atual aqui'),
-        ),
-        PopupMenuItem(value: 'rename', child: Text('Renomear')),
-        PopupMenuItem(value: 'apps', child: Text('Ligar com programas…')),
-        PopupMenuItem(value: 'reset', child: Text('Restaurar perfis padrão')),
+      items: [
+        PopupMenuItem(value: 'save', child: Text(l10n.homeProfileSaveHere)),
+        PopupMenuItem(value: 'rename', child: Text(l10n.homeProfileRename)),
+        PopupMenuItem(value: 'apps', child: Text(l10n.homeProfileLinkApps)),
+        PopupMenuItem(value: 'reset', child: Text(l10n.homeProfileReset)),
       ],
     );
     if (!context.mounted) return;
@@ -696,7 +684,7 @@ class _ProfilesCard extends StatelessWidget {
     return showDialog<String>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Nome do perfil', style: OcText.title),
+        title: Text(l10n.homeProfileNameTitle, style: OcText.title),
         content: SizedBox(
           width: 320,
           child: TextField(
@@ -708,9 +696,12 @@ class _ProfilesCard extends StatelessWidget {
           ),
         ),
         actions: [
-          OcButton(label: 'Cancelar', onPressed: () => Navigator.pop(context)),
           OcButton(
-            label: 'Salvar',
+            label: l10n.commonCancel,
+            onPressed: () => Navigator.pop(context),
+          ),
+          OcButton(
+            label: l10n.commonSave,
             variant: OcButtonVariant.primary,
             onPressed: () => Navigator.pop(context, c.text),
           ),
@@ -723,13 +714,18 @@ class _ProfilesCard extends StatelessWidget {
 // ---------------------------------------------------------------- Vitals
 
 enum _Level {
-  normal('Normal', Oc.success),
-  warm('Quente', Oc.warning),
-  hot('Muito quente', Oc.danger);
+  normal(Oc.success),
+  warm(Oc.warning),
+  hot(Oc.danger);
 
-  const _Level(this.label, this.color);
-  final String label;
+  const _Level(this.color);
   final Color color;
+
+  String get label => switch (this) {
+    normal => l10n.homeLevelNormal,
+    warm => l10n.homeLevelWarm,
+    hot => l10n.homeLevelHot,
+  };
 
   static _Level of(double t, double warm, double hot) => t >= hot
       ? _Level.hot
@@ -759,8 +755,8 @@ List<Widget> _vitalTiles(SystemSnapshot? s, VoidCallback onOpen) {
       detail: cpu == null
           ? ''
           : cpu.temp != null
-          ? 'Uso ${_fmt(cpu.usage ?? 0, 0)}%'
-          : 'Uso · temperatura pede admin',
+          ? l10n.homeVitalUsage(_fmt(cpu.usage ?? 0, 0))
+          : l10n.homeVitalUsageNeedsAdmin,
       percent: cpu?.temp ?? cpu?.usage,
       level: cpu?.temp != null ? _cpuLevel(cpu!.temp!) : null,
       onTap: onOpen,
@@ -773,7 +769,7 @@ List<Widget> _vitalTiles(SystemSnapshot? s, VoidCallback onOpen) {
       detail: gpu == null
           ? ''
           : [
-              if (gpu.usage != null) 'Uso ${_fmt(gpu.usage!, 0)}%',
+              if (gpu.usage != null) l10n.homeVitalUsage(_fmt(gpu.usage!, 0)),
               if (gpu.power != null) '${_fmt(gpu.power!, 0)} W',
             ].join(' · '),
       percent: gpu?.temp,
@@ -782,22 +778,24 @@ List<Widget> _vitalTiles(SystemSnapshot? s, VoidCallback onOpen) {
     ),
     _VitalTile(
       icon: Icons.developer_board_outlined,
-      label: 'Memória',
+      label: l10n.homeVitalMemory,
       value: mem == null ? '—' : _fmt(mem.percent, 0),
       unit: '%',
-      detail: mem == null ? '' : '${_fmtGb(mem.used)} de ${_fmtGb(mem.total)}',
+      detail: mem == null
+          ? ''
+          : l10n.homeVitalMemoryUsed(_fmtGb(mem.used), _fmtGb(mem.total)),
       percent: mem?.percent,
       level: mem == null ? null : (mem.percent >= 90 ? _Level.warm : null),
       onTap: onOpen,
     ),
     _VitalTile(
       icon: Icons.storage_rounded,
-      label: 'Armazenamento',
+      label: l10n.homeVitalStorage,
       value: volume == null ? '—' : _fmt(volume.free / _gb, 0),
-      unit: 'GB livres',
+      unit: l10n.homeVitalFreeUnit,
       detail: volume == null
           ? ''
-          : '${volume.letter}: · ${_fmt(volume.percent, 0)}% usado',
+          : l10n.homeVitalDiskUsed(volume.letter, _fmt(volume.percent, 0)),
       percent: volume?.percent,
       level: volume == null
           ? null
@@ -986,7 +984,7 @@ class _AlertsCard extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         OcCardTitle(
-          'Avisos',
+          l10n.homeAlertsTitle,
           trailing: alerts.isEmpty ? null : OcTag('${alerts.length}'),
         ),
         const SizedBox(height: 14),
@@ -994,16 +992,16 @@ class _AlertsCard extends StatelessWidget {
           child: loading
               ? const SizedBox.shrink()
               : alerts.isEmpty
-              ? const Column(
+              ? Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Icon(
+                    const Icon(
                       Icons.check_circle_rounded,
                       size: 38,
                       color: Oc.success,
                     ),
-                    SizedBox(height: 10),
-                    Text('Tudo certo', style: OcText.label),
+                    const SizedBox(height: 10),
+                    Text(l10n.homeAlertsAllGood, style: OcText.label),
                   ],
                 )
               : ListView.separated(
@@ -1061,10 +1059,10 @@ class _FansCard extends StatelessWidget {
   final FanService fans;
   final VoidCallback onOpen;
 
-  static const _modes = [
-    (FanProfile.silent, 'Silencioso'),
-    (FanProfile.balanced, 'Equilibrado'),
-    (FanProfile.turbo, 'Turbo'),
+  static List<(FanProfile, String)> get _modes => [
+    (FanProfile.silent, l10n.homeFanSilent),
+    (FanProfile.balanced, l10n.homeFanBalanced),
+    (FanProfile.turbo, l10n.homeFanTurbo),
   ];
 
   @override
@@ -1079,12 +1077,13 @@ class _FansCard extends StatelessWidget {
         ];
         final rpms = [for (final f in connected) f.rpm ?? 0];
         final fastest = rpms.isEmpty ? null : rpms.reduce(math.max);
+        final modes = _modes;
         return OcCard(
           onTap: onOpen,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const OcCardTitle('Ventoinhas'),
+              OcCardTitle(l10n.homeFansTitle),
               const SizedBox(height: 14),
               Expanded(
                 child: Row(
@@ -1096,12 +1095,12 @@ class _FansCard extends StatelessWidget {
                         mainAxisAlignment: MainAxisAlignment.center,
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          for (var i = 0; i < _modes.length; i++) ...[
+                          for (var i = 0; i < modes.length; i++) ...[
                             if (i > 0) const SizedBox(height: 6),
                             _ModeButton(
-                              label: _modes[i].$2,
-                              selected: fans.profile == _modes[i].$1,
-                              onTap: () => fans.setProfile(_modes[i].$1),
+                              label: modes[i].$2,
+                              selected: fans.profile == modes[i].$1,
+                              onTap: () => fans.setProfile(modes[i].$1),
                             ),
                           ],
                         ],
@@ -1114,11 +1113,9 @@ class _FansCard extends StatelessWidget {
                 const SizedBox(height: 12),
                 Text(
                   [
-                    connected.length == 1
-                        ? '1 ventoinha'
-                        : '${connected.length} ventoinhas',
+                    l10n.homeFanCount(connected.length),
                     if (fastest != null && fastest > 0)
-                      'até ${fastest.round()} RPM',
+                      l10n.homeFanUpTo(fastest.round()),
                   ].join(' · '),
                   style: OcText.caption,
                 ),
@@ -1196,7 +1193,7 @@ class _ReactiveLightCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           OcCardTitle(
-            'Luz reativa',
+            l10n.homeReactiveTitle,
             trailing: OcSwitch(
               value: engine.reactive,
               onChanged: (v) => engine.setReactive(v),
@@ -1206,11 +1203,11 @@ class _ReactiveLightCard extends StatelessWidget {
           Text(
             missing
                 ? (gpu
-                      ? 'Sem leitura da GPU neste PC.'
-                      : 'A temperatura da CPU precisa do modo administrador.')
+                      ? l10n.homeReactiveNoGpu
+                      : l10n.homeReactiveCpuNeedsAdmin)
                 : engine.reactive
-                ? 'Os LEDs mostram a temperatura no lugar do efeito.'
-                : 'A cor dos LEDs segue a temperatura.',
+                ? l10n.homeReactiveOn
+                : l10n.homeReactiveOff,
             style: OcText.secondary.copyWith(
               color: missing ? Oc.warning : null,
             ),
@@ -1309,12 +1306,12 @@ class _ScreenCard extends StatelessWidget {
       final on = engine.pluginSetting(device, 'screenOn') != false;
       final busy = device.screenProgress;
       final status = busy != null
-          ? 'Enviando… ${(busy * 100).round()}%'
+          ? l10n.homeScreenSending((busy * 100).round())
           : !on
-          ? 'Tela desligada'
+          ? l10n.homeScreenOff
           : engine.hasScreenBrightness(device)
-          ? 'Brilho ${engine.screenBrightness(device)}%'
-          : 'Tela ligada';
+          ? l10n.homeScreenBrightness(engine.screenBrightness(device))
+          : l10n.homeScreenOn;
       return OcCard(
         onTap: onOpen,
         child: Column(
@@ -1351,7 +1348,9 @@ class _ScreenCard extends StatelessWidget {
                 ),
                 if (hasSwitch)
                   Tooltip(
-                    message: on ? 'Desligar a tela' : 'Ligar a tela',
+                    message: on
+                        ? l10n.homeScreenTurnOff
+                        : l10n.homeScreenTurnOn,
                     child: OcSwitch(
                       value: on,
                       onChanged: (v) =>
@@ -1381,7 +1380,7 @@ class _DevicesCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           OcCardTitle(
-            'Dispositivos',
+            l10n.homeDevicesTitle,
             trailing: const Icon(
               Icons.arrow_forward_rounded,
               size: 18,
@@ -1393,7 +1392,9 @@ class _DevicesCard extends StatelessWidget {
             child: devices.isEmpty
                 ? Center(
                     child: Text(
-                      engine.scanning ? 'Procurando…' : 'Nenhum dispositivo',
+                      engine.scanning
+                          ? l10n.homeDevicesSearching
+                          : l10n.homeDevicesNone,
                       style: OcText.secondary,
                     ),
                   )
@@ -1404,9 +1405,9 @@ class _DevicesCard extends StatelessWidget {
                     itemBuilder: (context, i) {
                       final d = devices[i];
                       final (label, color) = switch (d.status) {
-                        'running' => ('Conectado', Oc.success),
-                        'starting' => ('Iniciando', Oc.warning),
-                        _ => ('Com problema', Oc.danger),
+                        'running' => (l10n.homeDeviceConnected, Oc.success),
+                        'starting' => (l10n.homeDeviceStarting, Oc.warning),
+                        _ => (l10n.homeDeviceProblem, Oc.danger),
                       };
                       return Row(
                         children: [
@@ -1458,10 +1459,10 @@ class _AssistantCard extends StatefulWidget {
 class _AssistantCardState extends State<_AssistantCard> {
   final _input = TextEditingController();
 
-  static const _suggestions = [
-    'Por que meu PC tá lento?',
-    'O que tá esquentando a GPU?',
-    'Cria um efeito azul calmo',
+  static List<String> get _suggestions => [
+    l10n.homeAssistantSuggestionSlow,
+    l10n.homeAssistantSuggestionGpu,
+    l10n.homeAssistantSuggestionEffect,
   ];
 
   @override
@@ -1516,12 +1517,12 @@ class _AssistantCardState extends State<_AssistantCard> {
               const SizedBox(width: 12),
               Expanded(
                 child: OcCardTitle(
-                  'Assistente',
+                  l10n.homeAssistantTitle,
                   trailing: a.turns.isEmpty
                       ? (ready ? OcTag(a.ai.current.model) : null)
                       : OcIconButton(
                           icon: Icons.refresh_rounded,
-                          tooltip: 'Nova conversa',
+                          tooltip: l10n.homeAssistantNewChat,
                           onPressed: a.clear,
                         ),
                 ),
@@ -1577,20 +1578,16 @@ class _AssistantCardState extends State<_AssistantCard> {
         mainAxisAlignment: MainAxisAlignment.end,
         children: [
           Text(
-            'Conecte uma IA para perguntar sobre o seu PC.',
+            l10n.homeAssistantConnect,
             style: OcText.title.copyWith(fontSize: 20, color: Oc.textSecondary),
           ),
           const SizedBox(height: 8),
-          const Text(
-            'Use sua chave da Anthropic, da OpenAI ou de um serviço '
-            'compatível.',
-            style: OcText.secondary,
-          ),
+          Text(l10n.homeAssistantConnectHint, style: OcText.secondary),
           const SizedBox(height: 14),
           Align(
             alignment: Alignment.centerLeft,
             child: OcButton(
-              label: 'Configurar IA',
+              label: l10n.homeAssistantSetUp,
               icon: Icons.key_rounded,
               variant: OcButtonVariant.primary,
               onPressed: widget.onOpenSettings,
@@ -1603,7 +1600,7 @@ class _AssistantCardState extends State<_AssistantCard> {
       return Align(
         alignment: Alignment.bottomLeft,
         child: Text(
-          'Pergunte qualquer coisa sobre o seu PC.',
+          l10n.homeAssistantAskAnything,
           style: OcText.title.copyWith(fontSize: 22, color: Oc.textSecondary),
         ),
       );
@@ -1616,7 +1613,11 @@ class _AssistantCardState extends State<_AssistantCard> {
             padding: const EdgeInsets.only(top: 8),
             child: Align(
               alignment: Alignment.centerLeft,
-              child: _Bubble(text: 'Pensando…', mine: false, accent: accent),
+              child: _Bubble(
+                text: l10n.homeAssistantThinking,
+                mine: false,
+                accent: accent,
+              ),
             ),
           ),
         for (final t in a.turns.reversed)
@@ -1634,7 +1635,7 @@ class _AssistantCardState extends State<_AssistantCard> {
                 action: t.effect == null
                     ? null
                     : OcButton(
-                        label: 'Aplicar efeito',
+                        label: l10n.homeAssistantApplyEffect,
                         icon: Icons.auto_awesome,
                         variant: OcButtonVariant.primary,
                         onPressed: () => _apply(t.effect!),
@@ -1662,11 +1663,14 @@ class _AssistantCardState extends State<_AssistantCard> {
             enabled: !a.busy,
             onSubmitted: (_) => _send(),
             style: const TextStyle(fontSize: 13.5, color: Oc.text),
-            decoration: const InputDecoration(
+            decoration: InputDecoration(
               isCollapsed: true,
               border: InputBorder.none,
-              hintText: 'Pergunte algo…',
-              hintStyle: TextStyle(fontSize: 13.5, color: Oc.textTertiary),
+              hintText: l10n.homeAssistantHint,
+              hintStyle: const TextStyle(
+                fontSize: 13.5,
+                color: Oc.textTertiary,
+              ),
             ),
           ),
         ),
@@ -1701,8 +1705,9 @@ class _AssistantCardState extends State<_AssistantCard> {
   void _apply(Map<String, dynamic> effect) {
     try {
       final e = widget.assistant.applyEffect(effect);
-      ScaffoldMessenger.maybeOf(context)
-          ?.showSnackBar(SnackBar(content: Text('"${e.title}" está ligado.')));
+      ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+        SnackBar(content: Text(l10n.homeAssistantEffectOn(e.title))),
+      );
     } on FormatException catch (e) {
       ScaffoldMessenger.maybeOf(context)
           ?.showSnackBar(SnackBar(content: Text(e.message)));
@@ -1756,7 +1761,9 @@ class _Bubble extends StatelessWidget {
 
 const _gb = 1024.0 * 1024 * 1024;
 
-String _fmt(double v, int decimals) =>
-    v.toStringAsFixed(decimals).replaceAll('.', ',');
+String _fmt(double v, int decimals) {
+  final text = v.toStringAsFixed(decimals);
+  return l10n.localeName == 'pt' ? text.replaceAll('.', ',') : text;
+}
 
 String _fmtGb(double bytes) => '${_fmt(bytes / _gb, 1)} GB';

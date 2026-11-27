@@ -4,13 +4,14 @@ import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 
 import '../engine/engine.dart';
+import '../i18n/l10n.dart';
 import 'screen_editor.dart';
 import 'theme.dart';
 import 'widgets.dart';
 
-const _imageTypes = XTypeGroup(
-  label: 'Imagens e GIFs',
-  extensions: ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp'],
+XTypeGroup get _imageTypes => XTypeGroup(
+  label: l10n.screenImageFiles,
+  extensions: const ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp'],
 );
 
 /// What a device's screen shows: the image last sent, animated, with its
@@ -119,7 +120,7 @@ class _ScreenTabState extends State<ScreenTab> {
   }
 
   Future<void> _pick() async {
-    final file = await openFile(acceptedTypeGroups: const [_imageTypes]);
+    final file = await openFile(acceptedTypeGroups: [_imageTypes]);
     if (file != null) await _edit(file.path, null);
   }
 
@@ -146,19 +147,16 @@ class _ScreenTabState extends State<ScreenTab> {
                 size: 18,
                 color: Oc.textTertiary,
               ),
-              title: 'Imagem ou GIF',
+              title: l10n.screenImageOrGif,
               description: busy
-                  ? 'Enviando… ${(progress * 100).round()}%'
-                  : device.screenError ??
-                        'Recorte, escolha o trecho e escreva por cima antes de '
-                            'enviar. A tela guarda o que receber, mesmo com o '
-                            'app fechado.',
+                  ? l10n.screenSending((progress * 100).round())
+                  : device.screenError ?? l10n.screenImageHint,
               trailing: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   if (path != null) ...[
                     OcButton(
-                      label: 'Editar',
+                      label: l10n.screenEdit,
                       icon: Icons.tune_rounded,
                       onPressed: busy
                           ? null
@@ -167,7 +165,7 @@ class _ScreenTabState extends State<ScreenTab> {
                     const SizedBox(width: 8),
                   ],
                   OcButton(
-                    label: 'Escolher arquivo',
+                    label: l10n.screenChooseFile,
                     icon: Icons.folder_open_rounded,
                     onPressed: busy ? null : _pick,
                   ),

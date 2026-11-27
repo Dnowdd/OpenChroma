@@ -1,19 +1,29 @@
 {
   "openchroma": 1,
   "name": "Aurora",
-  "description": "Faixas verdes e violetas ondulando devagar, como uma aurora boreal.",
+  "description": "Green and violet bands rippling slowly, like the northern lights.",
   "author": "OpenChroma",
+  "i18n": {
+    "pt": {
+      "name": "Aurora",
+      "description": "Faixas verdes e violetas ondulando devagar, como uma aurora boreal.",
+      "params": {
+        "speed": "Velocidade",
+        "color": "Cor da onda"
+      }
+    }
+  },
   "background": "#030612",
   "params": {
     "speed": {
-      "label": "Velocidade",
+      "label": "Speed",
       "type": "number",
       "min": 0,
       "max": 100,
       "default": 30
     },
     "color": {
-      "label": "Cor da onda",
+      "label": "Wave color",
       "type": "color",
       "default": "#3CFFB4"
     }

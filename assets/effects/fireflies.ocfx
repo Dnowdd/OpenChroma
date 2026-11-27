@@ -1,24 +1,35 @@
 {
   "openchroma": 1,
-  "name": "Vaga-lumes",
-  "description": "Pontos de luz que acendem e apagam em lugares aleatórios sobre um fundo calmo.",
+  "name": "Fireflies",
+  "description": "Points of light that flicker on and off at random over a calm background.",
   "author": "OpenChroma",
+  "i18n": {
+    "pt": {
+      "name": "Vaga-lumes",
+      "description": "Pontos de luz que acendem e apagam em lugares aleatórios sobre um fundo calmo.",
+      "params": {
+        "color": "Cor dos pontos",
+        "amount": "Quantidade",
+        "speed": "Velocidade"
+      }
+    }
+  },
   "background": "#03100A",
   "params": {
     "color": {
-      "label": "Cor dos pontos",
+      "label": "Dot color",
       "type": "color",
       "default": "#C8FF5A"
     },
     "amount": {
-      "label": "Quantidade",
+      "label": "Amount",
       "type": "number",
       "min": 5,
       "max": 150,
       "default": 60
     },
     "speed": {
-      "label": "Velocidade",
+      "label": "Speed",
       "type": "number",
       "min": 0,
       "max": 100,

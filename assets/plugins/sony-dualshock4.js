@@ -38,7 +38,7 @@ plugin({
     }
     return endpoints.length ? 0 : -1;
   },
-  zones: [{ name: 'Barra de luz', leds: 1 }],
+  zones: [{ name: 'Light bar', leds: 1 }],
   fps: 30,
   pollMs: 2000,
 
