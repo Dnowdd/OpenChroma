@@ -38,6 +38,74 @@ class _MonitorPageState extends State<MonitorPage> {
   SystemMonitor get _monitor => widget.monitor;
   bool _sortByMemory = false;
 
+  void _inspectSample(int index, {required bool byMemory}) {
+    final samples = _monitor.samples;
+    if (index < 0 || index >= samples.length) return;
+    final sample = samples[index];
+    final time = sample.capturedAt.toLocal();
+    final timestamp = [
+      time.hour,
+      time.minute,
+      time.second,
+    ].map((value) => value.toString().padLeft(2, '0')).join(':');
+    var sortByMemory = byMemory;
+    showDialog<void>(
+      context: context,
+      builder: (context) => Dialog(
+        backgroundColor: Oc.bg,
+        shape: const RoundedRectangleBorder(borderRadius: Oc.r24),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 820),
+          child: StatefulBuilder(
+            builder: (context, setDialogState) => ListView(
+              shrinkWrap: true,
+              padding: const EdgeInsets.all(20),
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        'Processes at $timestamp',
+                        style: OcText.label,
+                      ),
+                    ),
+                    IconButton(
+                      tooltip: 'Close',
+                      onPressed: () => Navigator.of(context).pop(),
+                      icon: const Icon(Icons.close_rounded),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'CPU ${sample.snapshot.cpu.usage == null ? '—' : _fmtPercent(sample.snapshot.cpu.usage!)}'
+                  ' · Memory ${_fmtPercent(sample.snapshot.memory.percent)}',
+                  style: OcText.secondary,
+                ),
+                const SizedBox(height: 16),
+                LayoutBuilder(
+                  builder: (context, constraints) => SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: SizedBox(
+                      width: math.max(620, constraints.maxWidth),
+                      child: _ProcessesCard(
+                        processes: sample.snapshot.processes,
+                        totalMemory: sample.snapshot.memory.total,
+                        byMemory: sortByMemory,
+                        onSort: (value) =>
+                            setDialogState(() => sortByMemory = value),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   void initState() {
     super.initState();
@@ -124,11 +192,22 @@ class _MonitorPageState extends State<MonitorPage> {
       cpu: s.cpu,
       monitor: _monitor,
       onElevate: _relaunchElevated,
+      onInspect:
+          _monitor.samples.isEmpty ||
+              !_monitor.cpuUsage.values.any((value) => value != null)
+          ? null
+          : (index) => _inspectSample(index, byMemory: false),
     );
     final gpu = s.gpus.isEmpty
         ? null
         : _GpuCard(gpus: s.gpus, monitor: _monitor);
-    final memory = _MemoryCard(memory: s.memory, history: _monitor.memory);
+    final memory = _MemoryCard(
+      memory: s.memory,
+      history: _monitor.memory,
+      onInspect: _monitor.samples.isEmpty
+          ? null
+          : (index) => _inspectSample(index, byMemory: true),
+    );
     final storage = _StorageCard(disks: s.disks, volumes: s.volumes);
     final network = _NetworkCard(snapshot: s, monitor: _monitor);
     final processes = _ProcessesCard(
@@ -194,10 +273,12 @@ class _CpuCard extends StatelessWidget {
     required this.cpu,
     required this.monitor,
     required this.onElevate,
+    this.onInspect,
   });
   final CpuReading cpu;
   final SystemMonitor monitor;
   final VoidCallback onElevate;
+  final ValueChanged<int>? onInspect;
 
   @override
   Widget build(BuildContext context) {
@@ -247,6 +328,8 @@ class _CpuCard extends StatelessWidget {
               child: _ChartBlock(
                 title: 'Uso',
                 history: monitor.cpuUsage,
+                chartKey: const ValueKey('cpu-usage-history'),
+                onSelect: onInspect,
                 format: _fmtPercent,
                 color: LiveAccent.of(context),
                 range: _percentRange,
@@ -463,9 +546,14 @@ class _GpuCard extends StatelessWidget {
 }
 
 class _MemoryCard extends StatelessWidget {
-  const _MemoryCard({required this.memory, required this.history});
+  const _MemoryCard({
+    required this.memory,
+    required this.history,
+    this.onInspect,
+  });
   final MemoryReading memory;
   final History history;
+  final ValueChanged<int>? onInspect;
 
   @override
   Widget build(BuildContext context) => _Card(
@@ -498,6 +586,8 @@ class _MemoryCard extends StatelessWidget {
       _ChartBlock(
         title: 'Uso',
         history: history,
+        chartKey: const ValueKey('memory-usage-history'),
+        onSelect: onInspect,
         format: _fmtPercent,
         color: _memoryColor,
         range: _percentRange,
@@ -741,6 +831,14 @@ class _ProcessesCard extends StatelessWidget {
           ),
         ),
         const Divider(),
+        if (list.isEmpty)
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 16),
+            child: Text(
+              'No process data for this sample.',
+              style: OcText.secondary,
+            ),
+          ),
         for (final p in list.take(_rows))
           _ProcessRow(
             name: p.name.toLowerCase().endsWith('.exe')
@@ -1299,12 +1397,16 @@ class _ChartBlock extends StatelessWidget {
     required this.format,
     required this.color,
     required this.range,
+    this.chartKey,
+    this.onSelect,
   });
   final String title;
   final History history;
   final String Function(double) format;
   final Color color;
   final _Range range;
+  final Key? chartKey;
+  final ValueChanged<int>? onSelect;
 
   @override
   Widget build(BuildContext context) => Column(
@@ -1314,11 +1416,22 @@ class _ChartBlock extends StatelessWidget {
         children: [
           Text(title, style: OcText.caption),
           const Spacer(),
+          if (onSelect != null) ...[
+            const Text('Click to inspect', style: OcText.caption),
+            const SizedBox(width: 12),
+          ],
           Text('60 s', style: OcText.caption),
         ],
       ),
       const SizedBox(height: 8),
-      _Sparkline(history: history, format: format, color: color, range: range),
+      _Sparkline(
+        key: chartKey,
+        history: history,
+        format: format,
+        color: color,
+        range: range,
+        onSelect: onSelect,
+      ),
     ],
   );
 }
@@ -1327,17 +1440,20 @@ class _ChartBlock extends StatelessWidget {
 /// Hovering shows the value at that moment.
 class _Sparkline extends StatefulWidget {
   const _Sparkline({
+    super.key,
     required this.history,
     required this.format,
     required this.color,
     required this.range,
     this.height = 56,
+    this.onSelect,
   });
   final History history;
   final String Function(double) format;
   final Color color;
   final _Range range;
   final double height;
+  final ValueChanged<int>? onSelect;
 
   @override
   State<_Sparkline> createState() => _SparklineState();
@@ -1349,6 +1465,19 @@ class _SparklineState extends State<_Sparkline> {
   // cannot measure one.
   double? _hoverX;
   double _width = 0;
+  double? _tapX;
+
+  int? _indexAt(double position, double width) {
+    final values = widget.history.values;
+    if (values.isEmpty || width <= 0) return null;
+    final step = width / (widget.history.capacity - 1);
+    final slot = (position / step).round();
+    final index = slot - (widget.history.capacity - values.length);
+    if (index < 0 || index >= values.length || values[index] == null) {
+      return null;
+    }
+    return index;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -1361,13 +1490,7 @@ class _SparklineState extends State<_Sparkline> {
     final w = _width;
     final offset = cap - values.length;
     int? index;
-    if (_hoverX != null && values.isNotEmpty && w > 0) {
-      index = ((_hoverX! / (w / (cap - 1))).round() - offset).clamp(
-        0,
-        values.length - 1,
-      );
-      if (values[index] == null) index = null;
-    }
+    if (_hoverX != null) index = _indexAt(_hoverX!, w);
     final x = index == null ? 0.0 : (index + offset) * w / (cap - 1);
     final leftHalf = index != null && index + offset < cap / 2;
     return MouseRegion(
@@ -1376,34 +1499,52 @@ class _SparklineState extends State<_Sparkline> {
         _width = context.size?.width ?? 0;
       }),
       onExit: (_) => setState(() => _hoverX = null),
-      child: SizedBox(
-        height: widget.height,
-        child: Stack(
-          clipBehavior: Clip.none,
-          children: [
-            Positioned.fill(
-              child: CustomPaint(
-                painter: _SparklinePainter(
-                  values: values,
-                  capacity: cap,
-                  lo: lo,
-                  hi: hi,
-                  color: widget.color,
-                  highlight: index,
+      child: InkWell(
+        onTapDown: widget.onSelect == null
+            ? null
+            : (details) => _tapX = details.localPosition.dx,
+        onTapCancel: () => _tapX = null,
+        onTap: widget.onSelect == null
+            ? null
+            : () {
+                final index = _tapX != null
+                    ? _indexAt(_tapX!, context.size?.width ?? 0)
+                    : (_hoverX == null
+                          ? values.lastIndexWhere((value) => value != null)
+                          : _indexAt(_hoverX!, _width));
+                _tapX = null;
+                if (index != null && index >= 0) widget.onSelect!(index);
+              },
+        borderRadius: Oc.r6,
+        child: SizedBox(
+          height: widget.height,
+          child: Stack(
+            clipBehavior: Clip.none,
+            children: [
+              Positioned.fill(
+                child: CustomPaint(
+                  painter: _SparklinePainter(
+                    values: values,
+                    capacity: cap,
+                    lo: lo,
+                    hi: hi,
+                    color: widget.color,
+                    highlight: index,
+                  ),
                 ),
               ),
-            ),
-            if (index != null)
-              Positioned(
-                top: -4,
-                left: leftHalf ? x + 8 : null,
-                right: leftHalf ? null : w - x + 8,
-                child: _Tip(
-                  value: widget.format(values[index]!),
-                  when: values.length - 1 - index,
+              if (index != null)
+                Positioned(
+                  top: -4,
+                  left: leftHalf ? x + 8 : null,
+                  right: leftHalf ? null : w - x + 8,
+                  child: _Tip(
+                    value: widget.format(values[index]!),
+                    when: values.length - 1 - index,
+                  ),
                 ),
-              ),
-          ],
+            ],
+          ),
         ),
       ),
     );

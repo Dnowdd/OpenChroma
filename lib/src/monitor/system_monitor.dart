@@ -227,6 +227,13 @@ class History {
   }
 }
 
+class MonitorSample {
+  MonitorSample(this.snapshot, this.capturedAt);
+
+  final SystemSnapshot snapshot;
+  final DateTime capturedAt;
+}
+
 /// Polls the native sampler (windows/runner/system_monitor.cpp) once per
 /// second while [active], and keeps a minute of history for the charts.
 class SystemMonitor extends ChangeNotifier {
@@ -274,6 +281,9 @@ class SystemMonitor extends ChangeNotifier {
   final memory = History();
   final netDown = History();
   final netUp = History();
+  final List<MonitorSample> _samples = [];
+
+  List<MonitorSample> get samples => List.unmodifiable(_samples);
 
   bool get available => _read != null;
 
@@ -329,8 +339,13 @@ class SystemMonitor extends ChangeNotifier {
     } catch (_) {
       return;
     }
-    final s = SystemSnapshot(json);
+    recordSnapshot(SystemSnapshot(json));
+  }
+
+  void recordSnapshot(SystemSnapshot s, {DateTime? capturedAt}) {
     snapshot = s;
+    _samples.add(MonitorSample(s, capturedAt ?? DateTime.now()));
+    if (_samples.length > cpuUsage.capacity) _samples.removeAt(0);
     final gpu = s.gpus.firstOrNull;
     cpuUsage.add(s.cpu.usage);
     cpuTemp.add(s.cpu.temp);
