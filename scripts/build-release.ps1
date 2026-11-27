@@ -28,6 +28,13 @@ Set-Location $root
 
 function Step($text) { Write-Host "`n==> $text" -ForegroundColor Cyan }
 
+function Assert-Signer([string]$path, [string]$subject) {
+  $sig = Get-AuthenticodeSignature $path
+  if ($sig.Status -ne 'Valid' -or -not $sig.SignerCertificate.Subject.Contains($subject)) {
+    throw "$(Split-Path $path -Leaf): signature is $($sig.Status), signer '$($sig.SignerCertificate.Subject)'."
+  }
+}
+
 # ------------------------------------------------------------------ version
 $pubspec = Get-Content (Join-Path $root 'pubspec.yaml') -Raw
 if (-not $Version) {
@@ -106,21 +113,29 @@ if (-not $NoInstaller) {
   } else {
     # The WebView2 bootstrapper (redistributable, ~2 MB) installs the runtime
     # on PCs that lack it.
-    $redist = Join-Path $root 'installer\redist'
+    $redist = Join-Path $root 'installeredist'
+    New-Item -ItemType Directory -Force $redist | Out-Null
     $webview = Join-Path $redist 'MicrosoftEdgeWebview2Setup.exe'
     if (-not (Test-Path $webview)) {
-      New-Item -ItemType Directory -Force $redist | Out-Null
       Write-Host '  Downloading the WebView2 bootstrapper'
       Invoke-WebRequest 'https://go.microsoft.com/fwlink/p/?LinkId=2124703' -OutFile $webview -UseBasicParsing
     }
+    Assert-Signer $webview 'CN=Microsoft Corporation,'
+
+    $pawnioVersion = '2.2.0'
+    $pawnioSha256 = '1F519A22E47187F70A1379A48CA604981C4FCF694F4E65B734AAA74A9FBA3032'
     $pawnio = Join-Path $redist 'PawnIO_setup.exe'
-    if (-not (Test-Path $pawnio)) {
-      New-Item -ItemType Directory -Force $redist | Out-Null
-      Write-Host '  Downloading the PawnIO setup'
-      Invoke-WebRequest 'https://github.com/namazso/PawnIO.Setup/releases/latest/download/PawnIO_setup.exe' -OutFile $pawnio -UseBasicParsing
+    if ((Test-Path $pawnio) -and (Get-FileHash $pawnio -Algorithm SHA256).Hash -ne $pawnioSha256) {
+      Remove-Item $pawnio
     }
-    $sig = Get-AuthenticodeSignature $pawnio
-    if ($sig.Status -ne 'Valid') { throw "PawnIO_setup.exe signature is $($sig.Status)." }
+    if (-not (Test-Path $pawnio)) {
+      Write-Host "  Downloading the PawnIO setup $pawnioVersion"
+      Invoke-WebRequest "https://github.com/namazso/PawnIO.Setup/releases/download/$pawnioVersion/PawnIO_setup.exe" -OutFile $pawnio -UseBasicParsing
+    }
+    if ((Get-FileHash $pawnio -Algorithm SHA256).Hash -ne $pawnioSha256) {
+      throw "PawnIO_setup.exe does not match the pinned SHA-256 for $pawnioVersion."
+    }
+    Assert-Signer $pawnio 'CN=namazso.eu,'
     & $iscc /Q "/DAppVersion=$Version" "/DSourceDir=$app" "/DOutputDir=$dist" (Join-Path $root 'installer\openchroma.iss')
     if ($LASTEXITCODE -ne 0) { throw 'Inno Setup failed.' }
     $setup = Join-Path $dist "OpenChroma-$Version-setup.exe"

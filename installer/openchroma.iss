@@ -55,8 +55,8 @@ CloseApplications=yes
 RestartApplications=no
 
 [Languages]
-Name: "ptbr"; MessagesFile: "compiler:Languages\BrazilianPortuguese.isl"
 Name: "en"; MessagesFile: "compiler:Default.isl"
+Name: "ptbr"; MessagesFile: "compiler:Languages\BrazilianPortuguese.isl"
 
 [CustomMessages]
 ptbr.StartWithWindows=Iniciar o OpenChroma com o Windows (na bandeja)
@@ -67,6 +67,20 @@ ptbr.InstallPawnIO=Instalar o driver PawnIO (RGB da memória RAM, ventoinhas da 
 en.InstallPawnIO=Install the PawnIO driver (RAM lighting, motherboard fans and CPU temperature)
 ptbr.DriversGroup=Drivers:
 en.DriversGroup=Drivers:
+ptbr.InstallingPawnIO=Instalando o driver PawnIO...
+en.InstallingPawnIO=Installing the PawnIO driver...
+ptbr.PawnIOFailed=O PawnIO não foi instalado. Sem ele, o RGB da memória RAM, as ventoinhas da placa-mãe e a temperatura da CPU não funcionam. Instale depois em https://pawnio.eu
+en.PawnIOFailed=PawnIO was not installed. Without it, RAM lighting, motherboard fans and CPU temperature won't work. You can install it later from https://pawnio.eu
+ptbr.InstallingWebView2=Instalando o Microsoft WebView2...
+en.InstallingWebView2=Installing Microsoft WebView2...
+ptbr.WebView2Failed=Não foi possível instalar o Microsoft WebView2 agora. Os efeitos HTML importados precisam dele: baixe em https://developer.microsoft.com/microsoft-edge/webview2/
+en.WebView2Failed=Microsoft WebView2 couldn't be installed right now. Imported HTML effects need it: download it from https://developer.microsoft.com/microsoft-edge/webview2/
+ptbr.RemoveUserData=Remover também as suas configurações, perfis, efeitos importados e plugins (%APPDATA%\OpenChroma)?
+en.RemoveUserData=Also remove your settings, profiles, imported effects and plugins (%APPDATA%\OpenChroma)?
+ptbr.RemovePawnIO=Desinstalar também o driver PawnIO?%n%nOutros programas (como FanControl ou LibreHardwareMonitor) podem usá-lo. Na dúvida, mantenha.
+en.TaskLeft=The "OpenChroma" startup task (run as administrator) could not be removed. Remove it in Task Scheduler, or run this as administrator:%n%nschtasks /Delete /TN OpenChroma /F
+ptbr.TaskLeft=Não foi possível remover a tarefa de inicialização "OpenChroma" (como administrador). Remova pelo Agendador de Tarefas ou rode como administrador:%n%nschtasks /Delete /TN OpenChroma /F
+en.RemovePawnIO=Also uninstall the PawnIO driver?%n%nOther programs (such as FanControl or LibreHardwareMonitor) may use it. If unsure, keep it.
 
 [Tasks]
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"
@@ -84,10 +98,6 @@ Name: "{autodesktop}\{#AppName}"; Filename: "{app}\{#AppExe}"; Tasks: desktopico
 
 [Run]
 Filename: "{app}\{#AppExe}"; Description: "{cm:LaunchProgram,{#AppName}}"; Flags: nowait postinstall skipifsilent shellexec
-
-[UninstallRun]
-; "Start with Windows" may have created a logon task (as administrator).
-Filename: "schtasks.exe"; Parameters: "/Delete /TN ""OpenChroma"" /F"; Flags: runhidden; RunOnceId: "DeleteTask"
 
 [Registry]
 ; Same value the app's "Start with Windows" switch writes (lib/src/system/
@@ -132,14 +142,12 @@ procedure InstallPawnIO();
 var
   Code: Integer;
 begin
-  WizardForm.StatusLabel.Caption := 'Instalando o driver PawnIO...';
+  WizardForm.StatusLabel.Caption := CustomMessage('InstallingPawnIO');
   ExtractTemporaryFile('PawnIO_setup.exe');
   if not ShellExec('runas', ExpandConstant('{tmp}\PawnIO_setup.exe'), '-install -silent', '',
                    SW_HIDE, ewWaitUntilTerminated, Code)
      or ((Code <> 0) and (Code <> ErrorSuccessRebootRequired)) or not HasPawnIO() then
-    MsgBox('O PawnIO não foi instalado. Sem ele, o RGB da memória RAM, as ventoinhas '
-      + 'da placa-mãe e a temperatura da CPU não funcionam. Instale depois em https://pawnio.eu',
-      mbInformation, MB_OK);
+    MsgBox(CustomMessage('PawnIOFailed'), mbInformation, MB_OK);
 end;
 
 procedure CurStepChanged(CurStep: TSetupStep);
@@ -150,12 +158,67 @@ begin
     InstallPawnIO();
   if (CurStep = ssPostInstall) and not HasWebView2() then
   begin
-    WizardForm.StatusLabel.Caption := 'Instalando o Microsoft WebView2...';
+    WizardForm.StatusLabel.Caption := CustomMessage('InstallingWebView2');
     ExtractTemporaryFile('MicrosoftEdgeWebview2Setup.exe');
     if not Exec(ExpandConstant('{tmp}\MicrosoftEdgeWebview2Setup.exe'), '/silent /install', '',
                 SW_HIDE, ewWaitUntilTerminated, Code) or (Code <> 0) then
-      MsgBox('Não foi possível instalar o Microsoft WebView2 agora. Os efeitos de luz '
-        + 'precisam dele: baixe em https://developer.microsoft.com/microsoft-edge/webview2/',
-        mbInformation, MB_OK);
+      MsgBox(CustomMessage('WebView2Failed'), mbInformation, MB_OK);
+  end;
+end;
+
+function TaskExists(): Boolean;
+var
+  Code: Integer;
+begin
+  Result := Exec(ExpandConstant('{sys}\schtasks.exe'), '/Query /TN "OpenChroma"', '', SW_HIDE, ewWaitUntilTerminated, Code) and (Code = 0);
+end;
+
+// The "open as administrator at startup" task is created elevated, so a
+// per-user uninstall can only delete it through UAC.
+procedure DeleteLogonTask();
+var
+  Code: Integer;
+begin
+  if not TaskExists() then Exit;
+  Exec(ExpandConstant('{sys}\schtasks.exe'), '/Delete /TN "OpenChroma" /F', '', SW_HIDE, ewWaitUntilTerminated, Code);
+  if TaskExists() then
+    ShellExec('runas', ExpandConstant('{sys}\schtasks.exe'), '/Delete /TN "OpenChroma" /F', '', SW_HIDE, ewWaitUntilTerminated, Code);
+  if TaskExists() then
+    SuppressibleMsgBox(CustomMessage('TaskLeft'), mbError, MB_OK, IDOK);
+end;
+
+function PawnIOUninstaller(): String;
+var
+  Command: String;
+  Quote: Integer;
+begin
+  Result := '';
+  if not (RegQueryStringValue(HKLM64, PawnIOKey, 'UninstallString', Command) or
+          RegQueryStringValue(HKLM32, PawnIOKey, 'UninstallString', Command)) then Exit;
+  Command := Trim(Command);
+  if (Length(Command) > 1) and (Command[1] = '"') then
+  begin
+    Delete(Command, 1, 1);
+    Quote := Pos('"', Command);
+    if Quote > 0 then Result := Copy(Command, 1, Quote - 1);
+  end;
+end;
+
+procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
+var
+  Code: Integer;
+  Uninstaller: String;
+begin
+  if CurUninstallStep = usUninstall then
+    DeleteLogonTask();
+  if CurUninstallStep = usPostUninstall then
+  begin
+    if (not UninstallSilent()) and
+       (MsgBox(CustomMessage('RemoveUserData'), mbConfirmation, MB_YESNO or MB_DEFBUTTON2) = IDYES) then
+      DelTree(ExpandConstant('{userappdata}\OpenChroma'), True, True, True);
+    Uninstaller := PawnIOUninstaller();
+    if (not UninstallSilent()) and (Uninstaller <> '') and FileExists(Uninstaller) and
+       (MsgBox(CustomMessage('RemovePawnIO'), mbConfirmation, MB_YESNO or MB_DEFBUTTON2) = IDYES) then
+      ShellExec('runas', Uninstaller, '-uninstall -silent', '', SW_HIDE, ewWaitUntilTerminated, Code);
   end;
 end;
