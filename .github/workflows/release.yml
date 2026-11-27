@@ -1,0 +1,116 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Build and draft the release
+    runs-on: windows-latest
+    timeout-minutes: 90
+    steps:
+      - name: Check out
+        uses: actions/checkout@v5
+
+      - name: Read and verify the version
+        id: version
+        run: |
+          $pubspec = Get-Content pubspec.yaml -Raw
+          if ($pubspec -notmatch '(?m)^version:\s*([0-9]+\.[0-9]+\.[0-9]+)') {
+            Write-Error 'Could not read the version from pubspec.yaml.'
+          }
+          $version = $Matches[1]
+          $tag = $env:GITHUB_REF_NAME
+          if ($tag -ne "v$version") {
+            Write-Error "Tag $tag does not match the pubspec.yaml version $version (expected v$version)."
+          }
+          "version=$version" >> $env:GITHUB_OUTPUT
+          "tag=$tag" >> $env:GITHUB_OUTPUT
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: 3.47.x
+          cache: true
+
+      - name: Install Inno Setup
+        run: |
+          $roots = @(${env:ProgramFiles(x86)}, $env:ProgramFiles)
+          $find = { $roots | ForEach-Object { Get-ChildItem $_ -Directory -Filter 'Inno Setup*' -ErrorAction SilentlyContinue } |
+            ForEach-Object { Join-Path $_.FullName 'ISCC.exe' } | Where-Object { Test-Path $_ } | Select-Object -First 1 }
+          $iscc = & $find
+          if (-not $iscc) {
+            choco install innosetup -y --no-progress
+            if ($LASTEXITCODE -ne 0) { Write-Error 'choco install innosetup failed.' }
+            $iscc = & $find
+          }
+          if (-not $iscc) { Write-Error 'ISCC.exe not found after installing Inno Setup.' }
+          Write-Host "Using $iscc"
+          Split-Path $iscc >> $env:GITHUB_PATH
+
+      - name: Build the release
+        run: powershell -NoProfile -ExecutionPolicy Bypass -File scripts\build-release.ps1 -Version ${{ steps.version.outputs.version }}
+
+      - name: Check the artifacts
+        run: |
+          $v = '${{ steps.version.outputs.version }}'
+          foreach ($f in "dist\OpenChroma-$v-setup.exe", "dist\OpenChroma-$v-portable.zip", 'dist\SHA256SUMS.txt') {
+            if (-not (Test-Path $f)) { Write-Error "$f was not created." }
+          }
+          Get-Content dist\SHA256SUMS.txt
+
+      - name: Write the release notes
+        run: |
+          $v = '${{ steps.version.outputs.version }}'
+          $tag = '${{ steps.version.outputs.tag }}'
+          $lines = Get-Content CHANGELOG.md -Encoding utf8
+          $start = -1
+          for ($i = 0; $i -lt $lines.Count; $i++) {
+            if ($lines[$i] -match "^## \[$([regex]::Escape($v))\]") { $start = $i; break }
+          }
+          if ($start -lt 0) { Write-Error "CHANGELOG.md has no '## [$v]' section." }
+          $body = foreach ($line in $lines[($start + 1)..($lines.Count - 1)]) {
+            if ($line -match '^## \[' -or $line -match '^\[[^\]]+\]:\s') { break }
+            $line
+          }
+          $repo = "$env:GITHUB_SERVER_URL/$env:GITHUB_REPOSITORY"
+          $notes = @(
+            ($body -join "`n").Trim()
+            ''
+            '## Downloads'
+            ''
+            "- ``OpenChroma-$v-setup.exe``: installer (recommended)."
+            "- ``OpenChroma-$v-portable.zip``: portable version, extract and run ``openchroma.exe``."
+            '- `SHA256SUMS.txt`: checksums of both files.'
+            ''
+            'Please read the [disclaimer](' + $repo + '/blob/' + $tag + '/README.md#disclaimer--use-at-your-own-risk) before using OpenChroma.'
+            ''
+            '## Source code'
+            ''
+            "OpenChroma is free software under the GPL-2.0-or-later. The complete source code of this release is available at [$tag]($repo/tree/$tag)."
+          ) -join "`n"
+          Set-Content release-notes.md $notes -Encoding utf8
+          Get-Content release-notes.md
+
+      - name: Create the draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $v = '${{ steps.version.outputs.version }}'
+          $tag = '${{ steps.version.outputs.tag }}'
+          $files = "dist\OpenChroma-$v-setup.exe", "dist\OpenChroma-$v-portable.zip", 'dist\SHA256SUMS.txt'
+          gh release view $tag *> $null
+          if ($LASTEXITCODE -eq 0) {
+            gh release upload $tag @files --clobber
+          } else {
+            gh release create $tag @files --draft --verify-tag --title "OpenChroma $v" --notes-file release-notes.md
+          }

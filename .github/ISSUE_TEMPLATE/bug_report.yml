@@ -1,0 +1,78 @@
+name: Bug report
+description: Something doesn't work as expected.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting! Please search the existing issues first.
+        Security problems must be reported privately: see SECURITY.md.
+  - type: input
+    id: version
+    attributes:
+      label: OpenChroma version
+      description: Shown in Settings. For a build from source, the commit.
+      placeholder: "0.9.0"
+    validations:
+      required: true
+  - type: dropdown
+    id: install
+    attributes:
+      label: How did you install it?
+      options:
+        - Installer (setup.exe)
+        - Portable (.zip)
+        - Built from source
+    validations:
+      required: true
+  - type: input
+    id: windows
+    attributes:
+      label: Windows version
+      description: Run `winver` to see it.
+      placeholder: "Windows 11 24H2 (build 26100)"
+    validations:
+      required: true
+  - type: dropdown
+    id: admin
+    attributes:
+      label: Was the app running as administrator?
+      options:
+        - "Yes"
+        - "No"
+        - Not sure
+    validations:
+      required: true
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: What you did, what you expected and what happened instead.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Open Devices
+        2. Select ...
+        3. ...
+    validations:
+      required: true
+  - type: textarea
+    id: hardware
+    attributes:
+      label: Related hardware
+      description: Devices, motherboard, GPU or RAM involved, if any. Other RGB apps installed (iCUE, G HUB, OpenRGB...).
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: Contents of `%APPDATA%\OpenChroma\crash.log` or the device log, if relevant. Remove anything private.
+      render: text
+  - type: textarea
+    id: screenshots
+    attributes:
+      label: Screenshots
+      description: Drag images here if they help.

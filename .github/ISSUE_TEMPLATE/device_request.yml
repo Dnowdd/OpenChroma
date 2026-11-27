@@ -1,0 +1,85 @@
+name: Device request or report
+description: A device isn't detected, doesn't work well, or works and you want to say so.
+labels: ["device"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Most devices use drivers inherited from OpenRGB that nobody has tested with OpenChroma yet.
+        Reports of devices that work are just as useful as reports of devices that don't.
+  - type: dropdown
+    id: kind
+    attributes:
+      label: What is this about?
+      options:
+        - The device isn't detected
+        - The device is detected but doesn't work well
+        - The device works (test report)
+    validations:
+      required: true
+  - type: input
+    id: name
+    attributes:
+      label: Device name and model
+      placeholder: "Brand Model X (wired / 2.4 GHz / Bluetooth)"
+    validations:
+      required: true
+  - type: dropdown
+    id: type
+    attributes:
+      label: Device type
+      options:
+        - Keyboard
+        - Mouse
+        - Headset
+        - Mousepad
+        - Motherboard
+        - Graphics card
+        - RAM
+        - LED strip / ARGB controller
+        - Cooler / fan
+        - Gamepad
+        - Case
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: vidpid
+    attributes:
+      label: USB VID and PID
+      description: |
+        Device Manager › the device › Properties › Details › Hardware Ids. Paste every line, for example `HID\VID_1234&PID_5678&MI_01`.
+        Not needed for RAM, graphics cards or motherboard RGB on the SMBus.
+      render: text
+  - type: input
+    id: version
+    attributes:
+      label: OpenChroma version
+      placeholder: "0.9.0"
+    validations:
+      required: true
+  - type: textarea
+    id: behavior
+    attributes:
+      label: What works and what doesn't in OpenChroma
+      description: Detection, colors, hardware effects, battery, screen...
+    validations:
+      required: true
+  - type: textarea
+    id: vendor
+    attributes:
+      label: What the vendor app can do
+      description: Name of the official app and its features (per-key lighting, effects, battery, screen, DPI...).
+  - type: textarea
+    id: capture
+    attributes:
+      label: USB capture (optional)
+      description: |
+        A Wireshark + USBPcap capture of the vendor app changing colors helps a lot to write a plugin.
+        Attach the `.pcapng` (zipped) and say what you did during the capture.
+  - type: checkboxes
+    id: test
+    attributes:
+      label: Testing
+      options:
+        - label: I can test a plugin or a development build on this device.

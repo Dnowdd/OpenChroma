@@ -1,0 +1,75 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  build:
+    name: Analyze, test and build
+    runs-on: windows-latest
+    timeout-minutes: 75
+    steps:
+      - name: Check out
+        uses: actions/checkout@v5
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: 3.47.x
+          cache: true
+
+      - name: Show Flutter version
+        run: flutter --version
+
+      - name: Get packages
+        run: flutter pub get
+
+      - name: Merge translations
+        run: python scripts/merge-l10n.py
+
+      - name: Generate localizations
+        run: flutter gen-l10n
+
+      - name: Check generated localizations are committed
+        run: |
+          $changes = git status --porcelain -- lib/l10n
+          if ($changes) {
+            $changes
+            git --no-pager diff -- lib/l10n
+            Write-Error 'lib/l10n is out of date: run "python scripts/merge-l10n.py" and "flutter gen-l10n", then commit the result.'
+          }
+
+      - name: Check formatting
+        run: dart format --output=none --set-exit-if-changed lib test
+
+      - name: Analyze
+        run: flutter analyze
+
+      - name: Test
+        run: flutter test
+
+      - name: Clear stale Windows unpack stamps
+        run: |
+          Get-ChildItem .dart_tool\flutter_build -Recurse -Filter unpack_windows.stamp -ErrorAction SilentlyContinue |
+            Remove-Item -Force
+
+      - name: Build Windows release
+        run: flutter build windows --release
+
+      - name: Plugin tests
+        env:
+          OC_PLUGIN_TEST: "1"
+        run: |
+          $env:PATH = "$env:GITHUB_WORKSPACE\build\windows\x64\runner\Release;$env:PATH"
+          flutter test test/plugins_test.dart

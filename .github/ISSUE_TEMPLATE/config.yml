@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Questions and ideas
+    url: https://github.com/Dnowdd/OpenChroma/discussions
+    about: Ask questions, share effects and plugins, and discuss ideas.
+  - name: Report a security vulnerability
+    url: https://github.com/Dnowdd/OpenChroma/security/advisories/new
+    about: Please report security problems privately, not as public issues.
